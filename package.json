@@ -1,0 +1,114 @@
+{
+  "name": "chainmaker-v4",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "version": "4.0.0",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "build": "NODE_OPTIONS=--max-old-space-size=2048 vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "electron:dev:main": "vite build -c vite.electron.main.config.ts --watch --mode development",
+    "electron:dev:renderer": "vite serve -c vite.electron.config.ts",
+    "electron:dev": "concurrently -k -n main,renderer,electron \"npm run electron:dev:main\" \"npm run electron:dev:renderer\" \"wait-on tcp:5174 && electron .\"",
+    "electron:build": "vite build -c vite.electron.main.config.ts && vite build -c vite.electron.config.ts && electron-builder",
+    "electron:publish": "npm run electron:build:vite && electron-builder --publish always",
+    "electron:build:vite": "vite build -c vite.electron.main.config.ts && vite build -c vite.electron.config.ts"
+  },
+  "build": {
+    "appId": "com.chainmaker.electron",
+    "productName": "ChainMaker",
+    "files": [
+      "dist-electron/**/*",
+      "dist-electron-renderer/**/*"
+    ],
+    "directories": {
+      "output": "dist-app"
+    },
+    "fileAssociations": [
+      {
+        "ext": "chain",
+        "name": "ChainMaker Chain",
+        "role": "Editor"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "thedarkwad",
+      "repo": "chainmaker-v4"
+    }
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1004.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@react-pdf/renderer": "^4.3.2",
+    "@tailwindcss/vite": "^4.0.6",
+    "@tanstack/react-devtools": "^0.7.0",
+    "@tanstack/react-router": "^1.132.0",
+    "@tanstack/react-router-devtools": "^1.132.0",
+    "@tanstack/react-router-ssr-query": "^1.131.7",
+    "@tanstack/react-start": "^1.132.0",
+    "@tanstack/router-plugin": "^1.132.0",
+    "@types/mdast": "^4.0.4",
+    "adm-zip": "^0.5.16",
+    "electron-context-menu": "^3.6.1",
+    "electron-updater": "^6.8.3",
+    "fflate": "^0.8.2",
+    "firebase": "^12.10.0",
+    "firebase-admin": "^13.7.0",
+    "immer": "^11.1.3",
+    "lucide-react": "^0.561.0",
+    "mongoose": "^9.2.4",
+    "nanoid": "^5.1.6",
+    "nanoid-dictionary": "^5.0.0",
+    "nitro": "latest",
+    "pdfjs-dist": "^5.5.207",
+    "primereact": "^10.9.7",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "react-scrollbars-custom": "^4.1.1",
+    "react-toastify": "^11.0.5",
+    "reselect": "^5.1.1",
+    "sharp": "^0.34.5",
+    "sweetalert2": "^11.26.20",
+    "sweetalert2-react-content": "^5.1.1",
+    "tailwindcss": "^4.0.6",
+    "turndown": "^7.2.2",
+    "vite-tsconfig-paths": "^6.0.2",
+    "zustand": "^5.0.9"
+  },
+  "devDependencies": {
+    "@tanstack/devtools-vite": "^0.3.11",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.2.0",
+    "@types/adm-zip": "^0.5.8",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/sharp": "^0.31.1",
+    "@vitejs/plugin-react": "^5.0.4",
+    "concurrently": "^9.0.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "jsdom": "^27.0.0",
+    "rollup-plugin-visualizer": "^7.0.1",
+    "typescript": "^5.7.2",
+    "vite": "^7.1.7",
+    "vitest": "^3.0.5",
+    "wait-on": "^8.0.5",
+    "web-vitals": "^5.1.0"
+  }
+}

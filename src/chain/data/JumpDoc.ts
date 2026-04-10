@@ -1,0 +1,205 @@
+import { Duration } from "@/utilities/units";
+import { Currency, OriginCategory, PurchaseSubtype } from "./Jump";
+import { RewardType, SimpleValue, Value } from "./Purchase";
+import { Id, Lookup, Registry, TID } from "./types";
+
+export type DocOriginCategory = OriginCategory & { max?: number } & (
+    | { singleLine: true; options: FreeFormOrigin[] }
+    | { singleLine: false; random?: { cost: SimpleValue<TID.Currency>; bounds?: PageRect[] } }
+  );
+
+// TODO: test companion imports in supplements
+
+export type AnnotationType = {
+  "origin-category": { id: Id<TID.OriginCategory> };
+  origin: { id: Id<TID.Origin> };
+  "origin-option": { id: Id<TID.OriginCategory>; index: number };
+  "origin-randomizer": { id: Id<TID.OriginCategory> };
+  "currency-exchange": {
+    docIndex: number;
+    oCurrency: Id<TID.Currency>;
+    tCurrency: Id<TID.Currency>;
+    oamount: number;
+    tamount: number;
+  };
+  purchase: { id: Id<TID.Purchase> };
+  drawback: { id: Id<TID.Drawback> };
+  scenarios: { id: Id<TID.Scenario> };
+  companion: { id: Id<TID.Companion> };
+};
+
+export type Annotation<T extends keyof AnnotationType> = {
+  rect: Rect;
+  label: string;
+  color: string;
+} & {
+  type: T;
+} & AnnotationType[T];
+
+//FullAnnotations, indexed by page; for use in chains
+export type FullAnnotations = Record<
+  number,
+  {
+    [K in keyof AnnotationType]: Annotation<K>;
+  }[keyof AnnotationType][]
+>;
+
+export type Rect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type PageRect = Rect & {
+  page: number;
+};
+
+export type OriginStipendEntry = {
+  currency: Id<TID.Currency>;
+  purchaseSubtype: Id<TID.PurchaseSubtype>;
+  amount: number;
+};
+
+export type OriginTemplate = {
+  name: string;
+  description?: string;
+  choiceContext?: string;
+  cost: SimpleValue<TID.Currency>;
+  type: Id<TID.OriginCategory>;
+  bounds?: PageRect[];
+  /** Stipend entries granted to the character while this origin is held. */
+  originStipend?: OriginStipendEntry[];
+
+  /** Origins that affect the cost or availability of this choice. */
+  synergies?: Id<TID.Origin>[];
+  /** How a qualifying origin affects this choice: discounts it, makes it free, or restricts it to origin holders only. */
+  synergyBenefit?: "discounted" | "free" | "access";
+};
+
+export type AlternativeCostPrerequisite =
+  | { type: "origin"; id: Id<TID.Origin> }
+  | { type: "drawback"; id: Id<TID.Drawback> }
+  | { type: "purchase"; id: Id<TID.Purchase> };
+
+export type AlternativeCost = {
+  value: Value<TID.Currency>;
+  prerequisites: AlternativeCostPrerequisite[];
+  mandatory: boolean;
+};
+
+export type PurchasePrerequisite =
+  | { type: "purchase"; id: Id<TID.Purchase>; positive: boolean }
+  | { type: "drawback"; id: Id<TID.Drawback>; positive: boolean }
+  | { type: "scenario"; id: Id<TID.Scenario>; positive: boolean };
+
+export type PurchaseTemplate<T extends TID> = {
+  name: string;
+  id: Id<T>;
+  description: string;
+  choiceContext?: string;
+  cost: Value<TID.Currency>;
+  bounds?: PageRect[];
+  allowMultiple: boolean;
+  alternativeCosts?: AlternativeCost[];
+  prerequisites?: PurchasePrerequisite[];
+};
+
+/**
+ * A single option within a singleLine origin category.
+ *
+ * `type: "freeform"` — the reader types their own value; `name` is unused.
+ * `type: "template"` — the creator supplies a preset string in `name`, which
+ *   may embed random placeholders resolved at runtime:
+ *     - `${n-m}`   → random integer in the range [n, m]. Example: `${18-36}`
+ *     - `${A|B|C}` → random pick from the listed options.  Example: `${Man|Woman}`
+ *   These may be combined freely: `${18-36} Year-Old ${Man|Woman}`
+ */
+export type FreeFormOrigin = {
+  name: string;
+  type: "freeform" | "template";
+  cost: SimpleValue<TID.Currency>;
+  bounds?: PageRect[];
+};
+
+export type CompanionTemplate = Omit<PurchaseTemplate<TID.Companion>, "allowMultiple"> & {
+  allowances: Lookup<TID.Currency, number>;
+  stipend: Lookup<TID.Currency, TID.PurchaseSubtype, number>;
+
+  /** How many companions the player may take with this import. */
+  count: number;
+
+  specificCharacter: boolean;
+  characterInfo?: {
+    name: string;
+    species: string;
+    gender: string;
+  }[];
+
+  /** Origins that affect the cost or availability of this import. */
+  origins?: Id<TID.Origin>[];
+  /** How a qualifying origin affects this import: discounts it, makes it free, or restricts it to origin holders only. */
+  originBenefit?: "discounted" | "free" | "access";
+};
+
+export type BasicPurchaseTemplate = PurchaseTemplate<TID.Purchase> & {
+  capstoneBooster: boolean;
+  boosted: { description: string; booster: Id<TID.Purchase> }[];
+  subtype: Id<TID.PurchaseSubtype>;
+  temporary: boolean;
+  origins: Id<TID.Origin>[];
+  /** How a qualifying origin affects this purchase: discounts it, makes it free, or restricts it to origin holders only. */
+  originBenefit?: "discounted" | "free" | "access";
+};
+
+export type DrawbackTemplate = PurchaseTemplate<TID.Drawback> & {
+  durationMod?: { type: "inc" | "set"; years: number };
+};
+
+export type ScenarioRewardTemplate =
+  | { type: RewardType.Currency; value: number; currency: Id<TID.Currency> }
+  | { type: RewardType.Item | RewardType.Perk; id: Id<TID.Purchase> }
+  | {
+      type: RewardType.Stipend;
+      value: number;
+      currency: Id<TID.Currency>;
+      subtype: Id<TID.PurchaseSubtype>;
+    };
+
+export type ScenarioTemplate = Omit<PurchaseTemplate<TID.Scenario>, "cost"> & {
+  rewardGroups?: { rewards: ScenarioRewardTemplate[]; title: string; context: string }[];
+};
+
+export type DocCurrencyExchange = {
+  oCurrency: Id<TID.Currency>;
+  tCurrency: Id<TID.Currency>;
+  oamount: number;
+  tamount: number;
+  bounds?: PageRect[];
+};
+
+export type JumpDoc = {
+  name: string;
+  url: string;
+  author: string;
+
+  duration: Duration;
+  drawbackLimit?: number | null;
+  originStipend?: SimpleValue;
+  companionStipend?: SimpleValue;
+
+  originCategories: Registry<TID.OriginCategory, DocOriginCategory>;
+
+  origins: Registry<TID.Origin, OriginTemplate>;
+  currencies: Registry<TID.Currency, Currency>;
+  purchaseSubtypes: Registry<TID.PurchaseSubtype, PurchaseSubtype<TID.Currency>>;
+
+  availableCurrencyExchanges?: DocCurrencyExchange[];
+
+  availablePurchases: Registry<TID.Purchase, BasicPurchaseTemplate>;
+  availableCompanions: Registry<TID.Companion, CompanionTemplate>;
+  availableDrawbacks: Registry<TID.Drawback, DrawbackTemplate>;
+  availableScenarios: Registry<TID.Scenario, ScenarioTemplate>;
+};
+
+export const stripTemplating = (s: string) => s.trim();
