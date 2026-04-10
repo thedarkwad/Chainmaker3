@@ -7,6 +7,7 @@ export const THEMES = [
   { id: "autumn" as const, label: "Autumn" }, // H≈30
   { id: "desert-rose" as const, label: "Desert" }, // H≈28 sandy+rose
   { id: "copper" as const, label: "Copper" }, // H≈44
+  { id: "amber" as const, label: "Amber" }, // H≈44
   { id: "toxic" as const, label: "Toxic" }, // H≈120
   { id: "emerald" as const, label: "Emerald" }, // H≈155
   { id: "seafoam" as const, label: "Seafoam" }, // H≈175

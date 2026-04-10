@@ -105,6 +105,7 @@ const THEMES = [
   { id: "autumn", label: "Autumn" },
   { id: "desert-rose", label: "Desert" },
   { id: "copper", label: "Copper" },
+  { id: "amber", label: "Amber" },
   { id: "toxic", label: "Toxic" },
   { id: "emerald", label: "Emerald" },
   { id: "seafoam", label: "Seafoam" },
