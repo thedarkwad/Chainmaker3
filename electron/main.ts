@@ -293,7 +293,16 @@ function handleOpenFile(filePath: string): void {
 // ── Auto-updater ──────────────────────────────────────────────────────────────
 
 function setupAutoUpdater(): void {
+  autoUpdater.on("update-available", (info) => {
+    mainWindow?.webContents.send("updater:update-available", info.version);
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    mainWindow?.webContents.send("updater:download-progress", Math.floor(progress.percent));
+  });
+
   autoUpdater.on("update-downloaded", () => {
+    mainWindow?.webContents.send("updater:update-downloaded");
     dialog
       .showMessageBox(mainWindow!, {
         type: "info",

@@ -82,4 +82,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   confirmClose: () => {
     ipcRenderer.send("app:confirm-close");
   },
+  onUpdaterEvent: (channel: "update-available" | "download-progress" | "update-downloaded", cb: (payload: unknown) => void) => {
+    ipcRenderer.on(`updater:${channel}`, (_e, payload) => cb(payload));
+  },
 });

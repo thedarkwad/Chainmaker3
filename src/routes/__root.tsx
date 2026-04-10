@@ -1,5 +1,5 @@
 import { HeadContent, Outlet, Scripts, createRootRoute, useNavigate } from "@tanstack/react-router";
-import { ToastContainer, Zoom } from "react-toastify";
+import { ToastContainer, Zoom, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -178,6 +178,16 @@ function RootContent() {
       }
       api.confirmClose();
     };
+
+    api.onUpdaterEvent("update-available", (version) => {
+      toast.info(`Downloading update ${version}…`, { autoClose: false, toastId: "updater" });
+    });
+    api.onUpdaterEvent("download-progress", (pct) => {
+      toast.update("updater", { render: `Downloading update… ${pct as number}%` });
+    });
+    api.onUpdaterEvent("update-downloaded", () => {
+      toast.dismiss("updater");
+    });
 
     api.onMenuEvent("menu:new-chain", onNewChain);
     api.onMenuEvent("menu:open-chain", onOpenChain);

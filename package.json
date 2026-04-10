@@ -13,7 +13,7 @@
     "electron:dev:renderer": "vite serve -c vite.electron.config.ts",
     "electron:dev": "concurrently -k -n main,renderer,electron \"npm run electron:dev:main\" \"npm run electron:dev:renderer\" \"wait-on tcp:5174 && electron .\"",
     "electron:build": "vite build -c vite.electron.main.config.ts && vite build -c vite.electron.config.ts && electron-builder",
-    "electron:publish": "npm run electron:build:vite && electron-builder --publish always",
+    "electron:publish": "npm run electron:build:vite && cross-env-shell GH_TOKEN=$GH_TOKEN electron-builder --publish always",
     "electron:build:vite": "vite build -c vite.electron.main.config.ts && vite build -c vite.electron.config.ts"
   },
   "build": {
@@ -101,6 +101,7 @@
     "@types/sharp": "^0.31.1",
     "@vitejs/plugin-react": "^5.0.4",
     "concurrently": "^9.0.0",
+    "cross-env": "^10.1.0",
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
     "jsdom": "^27.0.0",

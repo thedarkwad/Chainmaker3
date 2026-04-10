@@ -142,4 +142,8 @@ type ElectronAPI = {
     addRecentFile(record: ElectronRecentFile): Promise<void>;
     removeRecentFile(id: string): Promise<void>;
   };
+  onUpdaterEvent(
+    channel: "update-available" | "download-progress" | "update-downloaded",
+    cb: (payload: unknown) => void,
+  ): void;
 };
