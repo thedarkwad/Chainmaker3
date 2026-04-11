@@ -470,8 +470,6 @@ export function adjustBudget(
 
     budget.currency[DEFAULT_CURRENCY_ID] -= jump.bankDeposits[charId] ?? 0;
 
-    if (isNaN(budget.currency[DEFAULT_CURRENCY_ID])) console.log("A");
-
     // Deduct origin costs.
     const charOrigins = jump.origins?.[charId];
     if (charOrigins) {
@@ -488,8 +486,6 @@ export function adjustBudget(
       }
     }
 
-    if (isNaN(budget.currency[DEFAULT_CURRENCY_ID])) console.log("B");
-
     // Deduct supplement investments from the main currency (currency 0).
     const charInvestments = jump.supplementInvestments?.[charId];
     if (charInvestments) {
@@ -498,7 +494,6 @@ export function adjustBudget(
       }
     }
 
-    console.log(jump.currencyExchanges?.[charId]);
     // Apply currency exchanges.
     for (const ex of jump.currencyExchanges?.[charId] ?? []) {
       budget.currency[ex.oCurrency] = (budget.currency[ex.oCurrency] ?? 0) - ex.oamount;
@@ -624,9 +619,7 @@ export function adjustBudget(
       if (!p) {
         continue;
       }
-      console.log(p.value, p.cost);
       const val = purchaseValue(p.value, p.cost) as Value;
-      console.log(val);
       for (const sv of val) {
         let amount = sv.amount;
         if (sv.currency == DEFAULT_CURRENCY_ID && jump.drawbackLimit) {
