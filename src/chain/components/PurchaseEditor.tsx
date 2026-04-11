@@ -339,7 +339,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
             size={13}
             className={`text-ghost shrink-0 transition-opacity ${subdued ? "sm:opacity-0 sm:group-hover:opacity-100" : ""}`}
           />
-          <span className="font-semibold text-sm shrink-0 truncate min-w-30 w-1/5">
+          <span className="font-semibold text-sm shrink-0 truncate min-w-30 w-1/5 max-w-fit">
             {purchase.name || <span className="font-normal text-ghost italic">Unnamed</span>}
           </span>
           {!hideCost && costShort && (

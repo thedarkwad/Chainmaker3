@@ -100,8 +100,8 @@ type ElectronAPI = {
     openFilePicker(): Promise<ElectronChainOpenResult | null>;
     /** Returns the currently open chain data (set by openFilePicker or initNewChain). */
     loadChain(): Promise<{ chain: unknown; imagePaths: Record<string, string> }>;
-    /** Applies patches to the open chain and writes to disk. Shows save dialog if unsaved. */
-    saveChain(patches: unknown[]): Promise<{ ok: boolean }>;
+    /** Writes chain data to disk. Shows save dialog if unsaved. */
+    saveChain(data: unknown): Promise<{ ok: boolean }>;
     /** Shows OS save-as dialog and writes the open chain to a new location. */
     saveChainAs(): Promise<{ ok: boolean }>;
     /** Removes from recent files list (does not delete the file). */
@@ -120,8 +120,8 @@ type ElectronAPI = {
     loadJumpdoc(filePath: string): Promise<ElectronJumpDocLoadResult>;
     /** Opens OS file picker for *.jumpdoc files, returns the path. */
     openJumpdocFilePicker(): Promise<{ filePath: string } | null>;
-    /** Saves a jumpdoc by applying patches. Shows save dialog on first save of a new doc. */
-    saveJumpdoc(id: string, patches: unknown[]): Promise<{ ok: boolean }>;
+    /** Writes jumpdoc data to disk. Shows save dialog on first save of a new doc. */
+    saveJumpdoc(id: string, data: unknown): Promise<{ ok: boolean }>;
     /** Persists gallery metadata (attributes, nsfw) to the jumpdoc zip's meta.json. */
     saveJumpdocMeta(id: string, meta: ElectronJumpDocSaveMeta): Promise<{ ok: boolean }>;
     /** Opens an image picker, copies the selected image as the jumpdoc thumbnail. */

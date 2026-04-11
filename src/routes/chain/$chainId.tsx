@@ -45,6 +45,8 @@ function ChainLoader() {
   const editsRef = useRef(0);
   // Keep a stable ref to handleSave so the autosave interval doesn't need to be re-registered.
   const handleSaveRef = useRef<() => Promise<void>>(async () => {});
+  // True until the first successful save — allows saving even with 0 patches (initial save).
+  const isPendingRef = useRef(false);
   // Register this tab with the clipboard so it clears when all /chain tabs close.
   useEffect(() => {
     registerClipboardTab();
@@ -79,6 +81,7 @@ function ChainLoader() {
         chainMongoIdRef.current = result.chainMongoId;
         editsRef.current = result.edits;
         setChainOwnerUid(result.ownerUid);
+        isPendingRef.current = (result as { isPending?: boolean }).isPending ?? false;
         useChainStore.getState().setChain(result.contents);
         useChainStore.getState().declareSynched();
         recordRecentChain(chainId, (result.contents as { name?: string }).name ?? "Untitled", result.ownerUid);
@@ -126,7 +129,7 @@ function ChainLoader() {
     if (saving || !chainMongoIdRef.current) return;
     const { updates } = useChainStore.getState();
     const patches = updates.cumulativePatches;
-    if (!patches.length) return;
+    if (!patches.length && !isPendingRef.current) return;
 
     const chainId = chainMongoIdRef.current;
     const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
@@ -137,6 +140,7 @@ function ChainLoader() {
       });
       if (result.status === "ok") {
         editsRef.current = result.edits;
+        isPendingRef.current = false;
         useChainStore.getState().declareSynched();
       } else if (result.status === "bad_patches") {
         const contents = useChainStore.getState().chain;

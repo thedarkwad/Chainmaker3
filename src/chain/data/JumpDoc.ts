@@ -144,7 +144,7 @@ export type CompanionTemplate = Omit<PurchaseTemplate<TID.Companion>, "allowMult
 
 export type BasicPurchaseTemplate = PurchaseTemplate<TID.Purchase> & {
   capstoneBooster: boolean;
-  boosted: { description: string; booster: Id<TID.Purchase> }[];
+  boosted: { description: string; booster: number; boosterKind?: "purchase" | "drawback" }[];
   subtype: Id<TID.PurchaseSubtype>;
   temporary: boolean;
   origins: Id<TID.Origin>[];
@@ -154,6 +154,7 @@ export type BasicPurchaseTemplate = PurchaseTemplate<TID.Purchase> & {
 
 export type DrawbackTemplate = PurchaseTemplate<TID.Drawback> & {
   durationMod?: { type: "inc" | "set"; years: number };
+  capstoneBooster?: boolean;
 };
 
 export type ScenarioRewardTemplate =

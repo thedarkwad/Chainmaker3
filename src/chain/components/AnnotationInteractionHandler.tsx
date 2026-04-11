@@ -1891,9 +1891,13 @@ function buildPurchaseInteraction(
   const floatingDiscountRelevant = floatingDiscountFreeRelevant || floatingDiscountOriginRelevant;
 
   // Capstone boosters: append boosted descriptions for any booster the user holds.
-  const boosterDescriptions = action.template.boosted.flatMap((b) =>
-    findByTemplate(action.docId, b.booster) !== undefined ? [b.description] : [],
-  );
+  const boosterDescriptions = action.template.boosted.flatMap((b) => {
+    const held =
+      b.boosterKind === "drawback"
+        ? findDrawback(action.docId, b.booster as Id<TID.Drawback>) !== undefined
+        : findByTemplate(action.docId, b.booster as Id<TID.Purchase>) !== undefined;
+    return held ? [b.description] : [];
+  });
 
   // If the user lacks a qualifying origin for an access-only purchase, block with an explanation.
   if (isAccessOnly && !hasOriginDiscount) {
@@ -2026,8 +2030,15 @@ function buildPurchaseInteraction(
       // Resolve booster purchases already held that boost this item so that deleting them
       // later can strip the booster text via stripBoostsFromPurchases.
       const reverseBoosts: { boosterPurchaseId: Id<GID.Purchase>; description: string }[] =
-        action.template.boosted.flatMap(({ booster: boosterTid, description: boostDesc }) => {
-          const boosterId = findByTemplate(action.docId, boosterTid);
+        action.template.boosted.flatMap(({ booster: boosterTid, boosterKind, description: boostDesc }) => {
+          // Default to "purchase" for old data without boosterKind.
+          if (boosterKind === "drawback") {
+            const boosterId = findDrawback(action.docId, boosterTid as Id<TID.Drawback>);
+            return boosterId !== undefined
+              ? [{ boosterPurchaseId: boosterId, description: boostDesc }]
+              : [];
+          }
+          const boosterId = findByTemplate(action.docId, boosterTid as Id<TID.Purchase>);
           return boosterId !== undefined
             ? [{ boosterPurchaseId: boosterId, description: boostDesc }]
             : [];
@@ -2574,6 +2585,15 @@ function buildDocItemInteraction(
         initialCost = { modifier: CostModifier.Custom, modifiedTo: resolvedValue };
       }
 
+      // For drawback capstone boosters: resolve which currently-held purchases gain booster text.
+      const boosts =
+        action.collection === "drawback" && action.isBoosterFor.length > 0
+          ? action.isBoosterFor.flatMap(({ templateId, description: boostDesc }) => {
+              const pId = findPurchase?.(action.docId, templateId);
+              return pId !== undefined ? [{ purchaseId: pId, description: boostDesc }] : [];
+            })
+          : undefined;
+
       const newId = addFromTemplate({
         name,
         description,
@@ -2583,6 +2603,7 @@ function buildDocItemInteraction(
         initialCost,
         alternativeCosts: storedAltCosts.length ? storedAltCosts : undefined,
         storedPrerequisites: storedPrereqs.length ? storedPrereqs : undefined,
+        ...(boosts?.length ? { boosts } : {}),
       });
       navigateTo(String(newId));
     }

@@ -3,7 +3,7 @@ import { Character } from "./Character";
 import { AltForm, LengthUnit, WeightUnit } from "./AltForm";
 import { Currency, Jump, JumpSource, JumpSourceType, OriginCategory, PurchaseSubtype } from "./Jump";
 import { type JumpDoc } from "./JumpDoc";
-import { PurchaseType, SimpleValue } from "./Purchase";
+import { DefaultSubtype, PurchaseType, SimpleValue } from "./Purchase";
 import { createId, createRegistry, GID, Id, LID, Registry } from "./types";
 import {
   BodyModPresets,
@@ -122,6 +122,100 @@ export function jumpFromDoc(
   };
 }
 
+/**
+ * Builds a new jump with standard default currencies, origin categories, and purchase
+ * subtypes. Used by both new-chain creation (URL/unknown source) and useAddJump so the
+ * initialization logic is never duplicated.
+ */
+export function jumpWithDefaults(
+  jumpId: Id<GID.Jump>,
+  name: string,
+  source: JumpSource,
+  defaultCP: number,
+): Jump {
+  const cpId = createId<LID.Currency>(0);
+  const perkId = DefaultSubtype[PurchaseType.Perk]; // 0
+  const itemId = DefaultSubtype[PurchaseType.Item]; // 1
+
+  const originCategories: Registry<LID.OriginCategory, OriginCategory> = {
+    O: {
+      0: { name: "Age", singleLine: true, multiple: false },
+      1: { name: "Gender", singleLine: true, multiple: false },
+      2: { name: "Location", singleLine: false, multiple: false },
+      3: { name: "Origin", singleLine: false, multiple: false },
+    } as Record<Id<LID.OriginCategory>, OriginCategory>,
+    fId: createId<LID.OriginCategory>(4),
+  };
+
+  const currencies: Registry<LID.Currency, Currency> = {
+    O: {
+      [cpId as number]: {
+        name: "Choice Points",
+        abbrev: "CP",
+        budget: +defaultCP || 0,
+        essential: true,
+      },
+    } as Record<Id<LID.Currency>, Currency>,
+    fId: createId<LID.Currency>(1),
+  };
+
+  const purchaseSubtypes: Registry<LID.PurchaseSubtype, PurchaseSubtype> = {
+    O: {
+      [perkId as number]: {
+        name: "Perk",
+        type: PurchaseType.Perk,
+        essential: true,
+        allowSubpurchases: false,
+        placement: "normal",
+        stipend: [{ amount: 0, currency: cpId }],
+      },
+      [itemId as number]: {
+        name: "Item",
+        type: PurchaseType.Item,
+        essential: true,
+        allowSubpurchases: false,
+        placement: "normal",
+        stipend: [{ amount: 0, currency: cpId }],
+      },
+      2: {
+        name: "Power",
+        type: PurchaseType.Perk,
+        essential: false,
+        allowSubpurchases: false,
+        placement: "normal",
+        stipend: [{ amount: 0, currency: cpId }],
+      },
+    } as Record<Id<LID.PurchaseSubtype>, PurchaseSubtype>,
+    fId: createId<LID.PurchaseSubtype>(3),
+  };
+
+  return {
+    id: jumpId,
+    name,
+    source,
+    duration: { days: 0, months: 0, years: 10 },
+    originCategories,
+    currencies,
+    purchaseSubtypes,
+    characters: [],
+    purchases: {},
+    drawbacks: {},
+    scenarios: {},
+    bankDeposits: {},
+    currencyExchanges: {},
+    supplementPurchases: {},
+    supplementInvestments: {},
+    notes: {},
+    narratives: {},
+    origins: {},
+    altForms: {},
+    useSupplements: true,
+    useNarrative: true,
+    useAltForms: true,
+    obsoletions: [],
+  };
+}
+
 export function buildNewChain({
   name,
   jumperName,
@@ -174,33 +268,12 @@ export function buildNewChain({
   const jump: Jump =
     doc && docPublicUid
       ? jumpFromDoc(doc, docPublicUid, jumpId, 1000, false)
-      : {
-          id: jumpId,
-          name: jumpName,
-          source: jumpSource ?? { type: JumpSourceType.Unknown },
-          duration: { days: 0, months: 0, years: 1 },
-          originCategories: { fId: createId<LID.OriginCategory>(0), O: {} },
-          currencies: createRegistry<LID.Currency, Jump["currencies"]["O"][Id<LID.Currency>]>({
-            0: { name: "CP", abbrev: "CP", budget: 1000, essential: true },
-          }),
-          purchaseSubtypes: { fId: createId<LID.PurchaseSubtype>(0), O: {} },
-          characters: [],
-          purchases: {},
-          drawbacks: {},
-          scenarios: {},
-          bankDeposits: {},
-          currencyExchanges: {},
-          supplementPurchases: {},
-          supplementInvestments: {},
-          notes: {},
-          narratives: {},
-          origins: {},
-          altForms: {},
-          useSupplements: true,
-          useNarrative: true,
-          useAltForms: true,
-          obsoletions: [],
-        };
+      : jumpWithDefaults(
+          jumpId,
+          jumpName,
+          jumpSource ?? { type: JumpSourceType.Unknown },
+          1000,
+        );
 
   // Build supplements
   const supplementEntries: [number, ChainSupplement][] = [];

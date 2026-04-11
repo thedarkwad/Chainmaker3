@@ -1180,6 +1180,25 @@ export function useJumpDocCapstoneBoosterPurchases(): { id: Id<TID.Purchase>; na
   }, [doc]);
 }
 
+/** All purchases AND drawbacks with capstoneBooster: true — used by BoostedEditor. */
+export function useJumpDocCapstoneBoosterItems(): {
+  id: number;
+  name: string;
+  kind: "purchase" | "drawback";
+}[] {
+  const doc = useJumpDoc();
+  return useMemo(() => {
+    if (!doc) return [];
+    const purchases = Object.entries(doc.availablePurchases.O)
+      .filter(([, t]) => t?.capstoneBooster)
+      .map(([idStr, t]) => ({ id: +idStr, name: t!.name, kind: "purchase" as const }));
+    const drawbacks = Object.entries(doc.availableDrawbacks.O)
+      .filter(([, t]) => t?.capstoneBooster)
+      .map(([idStr, t]) => ({ id: +idStr, name: t!.name, kind: "drawback" as const }));
+    return [...purchases, ...drawbacks];
+  }, [doc]);
+}
+
 /** IDs of purchases assigned to a specific subtype. */
 export function useJumpDocPurchaseIdsBySubtype(
   subtypeId: Id<TID.PurchaseSubtype>,

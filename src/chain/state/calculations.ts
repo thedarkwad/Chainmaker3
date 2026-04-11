@@ -470,8 +470,7 @@ export function adjustBudget(
 
     budget.currency[DEFAULT_CURRENCY_ID] -= jump.bankDeposits[charId] ?? 0;
 
-    if(isNaN(budget.currency[DEFAULT_CURRENCY_ID]))
-      console.log("A");
+    if (isNaN(budget.currency[DEFAULT_CURRENCY_ID])) console.log("A");
 
     // Deduct origin costs.
     const charOrigins = jump.origins?.[charId];
@@ -489,9 +488,7 @@ export function adjustBudget(
       }
     }
 
-        if(isNaN(budget.currency[DEFAULT_CURRENCY_ID]))
-      console.log("B");
-
+    if (isNaN(budget.currency[DEFAULT_CURRENCY_ID])) console.log("B");
 
     // Deduct supplement investments from the main currency (currency 0).
     const charInvestments = jump.supplementInvestments?.[charId];
@@ -627,7 +624,9 @@ export function adjustBudget(
       if (!p) {
         continue;
       }
+      console.log(p.value, p.cost);
       const val = purchaseValue(p.value, p.cost) as Value;
+      console.log(val);
       for (const sv of val) {
         let amount = sv.amount;
         if (sv.currency == DEFAULT_CURRENCY_ID && jump.drawbackLimit) {
@@ -988,13 +987,7 @@ export const synchronizeBudget = (
       jumpChunks: state.calculatedData.jumpChunks,
       grossSupplementStipend: state.calculatedData.grossSupplementStipend,
     }),
-    ({
-      chain,
-      retainedDrawbacks,
-      chainDrawbacks,
-      jumpChunks,
-      grossSupplementStipend,
-    }) => {
+    ({ chain, retainedDrawbacks, chainDrawbacks, jumpChunks, grossSupplementStipend }) => {
       if (
         !chain ||
         !Object.keys(chain.characters.O).includes(String(charId)) ||

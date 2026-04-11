@@ -423,17 +423,17 @@ export function AllowMultipleRow({
 
 const BOOSTER_COLOR = "#8b5cf6";
 
-/** Portal dropdown for selecting which capstone booster purchase applies. */
+/** Portal dropdown for selecting which capstone booster purchase or drawback applies. */
 function BoostedByMultiselect({
   available,
   selected,
   onAdd,
   onRemove,
 }: {
-  available: { id: Id<TID.Purchase>; name: string }[];
-  selected: Id<TID.Purchase>[];
-  onAdd: (id: Id<TID.Purchase>) => void;
-  onRemove: (id: Id<TID.Purchase>) => void;
+  available: { id: number; name: string; kind: "purchase" | "drawback" }[];
+  selected: number[];
+  onAdd: (id: number, kind: "purchase" | "drawback") => void;
+  onRemove: (id: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
@@ -481,12 +481,15 @@ function BoostedByMultiselect({
               <button
                 key={b.id}
                 onClick={() => {
-                  onAdd(b.id);
+                  onAdd(b.id, b.kind);
                   setOpen(false);
                 }}
                 className="w-full text-left px-3 py-1.5 text-sm text-ink hover:bg-tint transition-colors"
               >
                 {b.name}
+                {b.kind === "drawback" && (
+                  <span className="ml-1.5 text-[10px] text-red-400 opacity-70">drawback</span>
+                )}
               </button>
             ))}
           </div>,
@@ -539,25 +542,19 @@ function BoostedByMultiselect({
  * `boosted[i].booster` stores a purchase ID cast to Id<TID.Origin> (existing type).
  */
 export function BoostedEditor({
-  purchaseId,
   boosted,
-  capstoneBoosterPurchases,
+  capstoneBoosterItems,
   onAdd,
   onRemove,
   onCommitDescription,
 }: {
-  purchaseId: Id<TID.Purchase>;
-  boosted: { description: string; booster: Id<TID.Purchase> }[];
-  capstoneBoosterPurchases: { id: Id<TID.Purchase>; name: string }[];
-  onAdd: (boosterId: Id<TID.Purchase>) => void;
-  onRemove: (boosterId: Id<TID.Purchase>) => void;
-  onCommitDescription: (boosterId: Id<TID.Purchase>, desc: string) => void;
+  boosted: { description: string; booster: number; boosterKind?: "purchase" | "drawback" }[];
+  capstoneBoosterItems: { id: number; name: string; kind: "purchase" | "drawback" }[];
+  onAdd: (boosterId: number, boosterKind: "purchase" | "drawback") => void;
+  onRemove: (boosterId: number) => void;
+  onCommitDescription: (boosterId: number, desc: string) => void;
 }) {
-  // Exclude this purchase from its own booster list.
-  const available = capstoneBoosterPurchases
-    .filter((b) => b.id !== purchaseId)
-    .map((b) => ({ id: b.id, name: b.name }));
-
+  const available = capstoneBoosterItems;
   const selectedIds = boosted.map((b) => b.booster);
 
   return (

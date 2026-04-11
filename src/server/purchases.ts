@@ -28,6 +28,7 @@ export async function syncJumpDocPurchases(
   const docs: object[] = [];
   for (const [tidStr, template] of Object.entries(contents.availablePurchases.O)) {
     if (!template) continue;
+    if (!template.name || !template.description) continue;
     const templateId = Number(tidStr);
 
     const subtype = contents.purchaseSubtypes.O[template.subtype as never];

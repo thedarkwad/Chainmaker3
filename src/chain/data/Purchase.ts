@@ -231,6 +231,8 @@ export type Drawback = (
       alternativeCosts?: StoredAlternativeCost[];
       /** Stored prerequisites; used for cascade-removal when a required purchase/drawback is removed. */
       storedPrerequisites?: StoredPurchasePrerequisite[];
+      /** Purchases boosted by this drawback (capstone booster); used to strip text on removal. */
+      boosts?: { purchaseId: Id<GID.Purchase>; description: string }[];
     })
   | (Omit<AbstractPurchase, "charId"> & { type: PurchaseType.ChainDrawback; value: number })
 ) & {

@@ -27,7 +27,9 @@ import {
   type ChainSummary,
 } from "@/api/chains";
 import { listJumpDocs, createJumpDoc, deleteJumpDoc, JumpDocSummary } from "@/api/jumpdocs";
+import { uploadImage } from "@/api/images";
 import { convertChain } from "@/chain/conversion";
+import { unzipSync } from "fflate";
 import { NewChainForm } from "@/app/components/NewChainForm";
 import { RecentJumpDocsSidebar } from "@/app/components/RecentJumpDocsSidebar";
 import { getRecentChains, type RecentChain } from "@/app/state/recentChains";
@@ -267,7 +269,7 @@ function DocRow({
       </span>
       {confirming ? (
         <div className="flex shrink-0 items-center gap-1">
-          <span className="text-xs text-muted">Delete? This cannot be undone.</span>
+          <span className="text-xs text-muted">Delete?</span>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -449,24 +451,28 @@ function ActionsCard({
   importing,
   converting,
   importError,
+  importResult,
   convertError,
   onNewChain,
   onImport,
   onConvert,
+  onNavigateToChain,
 }: {
   jsonInputRef: React.RefObject<HTMLInputElement | null>;
   pdfInputRef: React.RefObject<HTMLInputElement | null>;
   importing: boolean;
   converting: boolean;
   importError: string | null;
+  importResult: { publicUid: string; skippedImages: string[] } | null;
   convertError: string | null;
   onNewChain: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onConvert: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onNavigateToChain: (id: string) => void;
 }) {
   return (
     <section className="flex w-full md:w-40 lg:w-52 shrink-0 flex-row md:flex-col items-center justify-evenly gap-5 rounded-xl border border-accent2/30 bg-linear-to-b from-tint to-accent2-tint px-5 py-8 shadow-sm md:justify-stretch">
-      <input ref={jsonInputRef} type="file" accept=".json" className="hidden" onChange={onImport} />
+      <input ref={jsonInputRef} type="file" accept=".json,.chain" className="hidden" onChange={onImport} />
       <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={onConvert} />
 
       {/* New Chain */}
@@ -503,6 +509,24 @@ function ActionsCard({
           {importing ? "Importing…" : "Choose File"}
         </button>
         {importError && <p className="text-center text-xs text-danger">{importError}</p>}
+        {importResult && (
+          <div className="rounded border border-edge bg-surface p-2 text-xs text-muted">
+            <p className="mb-1 font-medium text-ink">
+              {importResult.skippedImages.length} image{importResult.skippedImages.length !== 1 ? "s" : ""} skipped (storage full):
+            </p>
+            <ul className="mb-2 list-inside list-disc text-ghost">
+              {importResult.skippedImages.map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+            <button
+              onClick={() => onNavigateToChain(importResult.publicUid)}
+              className="rounded bg-accent2 px-3 py-1 text-xs font-medium text-surface hover:bg-accent"
+            >
+              Open Chain
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Convert JumpDoc */}
@@ -545,6 +569,7 @@ function PortalPage() {
   const [convertError, setConvertError] = useState<string | null>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<{ publicUid: string; skippedImages: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   let [browseMode, setBrowseMode] = useState<"chain" | "jumpdoc">("chain");
@@ -590,22 +615,100 @@ function PortalPage() {
     if (!file || !firebaseUser) return;
     e.target.value = "";
     setImportError(null);
+    setImportResult(null);
     setImporting(true);
     try {
-      const raw = await file.text();
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      const contents = parsed.versionNumber === "3.0" ? parsed : convertChain(parsed);
-      const idToken = await firebaseUser.getIdToken();
-      const { publicUid } = await createChain({ data: { idToken, contents } });
-      // Navigation out of the portal into a new chain editor. The chain's
-      // UpdateStack doesn't exist yet so bare useNavigate is used intentionally.
-      navigate({ to: "/chain/$chainId", params: { chainId: publicUid } });
+      const isChainFile = file.name.toLowerCase().endsWith(".chain");
+
+      if (isChainFile) {
+        const uint8 = new Uint8Array(await file.arrayBuffer());
+        const unzipped = unzipSync(uint8);
+
+        const dataBytes = unzipped["data.json"];
+        if (!dataBytes) throw new Error("Invalid .chain file: missing data.json");
+
+        const raw = JSON.parse(new TextDecoder().decode(dataBytes)) as Record<string, unknown>;
+        const isLegacy = raw.versionNumber !== "3.0";
+        const chain = isLegacy ? convertChain(raw as object) : raw;
+        const chainCopy = JSON.parse(JSON.stringify(chain)) as Record<string, unknown>;
+        const altforms =
+          (chainCopy.altforms as { O?: Record<string, Record<string, unknown>> } | undefined)?.O ?? {};
+
+        const imageFolder = isLegacy ? "user_images/" : "images/";
+        const imageEntries = Object.entries(unzipped).filter(
+          ([name]) => name.startsWith(imageFolder) && name.length > imageFolder.length,
+        );
+
+        const idToken = await firebaseUser.getIdToken();
+        const skippedImages: string[] = [];
+        const uploadedImageIds: string[] = [];
+
+        for (const [entryName, imageData] of imageEntries) {
+          const filename = entryName.slice(imageFolder.length);
+          const altFormKey = filename.replace(/\.[^.]+$/, "");
+
+          let binary = "";
+          for (let i = 0; i < imageData.length; i++) binary += String.fromCharCode(imageData[i]);
+          const fileData = btoa(binary);
+
+          let newImgId: string;
+          try {
+            const result = await uploadImage({
+              data: { idToken, fileName: filename, fileData, bytes: imageData.length },
+            });
+            newImgId = result._id;
+          } catch {
+            const afName =
+              (altforms[altFormKey] as { name?: string } | undefined)?.name ?? filename;
+            skippedImages.push(afName);
+            continue;
+          }
+
+          uploadedImageIds.push(newImgId);
+
+          if (isLegacy) {
+            if (altforms[altFormKey]) {
+              (altforms[altFormKey] as Record<string, unknown>).image = {
+                type: "internal",
+                imgId: newImgId,
+              };
+            }
+          } else {
+            for (const af of Object.values(altforms)) {
+              const img = (af as { image?: { type?: string; imgId?: string } }).image;
+              if (img?.type === "internal" && img.imgId === altFormKey) img.imgId = newImgId;
+            }
+          }
+        }
+
+        const { publicUid } = await createChain({
+          data: { idToken, contents: chainCopy, imageIds: uploadedImageIds },
+        });
+
+        if (skippedImages.length > 0) {
+          setImportResult({ publicUid, skippedImages });
+        } else {
+          // Navigation out of the portal into a new chain editor. The chain's
+          // UpdateStack doesn't exist yet so bare useNavigate is used intentionally.
+          navigate({ to: "/chain/$chainId", params: { chainId: publicUid } });
+        }
+      } else {
+        const raw = JSON.parse(await file.text()) as Record<string, unknown>;
+        const contents = raw.versionNumber === "3.0" ? raw : convertChain(raw as object);
+        const idToken = await firebaseUser.getIdToken();
+        const { publicUid } = await createChain({ data: { idToken, contents } });
+        // Navigation out of the portal into a new chain editor. The chain's
+        // UpdateStack doesn't exist yet so bare useNavigate is used intentionally.
+        navigate({ to: "/chain/$chainId", params: { chainId: publicUid } });
+      }
     } catch (err) {
       console.error("Chain import failed:", err);
       setImportError(
         err instanceof SyntaxError
           ? "That file doesn't look like valid JSON."
-          : "Import failed — check the console for details.",
+          : err instanceof Error
+            ? err.message
+            : "Import failed — check the console for details.",
       );
     } finally {
       setImporting(false);
@@ -799,10 +902,14 @@ function PortalPage() {
                     importing={importing}
                     converting={converting}
                     importError={importError}
+                    importResult={importResult}
                     convertError={convertError}
                     onNewChain={() => setShowNewChainModal(true)}
                     onImport={handleImportChain}
                     onConvert={handleConvertJumpDoc}
+                    onNavigateToChain={(id) =>
+                      navigate({ to: "/chain/$chainId", params: { chainId: id } })
+                    }
                   />
                 </div>
               </div>

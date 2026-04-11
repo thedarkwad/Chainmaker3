@@ -23,12 +23,12 @@ import {
   type AnnotationType,
   type BasicPurchaseTemplate,
   type CompanionTemplate,
+  type DrawbackTemplate,
   type DocOriginCategory,
   type FreeFormOrigin,
   type FullAnnotations,
   type JumpDoc,
   type OriginTemplate,
-  type PurchaseTemplate,
   type ScenarioTemplate,
 } from "@/chain/data/JumpDoc";
 import { useWindowDocument } from "@/ui/WindowDocumentContext";
@@ -648,7 +648,7 @@ function buildAnnotationActions(
     ];
   }
   if (ann.type === "drawback") {
-    const t = doc.availableDrawbacks.O[ann.id] as PurchaseTemplate<TID.Drawback> | undefined;
+    const t = doc.availableDrawbacks.O[ann.id] as DrawbackTemplate | undefined;
     if (!t) return [];
     const { bounds: _bounds, ...template } = t;
     const cost = t.cost.map((c) => ({
@@ -660,6 +660,14 @@ function buildAnnotationActions(
       t.prerequisites as { type: string; id: number; positive: boolean }[] | undefined,
       doc,
     );
+    const isBoosterFor = t.capstoneBooster
+      ? Object.entries(doc.availablePurchases.O).flatMap(([keyStr, ot]) => {
+          if (!ot) return [];
+          return ot.boosted
+            .filter((b) => b.boosterKind === "drawback" && b.booster === (ann.id as number))
+            .map((b) => ({ templateId: createId<TID.Purchase>(+keyStr), description: b.description }));
+        })
+      : [];
     return [
       {
         ...base,
@@ -669,6 +677,7 @@ function buildAnnotationActions(
         cost,
         alternativeCosts: drawbackAltCosts,
         prerequisites: drawbackPrereqs,
+        isBoosterFor,
       },
     ];
   }

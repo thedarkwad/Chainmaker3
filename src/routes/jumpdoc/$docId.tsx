@@ -42,6 +42,8 @@ function JumpDocLoader() {
   const editsRef = useRef(0);
   // Keep a stable ref to handleSave so the autosave interval doesn't need to be re-registered.
   const handleSaveRef = useRef<() => Promise<void>>(async () => {});
+  // True until the first successful save — allows saving even with 0 patches (initial save).
+  const isPendingRef = useRef(false);
 
   // Load the JumpDoc from the DB once auth is resolved.
   useEffect(() => {
@@ -54,6 +56,7 @@ function JumpDocLoader() {
         if (cancelled) return;
         docMongoIdRef.current = result.docMongoId;
         editsRef.current = result.edits;
+        isPendingRef.current = (result as { isPending?: boolean }).isPending ?? false;
         useJumpDocStore.getState().setDoc(result.contents as JumpDoc);
         useJumpDocMetaStore.getState().setMeta({
           docMongoId: result.docMongoId,
@@ -86,7 +89,7 @@ function JumpDocLoader() {
     if (saving || (!isElectron && !firebaseUser) || !docMongoIdRef.current) return;
     const { updates } = useJumpDocStore.getState();
     const patches = updates.cumulativePatches;
-    if (!patches.length) return;
+    if (!patches.length && !isPendingRef.current) return;
 
     const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
     setSaving(true);
@@ -102,6 +105,7 @@ function JumpDocLoader() {
       });
       if (result.status === "ok") {
         editsRef.current = result.edits;
+        isPendingRef.current = false;
         useJumpDocStore.getState().declareSynched();
       } else if (result.status === "bad_patches") {
         // Patches are out of sync — replace the entire document to resync.
@@ -112,6 +116,7 @@ function JumpDocLoader() {
           });
           if (replaceResult.status === "ok") {
             editsRef.current = replaceResult.edits;
+            isPendingRef.current = false;
             useJumpDocStore.getState().declareSynched();
           }
         }
@@ -131,6 +136,15 @@ function JumpDocLoader() {
 
   // Keep ref in sync every render so the interval always calls the latest closure.
   handleSaveRef.current = handleSave;
+
+  // Electron menu:save — wire up Cmd/Ctrl+S and File > Save.
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api) return;
+    const onSave = () => void handleSaveRef.current();
+    api.onMenuEvent("menu:save", onSave);
+    return () => api.offMenuEvent("menu:save", onSave);
+  }, []);
 
   // Autosave: fire handleSave every 60 s when autosave is enabled.
   useEffect(() => {

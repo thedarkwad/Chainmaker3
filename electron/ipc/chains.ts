@@ -3,14 +3,12 @@ import os from "os";
 import path from "path";
 import { dialog } from "electron";
 import AdmZip from "adm-zip";
-import { applyPatches, enablePatches, type Patch } from "immer";
 import { customAlphabet } from "nanoid";
 import { alphanumeric } from "nanoid-dictionary";
 import { addRecentFile, findRecentByPath } from "./settings";
 import { convertChain } from "@/chain/conversion";
 import type { ElectronChainOpenResult } from "../../src/types/electron";
 
-enablePatches();
 
 const nanoid = customAlphabet(alphanumeric, 16);
 
@@ -186,7 +184,7 @@ export function loadChainFromPath(filePath: string): ElectronChainOpenResult {
 }
 
 /** Returns the currently open chain data and image paths from the temp dir. */
-export function loadChain(): { chain: unknown; imagePaths: Record<string, string> } {
+export function loadChain(): { chain: unknown; imagePaths: Record<string, string>; isPending: boolean } {
   if (!openChain) throw new Error("No chain is currently open");
   const imagePaths: Record<string, string> = {};
   const { tempDir } = openChain;
@@ -199,21 +197,13 @@ export function loadChain(): { chain: unknown; imagePaths: Record<string, string
       }
     }
   }
-  return { chain: openChain.data, imagePaths };
+  return { chain: openChain.data, imagePaths, isPending: openChain.filePath === null };
 }
 
-/** Applies patches and writes to disk. Shows save dialog if no file yet. */
-export async function saveChain(patches: Patch[]): Promise<{ ok: boolean }> {
+/** Writes full chain data to disk. Shows save dialog if no file yet. */
+export async function saveChain(data: unknown): Promise<{ ok: boolean }> {
   if (!openChain) return { ok: false };
-
-  let updated: unknown;
-  try {
-    updated = patches.length > 0
-      ? applyPatches(openChain.data as object, patches)
-      : openChain.data;
-  } catch {
-    return { ok: false };
-  }
+  const updated = data;
 
   const isJson = (fp: string) => fp.toLowerCase().endsWith(".json");
 

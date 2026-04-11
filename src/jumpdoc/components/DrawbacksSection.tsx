@@ -7,7 +7,8 @@ import { memo, useRef, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
 import { CollapsibleSection } from "@/ui/CollapsibleSection";
 import { TemplateCard } from "./TemplateCard";
-import { DescriptionArea, AllowMultipleRow, BlurNumberInput, ChoiceContextEditor } from "./JumpDocFields";
+import { DescriptionArea, BlurNumberInput, ChoiceContextEditor } from "./JumpDocFields";
+import { Checkbox } from "@/ui/Checkbox";
 import { AlternativeCostEditor } from "./AlternativeCostEditor";
 import { PurchasePrerequisiteEditor, PurchasePrerequisitePickerModal } from "./PurchasesSection";
 import { RareFieldsGroup } from "./RareFieldsGroup";
@@ -232,14 +233,28 @@ const DrawbackCard = memo(function DrawbackCard({
         }
       />
 
-      <AllowMultipleRow
-        value={drawback.allowMultiple}
-        onChange={(v) =>
-          modify("Toggle Allow Multiple", (t) => {
-            t.allowMultiple = v;
-          })
-        }
-      />
+      <div className="flex items-center gap-4 flex-wrap">
+        <Checkbox
+          checked={!!drawback.capstoneBooster}
+          onChange={(v) =>
+            modify("Toggle Capstone Booster", (t) => {
+              t.capstoneBooster = v;
+            })
+          }
+        >
+          Capstone Booster or Combo Trigger
+        </Checkbox>
+        <Checkbox
+          checked={drawback.allowMultiple}
+          onChange={(v) =>
+            modify("Toggle Allow Multiple", (t) => {
+              t.allowMultiple = v;
+            })
+          }
+        >
+          Can Be Taken Multiple Times
+        </Checkbox>
+      </div>
       <RareFieldsGroup
         fields={[
           {

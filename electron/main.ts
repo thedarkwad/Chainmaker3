@@ -3,7 +3,6 @@ import contextMenu from "electron-context-menu";
 import { autoUpdater } from "electron-updater";
 import type { MenuItemConstructorOptions } from "electron";
 import path from "path";
-import type { Patch } from "immer";
 import {
   openFilePicker,
   loadChain,
@@ -21,6 +20,7 @@ import {
   listJumpdocs,
   loadJumpdoc,
   openJumpdocFilePicker,
+  openJumpdocFromPath,
   initNewJumpdoc,
   saveJumpdoc,
   saveJumpdocMeta,
@@ -93,6 +93,10 @@ function createWindow(): void {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+  });
+
+  mainWindow.webContents.on("did-create-window", (win) => {
+    win.setMenu(null);
   });
 }
 
@@ -211,7 +215,10 @@ function buildMenu(): void {
       submenu: [
         {
           label: "Check for Updates…",
-          click: () => autoUpdater.checkForUpdates(),
+          click: () => {
+            userInitiatedUpdateCheck = true;
+            autoUpdater.checkForUpdates().catch(() => {});
+          },
         },
       ],
     },
@@ -289,13 +296,37 @@ function handleOpenFile(filePath: string): void {
   }
 }
 
+function handleOpenJumpdoc(filePath: string): void {
+  if (!mainWindow) return;
+  try {
+    const result = openJumpdocFromPath(filePath);
+    mainWindow.webContents.send("menu:edit-jumpdoc", result);
+  } catch (err) {
+    console.error("Failed to open jumpdoc:", err);
+  }
+}
+
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
 // ── Auto-updater ──────────────────────────────────────────────────────────────
 
+let userInitiatedUpdateCheck = false;
+
 function setupAutoUpdater(): void {
   autoUpdater.on("update-available", (info) => {
+    userInitiatedUpdateCheck = false;
     mainWindow?.webContents.send("updater:update-available", info.version);
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    if (!userInitiatedUpdateCheck) return;
+    userInitiatedUpdateCheck = false;
+    dialog.showMessageBox(mainWindow!, {
+      type: "info",
+      title: "No Updates",
+      message: "You're already on the latest version of ChainMaker.",
+      buttons: ["OK"],
+    });
   });
 
   autoUpdater.on("download-progress", (progress) => {
@@ -319,6 +350,15 @@ function setupAutoUpdater(): void {
 
   autoUpdater.on("error", (err) => {
     console.error("Auto-updater error:", err);
+    if (userInitiatedUpdateCheck) {
+      userInitiatedUpdateCheck = false;
+      dialog.showMessageBox(mainWindow!, {
+        type: "error",
+        title: "Update Error",
+        message: "Failed to check for updates. Please try again later.",
+        buttons: ["OK"],
+      });
+    }
   });
 
   // Check silently on startup; don't bother the user if there's nothing new.
@@ -345,6 +385,10 @@ app.whenReady().then(() => {
     if (fileArg) {
       app.once("browser-window-created", () => handleOpenFile(fileArg));
     }
+    const jumpdocArg = process.argv.find((a) => a.endsWith(".jumpdoc"));
+    if (jumpdocArg) {
+      app.once("browser-window-created", () => handleOpenJumpdoc(jumpdocArg));
+    }
   }
 });
 
@@ -355,6 +399,12 @@ app.on("open-file", (event, filePath) => {
       handleOpenFile(filePath);
     } else {
       app.whenReady().then(() => handleOpenFile(filePath));
+    }
+  } else if (filePath.endsWith(".jumpdoc")) {
+    if (mainWindow) {
+      handleOpenJumpdoc(filePath);
+    } else {
+      app.whenReady().then(() => handleOpenJumpdoc(filePath));
     }
   }
 });
@@ -374,7 +424,7 @@ ipcMain.on("get-user-data-path", (event) => {
 // Chains
 ipcMain.handle("chains:openFilePicker", () => openFilePicker());
 ipcMain.handle("chains:loadChain", () => loadChain());
-ipcMain.handle("chains:saveChain", (_e, patches: Patch[]) => saveChain(patches));
+ipcMain.handle("chains:saveChain", (_e, data: unknown) => saveChain(data));
 ipcMain.handle("chains:initNewChain", (_e, chainData: unknown) => initNewChain(chainData));
 ipcMain.handle("chains:removeRecent", (_e, id: string) => {
   removeChainFromRecent(id);
@@ -387,9 +437,7 @@ ipcMain.handle("jumpdocs:setJumpdocFolder", () => setJumpdocFolder());
 ipcMain.handle("jumpdocs:listJumpdocs", () => listJumpdocs());
 ipcMain.handle("jumpdocs:loadJumpdoc", (_e, filePath: string) => loadJumpdoc(filePath));
 ipcMain.handle("jumpdocs:openJumpdocFilePicker", () => openJumpdocFilePicker());
-ipcMain.handle("jumpdocs:saveJumpdoc", (_e, id: string, patches: unknown[]) =>
-  saveJumpdoc(id, patches as import("immer").Patch[]),
-);
+ipcMain.handle("jumpdocs:saveJumpdoc", (_e, id: string, data: unknown) => saveJumpdoc(id, data));
 ipcMain.handle("jumpdocs:saveJumpdocMeta", (_e, id: string, meta: unknown) =>
   saveJumpdocMeta(id, meta as import("../src/types/electron").ElectronJumpDocSaveMeta),
 );

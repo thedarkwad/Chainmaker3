@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "main": "dist-electron/main.cjs",
-  "version": "4.0.0",
+  "version": "3.0.0",
   "scripts": {
     "dev": "vite dev --port 3000",
     "build": "NODE_OPTIONS=--max-old-space-size=2048 vite build",
@@ -30,6 +30,11 @@
       {
         "ext": "chain",
         "name": "ChainMaker Chain",
+        "role": "Editor"
+      },
+      {
+        "ext": "jumpdoc",
+        "name": "ChainMaker JumpDoc",
         "role": "Editor"
       }
     ],

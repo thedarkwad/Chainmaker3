@@ -21,7 +21,7 @@ import {
 } from "./data_old/ChainSupplement";
 
 import { PersonalityComponent } from "./data/Character";
-import { objMap } from "@/utilities/miscUtilities";
+import { objFilter, objMap } from "@/utilities/miscUtilities";
 import { JumpSourceType, JumpSource, Jump, DEFAULT_CURRENCY_ID } from "./data/Jump";
 import {
   OverrideType,
@@ -41,7 +41,7 @@ import {
   PurchaseGroup,
   Purchase,
 } from "./data/Purchase";
-import { createId, createRegistry, Id, GID, LID } from "./data/types";
+import { createId, createRegistry, Id, GID, LID, Registry } from "./data/types";
 import { ChainSupplement, CompanionAccess, SupplementType } from "./data/ChainSupplement";
 import { Chain } from "./data/Chain";
 
@@ -68,7 +68,11 @@ function convertOverrideType(oO: OldOverrideType) {
   }
 }
 
-function convertCostModifier(oCM: OldCostModifier, purchaseValue?: number): ModifiedCost {
+function convertCostModifier(
+  oCM: OldCostModifier,
+  purchaseValue?: number,
+  currency?: number,
+): ModifiedCost {
   switch (oCM) {
     case OldCostModifier.Full:
       return { modifier: CostModifier.Full };
@@ -77,7 +81,13 @@ function convertCostModifier(oCM: OldCostModifier, purchaseValue?: number): Modi
     case OldCostModifier.Free:
       return { modifier: CostModifier.Free };
     case OldCostModifier.Custom:
-      return { modifier: CostModifier.Custom, modifiedTo: purchaseValue! };
+      return {
+        modifier: CostModifier.Custom,
+        modifiedTo:
+          currency == undefined
+            ? purchaseValue!
+            : [{ amount: purchaseValue!, currency: createId<LID.Currency>(currency) }],
+      };
   }
 }
 
@@ -211,14 +221,14 @@ function convertJump(oJ: OldJump, oC: OldChain): Jump {
   };
 }
 
-function convertJumpPurchase(oP: OldPurchase, oJ: OldJump, oC?: OldChain): Purchase {
+function convertJumpPurchase(oP: OldPurchase, oJ: OldJump, oC?: OldChain): Purchase | undefined {
   let p: Omit<JumpPurchase, "type" | "value"> = {
     id: createId(oP._id),
     charId: createId(oP.characterId),
     name: oP.name,
     description: oP.description,
     jumpId: createId(oP.jumpId),
-    cost: convertCostModifier(oP.costModifier, oP.purchaseValue),
+    cost: convertCostModifier(oP.costModifier, oP.purchaseValue, oP.currency || 0),
     duration: !oP.duration || oP.duration >= 0 ? oP.duration : undefined,
   };
   switch (oP.type) {
@@ -292,8 +302,9 @@ function convertJumpPurchase(oP: OldPurchase, oJ: OldJump, oC?: OldChain): Purch
       return companionImport;
     case OldPurchaseType.Subsystem:
       let parent = oJ.subsystemSummaries[oP.characterId][oP.subtype!].find((s) =>
-        s.subpurchases.includes(oP.id),
-      )!.id;
+        (s.subpurchases ?? []).includes(oP.id),
+      )?.id;
+      if (!parent) return undefined;
       let subsystemChild: Subpurchase = {
         ...p,
         value: [{ amount: oP.value, currency: createId(oP.currency) }],
@@ -327,7 +338,7 @@ function convertJumpPurchase(oP: OldPurchase, oJ: OldJump, oC?: OldChain): Purch
         type: PurchaseType.Scenario,
         description: oP.description,
         jumpId: createId(oP.jumpId),
-        cost: convertCostModifier(oP.costModifier, oP.purchaseValue),
+        cost: convertCostModifier(oP.costModifier, oP.purchaseValue, oP.currency || 0),
         rewards: rewards,
       } as Scenario;
 
@@ -363,9 +374,12 @@ export function convertChain(rawChain: object): Chain {
 
   // Build purchases first so we can post-process overrides below.
   const purchases: ReturnType<typeof createRegistry<GID.Purchase, Purchase>> = createRegistry(
-    objMap(oChain.purchases, (oP: OldPurchase) =>
-      convertJumpPurchase(oP, oChain.jumps[oP.jumpId] as OldJump, oChain),
-    ),
+    objFilter(
+      objMap(oChain.purchases, (oP: OldPurchase) =>
+        convertJumpPurchase(oP, oChain.jumps[oP.jumpId] as OldJump, oChain),
+      ),
+      (b) => !!b,
+    ) as Registry<GID.Purchase, Purchase>,
   );
 
   // In the old system, drawback overrides are stored on each Jump as
@@ -385,7 +399,7 @@ export function convertChain(rawChain: object): Chain {
         if (!overrides[newJumpId]) overrides[newJumpId] = {};
         overrides[newJumpId][createId<GID.Character>(+charId)] = {
           type: convertOverrideType(oOv.override)!,
-          modifier: convertCostModifier(oOv.modifier, oOv.purchaseValue),
+          modifier: convertCostModifier(oOv.modifier, oOv.purchaseValue, 0),
         };
       }
     }

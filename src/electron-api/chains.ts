@@ -1,8 +1,6 @@
 // Electron replacement for @/api/chains.
 // The IPC layer owns the open chain state. The renderer never passes IDs for save/load.
 
-import type { Patch } from "immer";
-
 export type { SaveResult, SaveStatus } from "@/api/types";
 
 export type ChainSummary = {
@@ -35,31 +33,29 @@ export async function loadChain(
     edits: 0,
     chainMongoId: "local",
     ownerUid: "local",
+    isPending: (result as { isPending?: boolean }).isPending ?? false,
   };
 }
 
-/** Saves the open chain by applying patches. The IPC resolves the file path. */
+/** Saves the open chain by writing its full current data. The IPC resolves the file path. */
 export async function saveChain(
-  params:
-    | { data: { chainId: string; idToken?: string; patches: Patch[]; edits: number } }
-    | { chainId: string; patches: Patch[]; edits: number },
+  _params: unknown,
 ): Promise<{ status: "ok"; edits: number } | { status: "not_found" | "bad_patches" }> {
-  const { patches } = "data" in params ? params.data : params;
+  const { useChainStore } = await import("@/chain/state/Store");
+  const chain = useChainStore.getState().chain;
   const api = getAPI();
-  const result = await api.chains.saveChain(patches);
+  const result = await api.chains.saveChain(chain);
   return result.ok ? { status: "ok", edits: 1 } : { status: "bad_patches" };
 }
 
-/** Force-replaces the open chain (fallback for bad patches). */
+/** Force-replaces the open chain — in Electron, same as saveChain. */
 export async function forceReplaceChain(
-  params:
-    | { data: { chainId: string; idToken?: string; contents: unknown } }
-    | { chainId: string; contents: unknown },
+  _params: unknown,
 ): Promise<{ status: "ok"; edits: number } | { status: "not_found" }> {
-  const { contents } = "data" in params ? params.data : params;
+  const { useChainStore } = await import("@/chain/state/Store");
+  const chain = useChainStore.getState().chain;
   const api = getAPI();
-  const patch: Patch = { op: "replace", path: [], value: contents };
-  const result = await api.chains.saveChain([patch]);
+  const result = await api.chains.saveChain(chain);
   return result.ok ? { status: "ok", edits: 1 } : { status: "not_found" };
 }
 

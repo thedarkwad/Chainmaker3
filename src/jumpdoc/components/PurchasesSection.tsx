@@ -28,7 +28,7 @@ import {
   useRemoveBoundFromPurchase,
   useJumpDocCurrenciesRegistry,
   useJumpDocFirstCurrencyId,
-  useJumpDocCapstoneBoosterPurchases,
+  useJumpDocCapstoneBoosterItems,
   useJumpDocDiscountOriginGroups,
   useJumpDocPrerequisiteItems,
   useAddJumpDocPrereq,
@@ -64,7 +64,7 @@ export function PurchaseSubtypeSection({
   const modifySub = useModifyJumpDocPurchaseSubtype(subtypeId);
   const purchaseIds = useJumpDocPurchaseIdsBySubtype(subtypeId);
   const addPurchase = useAddJumpDocPurchase();
-  const capstoneBoosterPurchases = useJumpDocCapstoneBoosterPurchases();
+  const capstoneBoosterItems = useJumpDocCapstoneBoosterItems();
   const discountGroups = useJumpDocDiscountOriginGroups();
   const currencies = useJumpDocCurrenciesRegistry();
 
@@ -124,7 +124,7 @@ export function PurchaseSubtypeSection({
           isScrollTarget={activeScrollKey === `purchase-${id as number}`}
           isAnyScrollTarget={activeScrollKey !== null}
           onAddBoundsRequest={onAddBoundsRequest}
-          capstoneBoosterPurchases={capstoneBoosterPurchases}
+          capstoneBoosterItems={capstoneBoosterItems}
           discountGroups={discountGroups}
           defaultCurrency={sub.defaultCurrency}
         />
@@ -146,7 +146,7 @@ const PurchaseCard = memo(function PurchaseCard({
   isScrollTarget,
   isAnyScrollTarget,
   onAddBoundsRequest,
-  capstoneBoosterPurchases,
+  capstoneBoosterItems,
   discountGroups,
   defaultCurrency,
 }: {
@@ -158,7 +158,7 @@ const PurchaseCard = memo(function PurchaseCard({
   isScrollTarget: boolean;
   isAnyScrollTarget: boolean;
   onAddBoundsRequest: SectionSharedProps<TID.Purchase>["onAddBoundsRequest"];
-  capstoneBoosterPurchases: { id: Id<TID.Purchase>; name: string }[];
+  capstoneBoosterItems: { id: number; name: string; kind: "purchase" | "drawback" }[];
   discountGroups: OriginGroup[];
   defaultCurrency?: Id<TID.Currency>;
 }) {
@@ -174,6 +174,11 @@ const PurchaseCard = memo(function PurchaseCard({
   const [prereqPickerOpen, setPrereqPickerOpen] = useState(false);
   const [showBoost, setShowBoost] = useState(false);
   if (!purchase) return null;
+
+  // Exclude this purchase from its own booster list.
+  const availableBoosterItems = capstoneBoosterItems.filter(
+    (b) => !(b.kind === "purchase" && b.id === (id as number)),
+  );
 
   const key = `purchase-${id}`;
   const fullCost = { modifier: CostModifier.Full } as const;
@@ -321,7 +326,7 @@ const PurchaseCard = memo(function PurchaseCard({
 
       <RareFieldsGroup
         fields={[
-          ...(capstoneBoosterPurchases.filter((b) => b.id !== id).length > 0
+          ...(availableBoosterItems.length > 0
             ? [
                 {
                   key: "boost",
@@ -338,12 +343,11 @@ const PurchaseCard = memo(function PurchaseCard({
                   active: () => (
                     <div className="pt-1.5 border-t border-line">
                       <BoostedEditor
-                        purchaseId={id}
                         boosted={purchase.boosted}
-                        capstoneBoosterPurchases={capstoneBoosterPurchases}
-                        onAdd={(boosterId) =>
+                        capstoneBoosterItems={availableBoosterItems}
+                        onAdd={(boosterId, boosterKind) =>
                           modify("Add Boosted Version", (t) => {
-                            t.boosted.push({ description: "", booster: boosterId });
+                            t.boosted.push({ description: "", booster: boosterId, boosterKind });
                           })
                         }
                         onRemove={(boosterId) =>

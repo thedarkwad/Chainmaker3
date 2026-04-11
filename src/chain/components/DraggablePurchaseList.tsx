@@ -48,12 +48,12 @@ function SortableItem({ id }: { id: Id<GID.Purchase> }) {
   // Keep SortableItemContent mounted even while dragging so that any open
   // edit sessions (draft state, isEditing, etc.) survive the drag gesture.
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className="min-w-0">
       {isDragging && (
         <div className="h-8 rounded-lg border-2 border-dashed border-accent-ring bg-accent-tint" />
       )}
       <div
-        className={isDragging ? "hidden" : "cursor-grab active:cursor-grabbing"}
+        className={isDragging ? "hidden" : "min-w-0 cursor-grab active:cursor-grabbing"}
         {...(isDragging ? undefined : listeners)}
         {...(isDragging ? undefined : attributes)}
       >

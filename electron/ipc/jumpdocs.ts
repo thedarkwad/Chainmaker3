@@ -5,11 +5,8 @@ import crypto from "crypto";
 import { dialog } from "electron";
 import AdmZip from "adm-zip";
 import sharp from "sharp";
-import { applyPatches, enablePatches, type Patch } from "immer";
 import { getSettings, setSettings } from "./settings";
 import type { ElectronJumpDocLoadResult, ElectronJumpDocMeta, ElectronJumpDocSaveMeta } from "../../src/types/electron";
-
-enablePatches();
 
 // ── In-memory state ───────────────────────────────────────────────────────────
 
@@ -22,7 +19,7 @@ const pendingJumpdocToSaved = new Map<string, string>();
 const jumpdocIdToPath = new Map<string, string>();
 // filePath → UUID (reverse, for stable ID reuse).
 const jumpdocPathToId = new Map<string, string>();
-// Cache of last-written data for patch application: keyed by UUID.
+// Cache of last-written data — used by saveJumpdocMeta to re-write the zip.
 const jumpdocCache = new Map<string, unknown>();
 // Cache of gallery metadata (attributes, nsfw) loaded/set per UUID.
 const jumpdocMetaCache = new Map<string, ElectronJumpDocSaveMeta>();
@@ -322,6 +319,11 @@ export async function initNewJumpdoc(): Promise<{ filePath: string } | null> {
   return registerJumpdocFromPdf(result.filePaths[0]);
 }
 
+/** Opens a .jumpdoc file by path (e.g. from a file-association open), returns its stable ID. */
+export function openJumpdocFromPath(filePath: string): { filePath: string } {
+  return { filePath: getOrAssignId(filePath) };
+}
+
 export async function openJumpdocFilePicker(): Promise<{ filePath: string } | null> {
   const result = await dialog.showOpenDialog({
     title: "Open JumpDoc",
@@ -334,9 +336,9 @@ export async function openJumpdocFilePicker(): Promise<{ filePath: string } | nu
   return { filePath: getOrAssignId(result.filePaths[0]) };
 }
 
-export function loadJumpdoc(id: string): ElectronJumpDocLoadResult {
+export function loadJumpdoc(id: string): ElectronJumpDocLoadResult & { isPending: boolean } {
   const pending = pendingJumpdocs.get(id);
-  if (pending) return { data: pending.data, pdfTempPath: pending.pdfTempPath };
+  if (pending) return { data: pending.data, pdfTempPath: pending.pdfTempPath, isPending: true };
 
   const filePath = resolveFilePath(id);
   if (!filePath) throw new Error("JumpDoc not found");
@@ -390,6 +392,7 @@ export function loadJumpdoc(id: string): ElectronJumpDocLoadResult {
   return {
     data,
     pdfTempPath: `file:///${path.join(tmpDir, "pdf.pdf").replace(/\\/g, "/")}`,
+    isPending: false,
     ...(thumbTempPath ? { thumbTempPath } : {}),
     ...(savedMeta ? { attributes: savedMeta.attributes, nsfw: savedMeta.nsfw } : {}),
   };
@@ -458,17 +461,9 @@ async function writeJumpdocZip(destPath: string, data: unknown, id: string): Pro
   fs.renameSync(tmp, destPath);
 }
 
-export async function saveJumpdoc(id: string, patches: Patch[]): Promise<{ ok: boolean }> {
+export async function saveJumpdoc(id: string, data: unknown): Promise<{ ok: boolean }> {
   if (pendingJumpdocIds.has(id)) {
-    const base = jumpdocCache.get(id);
-    if (!base) return { ok: false };
-
-    let updated: unknown = base;
-    if (patches.length > 0) {
-      try { updated = applyPatches(base as object, patches); } catch { return { ok: false }; }
-    }
-
-    const name = (updated as { name?: string }).name ?? "Untitled";
+    const name = (data as { name?: string }).name ?? "Untitled";
     const dialogResult = await dialog.showSaveDialog({
       title: "Save JumpDoc",
       defaultPath: name.replace(/[<>:"/\\|?*]/g, "_") + ".jumpdoc",
@@ -480,38 +475,26 @@ export async function saveJumpdoc(id: string, patches: Patch[]): Promise<{ ok: b
       ? dialogResult.filePath
       : dialogResult.filePath + ".jumpdoc";
 
-    await writeJumpdocZip(filePath, updated, id);
-    jumpdocCache.set(id, updated);
+    await writeJumpdocZip(filePath, data, id);
+    jumpdocCache.set(id, data);
     pendingJumpdocIds.delete(id);
     pendingJumpdocToSaved.set(id, filePath);
     jumpdocIdToPath.set(id, filePath);
     jumpdocPathToId.set(filePath, id);
 
     const folder = path.dirname(filePath);
-    updateIndexEntry(folder, filePath, updated, id);
+    updateIndexEntry(folder, filePath, data, id);
     return { ok: true };
   }
 
   const filePath = resolveFilePath(id);
   if (!filePath) return { ok: false };
 
-  let base = jumpdocCache.get(id);
-  if (!base) {
-    const zip = new AdmZip(filePath);
-    const entry = zip.getEntry("data.json");
-    if (!entry) return { ok: false };
-    base = JSON.parse(zip.readAsText(entry)) as unknown;
-    jumpdocCache.set(id, base);
-  }
-
-  let updated: unknown;
-  try { updated = applyPatches(base as object, patches); } catch { return { ok: false }; }
-
-  await writeJumpdocZip(filePath, updated, id);
-  jumpdocCache.set(id, updated);
+  await writeJumpdocZip(filePath, data, id);
+  jumpdocCache.set(id, data);
 
   const folder = path.dirname(filePath);
-  updateIndexEntry(folder, filePath, updated, id);
+  updateIndexEntry(folder, filePath, data, id);
   return { ok: true };
 }
 

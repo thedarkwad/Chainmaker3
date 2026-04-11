@@ -11,9 +11,9 @@ import { create } from "zustand";
 import type {
   BasicPurchaseTemplate,
   CompanionTemplate,
+  DrawbackTemplate,
   FreeFormOrigin,
   OriginTemplate,
-  PurchaseTemplate,
   ScenarioTemplate,
 } from "@/chain/data/JumpDoc";
 import type { SimpleValue } from "@/chain/data/Purchase";
@@ -135,12 +135,17 @@ export type ViewerAnnotationAction =
   | (BaseAction & {
       collection: "drawback";
       docTemplateId: Id<TID.Drawback>;
-      template: Omit<PurchaseTemplate<TID.Drawback>, "bounds">;
+      template: Omit<DrawbackTemplate, "bounds">;
       cost: { amount: number; currencyAbbrev: string }[];
       /** Pre-resolved alternative costs. */
       alternativeCosts: ResolvedAltCost[];
       /** Pre-resolved prerequisites (requires / incompatible). */
       prerequisites: ResolvedPrerequisite[];
+      /**
+       * Other purchase templates in this JumpDoc that are boosted by this drawback.
+       * Only populated when the drawback's capstoneBooster flag is true.
+       */
+      isBoosterFor: { templateId: Id<TID.Purchase>; description: string }[];
     })
   | (BaseAction & {
       collection: "scenario";

@@ -122,6 +122,7 @@ export async function loadJumpDoc(
     imageId: null,
     imageUrl: result.thumbTempPath ?? null,
     pdfUrl: result.pdfTempPath,
+    isPending: result.isPending ?? false,
   };
 }
 
@@ -137,10 +138,11 @@ export async function saveJumpDoc(
   | { status: "ok"; edits: number }
   | { status: "bad_patches" | "not_found" | "conflict" | "unauthorized" }
 > {
-  const { docMongoId, patches } = (params as { data: { docMongoId: string; patches: unknown[] } })
-    .data;
+  const { docMongoId } = (params as { data: { docMongoId: string } }).data;
+  const { useJumpDocStore } = await import("@/jumpdoc/state/JumpDocStore");
+  const doc = useJumpDocStore.getState().doc;
   const api = getAPI();
-  const result = await api?.saveJumpdoc(docMongoId, patches);
+  const result = await api?.saveJumpdoc(docMongoId, doc);
   return result?.ok ? { status: "ok", edits: 1 } : { status: "bad_patches" };
 }
 

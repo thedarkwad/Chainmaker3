@@ -308,7 +308,7 @@ export function DrawbackOverrideCard({ id, jumpId, charId, chainId }: DrawbackOv
           size={13}
           className="text-ghost shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
         />
-        <span className="font-semibold text-sm shrink-0 truncate min-w-30 w-1/5">
+        <span className="font-semibold text-sm shrink-0 truncate min-w-30 w-1/5 max-w-fit">
           {drawback.name || <span className="font-normal text-ghost italic">Unnamed</span>}
         </span>
         <span className="text-sm font-semibold text-muted grow max-w-max truncate">[{statusText}]</span>

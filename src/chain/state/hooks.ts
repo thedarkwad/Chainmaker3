@@ -62,7 +62,7 @@ import { createTrackedAction, type ChainUpdate } from "./StoreUtilities";
 import { produce } from "immer";
 import { adjustBank, adjustJumpOrganization } from "./calculations";
 import { useClipboard } from "./clipboard";
-import { jumpFromDoc } from "@/chain/data/newChain";
+import { jumpFromDoc, jumpWithDefaults } from "@/chain/data/newChain";
 import {
   formatCostShortWithSubpurchases,
   formatCostDisplayWithSubpurchases,
@@ -250,80 +250,10 @@ export function useAddJump() {
   return useCallback((name: string, url: string, insertAfter?: Id<GID.Jump>): Id<GID.Jump> => {
     const newId = useChainStore.getState().chain!.jumps.fId;
     setTracked("Add jump", (c) => {
-      const cpId = createId<LID.Currency>(0);
-      const perkId = DefaultSubtype[PurchaseType.Perk]; // 0
-      const itemId = DefaultSubtype[PurchaseType.Item]; // 1
-      const newJump: Jump = {
-        id: newId,
-        name,
-        obsoletions: [],
-        source: url ? { type: JumpSourceType.URL, URL: url } : { type: JumpSourceType.Unknown },
-        duration: { days: 0, months: 0, years: 10 },
-        originCategories: {
-          O: {
-            0: { name: "Age", singleLine: true, multiple: false },
-            1: { name: "Gender", singleLine: true, multiple: false },
-            2: { name: "Location", singleLine: false, multiple: false },
-            3: { name: "Origin", singleLine: false, multiple: false },
-          } as any,
-          fId: createId<LID.OriginCategory>(4),
-        },
-        currencies: {
-          O: {
-            [cpId as number]: {
-              name: "Choice Points",
-              abbrev: "CP",
-              budget: +c.chainSettings.defaultCP || 0,
-              essential: true,
-            },
-          } as any,
-          fId: createId<LID.Currency>(1),
-        },
-        purchaseSubtypes: {
-          O: {
-            [perkId as number]: {
-              name: "Perk",
-              type: PurchaseType.Perk,
-              essential: true,
-              allowSubpurchases: false,
-              placement: "normal",
-              stipend: [{ amount: 0, currency: cpId }],
-            },
-            [itemId as number]: {
-              name: "Item",
-              type: PurchaseType.Item,
-              essential: true,
-              allowSubpurchases: false,
-              placement: "normal",
-              stipend: [{ amount: 0, currency: cpId }],
-            },
-            2: {
-              name: "Power",
-              type: PurchaseType.Perk,
-              essential: false,
-              allowSubpurchases: false,
-              placement: "normal",
-              stipend: [{ amount: 0, currency: cpId }],
-            },
-          } as any,
-          fId: createId<LID.PurchaseSubtype>(3),
-        },
-        characters: [],
-        purchases: {},
-        drawbacks: {},
-        scenarios: {},
-        bankDeposits: {},
-        currencyExchanges: {},
-        supplementPurchases: {},
-        supplementInvestments: {},
-        notes: {},
-        narratives: {},
-        origins: {},
-        altForms: {},
-        useSupplements: true,
-        useNarrative: true,
-        useAltForms: true,
-      };
+      const source: JumpSource = url
+        ? { type: JumpSourceType.URL, URL: url }
+        : { type: JumpSourceType.Unknown };
+      const newJump: Jump = jumpWithDefaults(newId, name, source, c.chainSettings.defaultCP);
       c.jumps.O[newId] = newJump;
       c.jumps.fId = createId<GID.Jump>((newId as number) + 1);
       insertIntoJumpList(c.jumpList, newId, insertAfter);
@@ -2087,6 +2017,20 @@ function removeDrawbacksInDraft(
     .filter((t): t is { jumpdoc: string; id: unknown } => !!t);
 
   const removeSet = new Set(ids);
+  // Strip any capstone-booster text these drawbacks applied to purchases.
+  for (const id of ids) {
+    const db = c.purchases.O[id] as Drawback | undefined;
+    if (db && "boosts" in db && db.boosts?.length) {
+      for (const { purchaseId, description } of db.boosts) {
+        const boosted = c.purchases.O[purchaseId] as BasicPurchase | undefined;
+        if (!boosted) continue;
+        const suffix = `\n\n${description}`;
+        if (!boosted.description.includes(suffix)) continue;
+        boosted.description = boosted.description.replace(suffix, "").trimEnd();
+        queueNotification("boosterRemoved", boosted.name);
+      }
+    }
+  }
   for (const id of ids) delete c.purchases.O[id];
   const list = jump.drawbacks[charId] as Id<GID.Purchase>[] | undefined;
   if (list) jump.drawbacks[charId] = list.filter((id) => !removeSet.has(id)) as never;
@@ -2124,6 +2068,7 @@ export function useJumpDocDrawbackActions(jumpId: Id<GID.Jump>, charId: Id<GID.C
       initialCost?: ModifiedCost;
       alternativeCosts?: StoredAlternativeCost[];
       storedPrerequisites?: StoredPurchasePrerequisite[];
+      boosts?: { purchaseId: Id<GID.Purchase>; description: string }[];
     }): Id<GID.Purchase> => {
       const newId = useChainStore.getState().chain!.purchases.fId;
       const doc = useJumpDocStore.getState().doc;
@@ -2153,11 +2098,22 @@ export function useJumpDocDrawbackActions(jumpId: Id<GID.Jump>, charId: Id<GID.C
           ...(data.storedPrerequisites?.length
             ? { storedPrerequisites: data.storedPrerequisites }
             : {}),
+          ...(data.boosts?.length ? { boosts: data.boosts } : {}),
         } as Drawback;
         c.purchases.O[newId] = drawback as never;
         c.purchases.fId = createId<GID.Purchase>((newId as number) + 1);
         if (!jump.drawbacks[charId]) jump.drawbacks[charId] = [];
         jump.drawbacks[charId]!.push(newId);
+        // Apply capstone booster text to already-held purchases.
+        if (data.boosts?.length) {
+          for (const { purchaseId, description } of data.boosts) {
+            const boosted = c.purchases.O[purchaseId] as BasicPurchase | undefined;
+            if (boosted && !boosted.description.includes(description)) {
+              boosted.description = `${boosted.description}\n\n${description}`.trimStart();
+              queueNotification("boosterAdded", boosted.name);
+            }
+          }
+        }
         applyAllPurchaseModifiersInDraft(c, jumpId, charId, newId);
         if (hasDurationMod && doc) applyDrawbackDurationModsInDraft(c, jumpId, data.docId, doc);
       });
