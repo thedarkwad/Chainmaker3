@@ -498,6 +498,31 @@ export async function saveJumpdoc(id: string, data: unknown): Promise<{ ok: bool
   return { ok: true };
 }
 
+export async function saveJumpdocAs(id: string, data: unknown): Promise<{ ok: boolean }> {
+  const name = (data as { name?: string }).name ?? "Untitled";
+  const dialogResult = await dialog.showSaveDialog({
+    title: "Save JumpDoc As",
+    defaultPath: name.replace(/[<>:"/\\|?*]/g, "_") + ".jumpdoc",
+    filters: [{ name: "JumpDoc", extensions: ["jumpdoc"] }],
+  });
+  if (dialogResult.canceled || !dialogResult.filePath) return { ok: false };
+
+  const filePath = dialogResult.filePath.endsWith(".jumpdoc")
+    ? dialogResult.filePath
+    : dialogResult.filePath + ".jumpdoc";
+
+  await writeJumpdocZip(filePath, data, id);
+  jumpdocCache.set(id, data);
+  pendingJumpdocIds.delete(id);
+  pendingJumpdocToSaved.set(id, filePath);
+  jumpdocIdToPath.set(id, filePath);
+  jumpdocPathToId.set(filePath, id);
+
+  const folder = path.dirname(filePath);
+  updateIndexEntry(folder, filePath, data, id);
+  return { ok: true };
+}
+
 export async function saveJumpdocMeta(id: string, meta: ElectronJumpDocSaveMeta): Promise<{ ok: boolean }> {
   const filePath = resolveFilePath(id);
   if (!filePath) return { ok: false };

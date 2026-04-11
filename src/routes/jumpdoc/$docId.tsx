@@ -137,13 +137,28 @@ function JumpDocLoader() {
   // Keep ref in sync every render so the interval always calls the latest closure.
   handleSaveRef.current = handleSave;
 
-  // Electron menu:save — wire up Cmd/Ctrl+S and File > Save.
+  // Electron menu:save / menu:save-as — wire up File > Save and File > Save As.
   useEffect(() => {
     const api = window.electronAPI;
     if (!api) return;
     const onSave = () => void handleSaveRef.current();
+    const onSaveAs = () => {
+      api.jumpdocs
+        .saveJumpdocAs(docMongoIdRef.current, useJumpDocStore.getState().doc)
+        .then((result) => {
+          if (result.ok) {
+            isPendingRef.current = false;
+            useJumpDocStore.getState().declareSynched();
+          }
+        })
+        .catch(console.error);
+    };
     api.onMenuEvent("menu:save", onSave);
-    return () => api.offMenuEvent("menu:save", onSave);
+    api.onMenuEvent("menu:save-as", onSaveAs);
+    return () => {
+      api.offMenuEvent("menu:save", onSave);
+      api.offMenuEvent("menu:save-as", onSaveAs);
+    };
   }, []);
 
   // Autosave: fire handleSave every 60 s when autosave is enabled.

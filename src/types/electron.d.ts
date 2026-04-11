@@ -122,6 +122,8 @@ type ElectronAPI = {
     openJumpdocFilePicker(): Promise<{ filePath: string } | null>;
     /** Writes jumpdoc data to disk. Shows save dialog on first save of a new doc. */
     saveJumpdoc(id: string, data: unknown): Promise<{ ok: boolean }>;
+    /** Always opens save dialog to write jumpdoc to a new location. */
+    saveJumpdocAs(id: string, data: unknown): Promise<{ ok: boolean }>;
     /** Persists gallery metadata (attributes, nsfw) to the jumpdoc zip's meta.json. */
     saveJumpdocMeta(id: string, meta: ElectronJumpDocSaveMeta): Promise<{ ok: boolean }>;
     /** Opens an image picker, copies the selected image as the jumpdoc thumbnail. */

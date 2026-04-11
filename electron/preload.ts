@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     openJumpdocFilePicker: () => ipcRenderer.invoke("jumpdocs:openJumpdocFilePicker"),
     saveJumpdoc: (id: string, data: unknown) =>
       ipcRenderer.invoke("jumpdocs:saveJumpdoc", id, data),
+    saveJumpdocAs: (id: string, data: unknown) =>
+      ipcRenderer.invoke("jumpdocs:saveJumpdocAs", id, data),
     saveJumpdocMeta: (id: string, meta: unknown) =>
       ipcRenderer.invoke("jumpdocs:saveJumpdocMeta", id, meta),
     uploadJumpdocThumb: (id: string) =>

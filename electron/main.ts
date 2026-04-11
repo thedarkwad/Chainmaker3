@@ -23,6 +23,7 @@ import {
   openJumpdocFromPath,
   initNewJumpdoc,
   saveJumpdoc,
+  saveJumpdocAs,
   saveJumpdocMeta,
   uploadJumpdocThumb,
 } from "./ipc/jumpdocs";
@@ -438,6 +439,7 @@ ipcMain.handle("jumpdocs:listJumpdocs", () => listJumpdocs());
 ipcMain.handle("jumpdocs:loadJumpdoc", (_e, filePath: string) => loadJumpdoc(filePath));
 ipcMain.handle("jumpdocs:openJumpdocFilePicker", () => openJumpdocFilePicker());
 ipcMain.handle("jumpdocs:saveJumpdoc", (_e, id: string, data: unknown) => saveJumpdoc(id, data));
+ipcMain.handle("jumpdocs:saveJumpdocAs", (_e, id: string, data: unknown) => saveJumpdocAs(id, data));
 ipcMain.handle("jumpdocs:saveJumpdocMeta", (_e, id: string, meta: unknown) =>
   saveJumpdocMeta(id, meta as import("../src/types/electron").ElectronJumpDocSaveMeta),
 );

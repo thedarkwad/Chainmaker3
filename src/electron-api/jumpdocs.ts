@@ -132,6 +132,17 @@ export async function listJumpDocs(_idToken: string) {
   return [];
 }
 
+export async function saveJumpDocAs(
+  params: unknown,
+): Promise<{ status: "ok" } | { status: "cancelled" }> {
+  const { docMongoId } = (params as { data: { docMongoId: string } }).data;
+  const { useJumpDocStore } = await import("@/jumpdoc/state/JumpDocStore");
+  const doc = useJumpDocStore.getState().doc;
+  const api = getAPI();
+  const result = await api?.saveJumpdocAs(docMongoId, doc);
+  return result?.ok ? { status: "ok" } : { status: "cancelled" };
+}
+
 export async function saveJumpDoc(
   params: unknown,
 ): Promise<
