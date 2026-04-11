@@ -68,17 +68,10 @@ import { convertWhitespace } from "@/utilities/miscUtilities";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type WidgetDef = {
-  /** Rendered in view mode. */
   view: ReactNode;
-  /** Rendered in edit mode. */
   edit: ReactNode;
-  /**
-   * Where the widget appears.
-   * - "header" — inline in the title row (like subtype select)
-   * - "body"   — between the header and description in edit; below description in view (default)
-   * - "footer" — always below description/body widgets
-   */
   position?: "header" | "body" | "footer";
+  fullWidth?: boolean;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -462,9 +455,12 @@ export function PurchaseEditor<T extends AbstractPurchase>({
           </div>
         )}
 
-        {(footerWidgets.some((w) => w.view) || bodyWidgets.some((w) => w.view)) && (
+        {footerWidgets.some((w) => w.view && w.fullWidth) && (
+          footerWidgets.map((w, i) => w.view && w.fullWidth && <div key={`fw${i}`}>{w.view}</div>)
+        )}
+        {(footerWidgets.some((w) => w.view && !w.fullWidth) || bodyWidgets.some((w) => w.view)) && (
           <div className="flex flex-wrap items-center">
-            {footerWidgets.map((w, i) => w.view && <div key={`f${i}`}>{w.view}</div>)}
+            {footerWidgets.map((w, i) => w.view && !w.fullWidth && <div key={`f${i}`}>{w.view}</div>)}
             {bodyWidgets.map((w, i) => w.view && <div key={`b${i}`}>{w.view}</div>)}
           </div>
         )}
@@ -1221,7 +1217,7 @@ export function BasicPurchaseEditor({
     { view: subtypeViewLabel, edit: subtypeEditNode, position: "header" },
     { view: categoriesWidgetView, edit: categoriesWidgetEdit, position: "body" },
     { view: tagsWidgetView, edit: tagsWidgetEdit, position: "body" },
-    { view: subpurchasesViewWidget, edit: subpurchasesEditWidget, position: "footer" },
+    { view: subpurchasesViewWidget, edit: subpurchasesEditWidget, position: "footer", fullWidth: true },
     { view: durPerkView, edit: durPerkEdit, position: "footer" },
     { view: null, edit: groupWidgetEdit, position: "footer" },
   ];
