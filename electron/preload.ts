@@ -31,7 +31,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     openFilePicker: () => ipcRenderer.invoke("chains:openFilePicker"),
     loadChain: () => ipcRenderer.invoke("chains:loadChain"),
     saveChain: (data: unknown) => ipcRenderer.invoke("chains:saveChain", data),
+    autosaveChain: (data: unknown) => ipcRenderer.invoke("chains:autosaveChain", data),
     saveChainAs: () => ipcRenderer.invoke("chains:saveChainAs"),
+    closeChain: () => ipcRenderer.invoke("chains:closeChain"),
     removeRecent: (id: string) => ipcRenderer.invoke("chains:removeRecent", id),
   },
   jumpdocs: {
@@ -40,8 +42,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     listJumpdocs: () => ipcRenderer.invoke("jumpdocs:listJumpdocs"),
     loadJumpdoc: (filePath: string) => ipcRenderer.invoke("jumpdocs:loadJumpdoc", filePath),
     openJumpdocFilePicker: () => ipcRenderer.invoke("jumpdocs:openJumpdocFilePicker"),
+    openAndPrepare: () => ipcRenderer.invoke("jumpdocs:openAndPrepare"),
     saveJumpdoc: (id: string, data: unknown) =>
       ipcRenderer.invoke("jumpdocs:saveJumpdoc", id, data),
+    autosaveJumpdoc: (data: unknown) =>
+      ipcRenderer.invoke("jumpdocs:autosaveJumpdoc", data),
     saveJumpdocAs: (id: string, data: unknown) =>
       ipcRenderer.invoke("jumpdocs:saveJumpdocAs", id, data),
     saveJumpdocMeta: (id: string, meta: unknown) =>

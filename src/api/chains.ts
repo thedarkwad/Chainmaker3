@@ -302,3 +302,7 @@ export const claimChain = createServerFn({ method: "POST" })
     await Models.Chain.updateOne({ publicUid: data.publicUid }, { $set: { ownerUid: uid } });
     return { status: "ok" };
   });
+
+export async function autosaveChain(): Promise<never> {
+  throw new Error("autosaveChain is only available in Electron");
+}

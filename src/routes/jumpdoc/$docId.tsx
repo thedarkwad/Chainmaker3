@@ -4,13 +4,14 @@ import { BookOpen, Loader2, Save, X } from "lucide-react";
 
 import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
 import { useJumpDocName } from "@/jumpdoc/state/hooks";
+import { activeDocHandlers } from "@/electron-api/activeDocHandlers";
 import { useJumpDocMetaStore, type JumpDocAttributes } from "@/jumpdoc/state/JumpDocMetaStore";
 import { makeUndoRedoProvider } from "@/providers/makeUndoRedoProvider";
-import { AppHeader, navButtonClass } from "@/app/components/AppHeader";
+import { AppHeader } from "@/app/components/AppHeader";
 import { PortalNav } from "@/app/components/PortalNav";
 import { useTheme } from "@/providers/ThemeProvider";
 import { useCurrentUser } from "@/app/state/auth";
-import { saveJumpDoc, forceReplaceJumpDoc, loadJumpDoc } from "@/api/jumpdocs";
+import { saveJumpDoc, autosaveJumpDoc, forceReplaceJumpDoc, loadJumpDoc } from "@/api/jumpdocs";
 import type { JumpDoc } from "@/chain/data/JumpDoc";
 
 export const Route = createFileRoute("/jumpdoc/$docId")({
@@ -42,6 +43,7 @@ function JumpDocLoader() {
   const editsRef = useRef(0);
   // Keep a stable ref to handleSave so the autosave interval doesn't need to be re-registered.
   const handleSaveRef = useRef<() => Promise<void>>(async () => {});
+  const handleAutoSaveRef = useRef<() => Promise<void>>(async () => {});
   // True until the first successful save — allows saving even with 0 patches (initial save).
   const isPendingRef = useRef(false);
 
@@ -134,15 +136,26 @@ function JumpDocLoader() {
     }
   }
 
-  // Keep ref in sync every render so the interval always calls the latest closure.
-  handleSaveRef.current = handleSave;
+  async function handleAutoSave() {
+    if (import.meta.env.VITE_PLATFORM === "electron") {
+      const { updates } = useJumpDocStore.getState();
+      if (!updates.cumulativePatches.length) return;
+      await autosaveJumpDoc();
+    } else {
+      await handleSave();
+    }
+  }
 
-  // Electron menu:save / menu:save-as — wire up File > Save and File > Save As.
+  // Keep refs in sync every render so the intervals always call the latest closures.
+  handleSaveRef.current = handleSave;
+  handleAutoSaveRef.current = handleAutoSave;
+
   useEffect(() => {
+    if (import.meta.env.VITE_PLATFORM !== "electron") return;
     const api = window.electronAPI;
     if (!api) return;
-    const onSave = () => void handleSaveRef.current();
-    const onSaveAs = () => {
+    activeDocHandlers.save = () => void handleSaveRef.current();
+    activeDocHandlers.saveAs = () => {
       api.jumpdocs
         .saveJumpdocAs(docMongoIdRef.current, useJumpDocStore.getState().doc)
         .then((result) => {
@@ -153,19 +166,17 @@ function JumpDocLoader() {
         })
         .catch(console.error);
     };
-    api.onMenuEvent("menu:save", onSave);
-    api.onMenuEvent("menu:save-as", onSaveAs);
     return () => {
-      api.offMenuEvent("menu:save", onSave);
-      api.offMenuEvent("menu:save-as", onSaveAs);
+      activeDocHandlers.save = null;
+      activeDocHandlers.saveAs = null;
     };
   }, []);
 
-  // Autosave: fire handleSave every 60 s when autosave is enabled.
+  // Autosave: fire handleAutoSave every 60 s when autosave is enabled.
   useEffect(() => {
     if (!settings.autosave) return;
     const id = setInterval(() => {
-      void handleSaveRef.current();
+      void handleAutoSaveRef.current();
     }, 60_000);
     return () => clearInterval(id);
   }, [settings.autosave]);

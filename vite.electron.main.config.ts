@@ -20,6 +20,7 @@ export default defineConfig({
     rollupOptions: {
       external: [
         "electron",
+        "child_process",
         "fs",
         "os",
         "path",

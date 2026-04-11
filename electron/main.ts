@@ -8,7 +8,9 @@ import {
   loadChain,
   loadChainFromPath,
   saveChain,
+  autosaveChain,
   saveChainAs,
+  closeChain,
   initNewChain,
   removeChainFromRecent,
   uploadImage,
@@ -23,6 +25,7 @@ import {
   openJumpdocFromPath,
   initNewJumpdoc,
   saveJumpdoc,
+  autosaveJumpdoc,
   saveJumpdocAs,
   saveJumpdocMeta,
   uploadJumpdocThumb,
@@ -177,14 +180,16 @@ function buildMenu(): void {
         {
           label: "New JumpDoc…",
           click: () =>
-            initNewJumpdoc().then((r) => r && mainWindow?.webContents.send("menu:new-jumpdoc", r)),
+            initNewJumpdoc(() => mainWindow?.webContents.send("menu:jumpdoc-preparing"))
+              .then((r) => r && mainWindow?.webContents.send("menu:new-jumpdoc", r))
+              .catch(console.error),
         },
         {
           label: "Edit JumpDoc…",
           click: () =>
-            openJumpdocFilePicker().then(
-              (r) => r && mainWindow?.webContents.send("menu:edit-jumpdoc", r),
-            ),
+            openJumpdocFilePicker(() => mainWindow?.webContents.send("menu:jumpdoc-preparing"))
+              .then((r) => r && mainWindow?.webContents.send("menu:edit-jumpdoc", r))
+              .catch(console.error),
         },
         {
           label: "Browse JumpDocs",
@@ -301,7 +306,11 @@ function handleOpenJumpdoc(filePath: string): void {
   if (!mainWindow) return;
   try {
     const result = openJumpdocFromPath(filePath);
-    mainWindow.webContents.send("menu:edit-jumpdoc", result);
+    if (isDev) {
+      mainWindow.loadURL(`${RENDERER_DEV_URL}/#/jumpdoc/${result.filePath}`);
+    } else {
+      mainWindow.loadFile(RENDERER_PROD_PATH, { hash: `/jumpdoc/${result.filePath}` });
+    }
   } catch (err) {
     console.error("Failed to open jumpdoc:", err);
   }
@@ -382,14 +391,10 @@ app.whenReady().then(() => {
   });
 
   if (process.platform !== "darwin") {
-    const fileArg = process.argv.find((a) => a.endsWith(".chain"));
-    if (fileArg) {
-      app.once("browser-window-created", () => handleOpenFile(fileArg));
-    }
+    const chainArg = process.argv.find((a) => a.endsWith(".chain"));
+    if (chainArg) handleOpenFile(chainArg);
     const jumpdocArg = process.argv.find((a) => a.endsWith(".jumpdoc"));
-    if (jumpdocArg) {
-      app.once("browser-window-created", () => handleOpenJumpdoc(jumpdocArg));
-    }
+    if (jumpdocArg) handleOpenJumpdoc(jumpdocArg);
   }
 });
 
@@ -426,11 +431,13 @@ ipcMain.on("get-user-data-path", (event) => {
 ipcMain.handle("chains:openFilePicker", () => openFilePicker());
 ipcMain.handle("chains:loadChain", () => loadChain());
 ipcMain.handle("chains:saveChain", (_e, data: unknown) => saveChain(data));
+ipcMain.handle("chains:autosaveChain", (_e, data: unknown) => autosaveChain(data));
 ipcMain.handle("chains:initNewChain", (_e, chainData: unknown) => initNewChain(chainData));
 ipcMain.handle("chains:removeRecent", (_e, id: string) => {
   removeChainFromRecent(id);
 });
 ipcMain.handle("chains:saveChainAs", () => saveChainAs());
+ipcMain.handle("chains:closeChain", () => closeChain());
 
 // Jumpdocs
 ipcMain.handle("jumpdocs:getJumpdocFolder", () => getJumpdocFolder());
@@ -438,7 +445,14 @@ ipcMain.handle("jumpdocs:setJumpdocFolder", () => setJumpdocFolder());
 ipcMain.handle("jumpdocs:listJumpdocs", () => listJumpdocs());
 ipcMain.handle("jumpdocs:loadJumpdoc", (_e, filePath: string) => loadJumpdoc(filePath));
 ipcMain.handle("jumpdocs:openJumpdocFilePicker", () => openJumpdocFilePicker());
+ipcMain.handle("jumpdocs:openAndPrepare", async (event) => {
+  await openJumpdocFilePicker(
+    () => event.sender.send("menu:jumpdoc-preparing"),
+  ).then((r) => { if (r) event.sender.send("menu:edit-jumpdoc", r); })
+   .catch(console.error);
+});
 ipcMain.handle("jumpdocs:saveJumpdoc", (_e, id: string, data: unknown) => saveJumpdoc(id, data));
+ipcMain.handle("jumpdocs:autosaveJumpdoc", (_e, data: unknown) => autosaveJumpdoc(data));
 ipcMain.handle("jumpdocs:saveJumpdocAs", (_e, id: string, data: unknown) => saveJumpdocAs(id, data));
 ipcMain.handle("jumpdocs:saveJumpdocMeta", (_e, id: string, meta: unknown) =>
   saveJumpdocMeta(id, meta as import("../src/types/electron").ElectronJumpDocSaveMeta),

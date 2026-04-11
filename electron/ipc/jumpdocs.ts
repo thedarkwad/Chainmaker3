@@ -2,13 +2,66 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import crypto from "crypto";
-import { dialog } from "electron";
+import { dialog, app } from "electron";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import AdmZip from "adm-zip";
 import sharp from "sharp";
+
+const execFileAsync = promisify(execFile);
+
+/** Resolves the Ghostscript binary path for both dev and packaged builds. */
+function getGsBinaryPath(): string {
+  const binaryName = process.platform === "win32" ? "gswin64c.exe" : "gs";
+  const rel = path.join("node_modules", "compress-pdf", "bin", "gs", "bin", binaryName);
+  if (app.isPackaged) {
+    // Binary is extracted from the asar to app.asar.unpacked via asarUnpack config.
+    return path.join(process.resourcesPath, "app.asar.unpacked", rel);
+  }
+  // Dev: node_modules lives at the project root (app.getAppPath()).
+  return path.join(app.getAppPath(), rel);
+}
+
+/** Runs Ghostscript to compress a PDF buffer. Returns the original buffer if compression makes it larger. */
+async function compressPdf(input: Buffer): Promise<Buffer> {
+  const gsBin = getGsBinaryPath();
+  const tmpIn = path.join(os.tmpdir(), `gs-in-${crypto.randomUUID()}.pdf`);
+  const tmpOut = path.join(os.tmpdir(), `gs-out-${crypto.randomUUID()}.pdf`);
+  try {
+    fs.writeFileSync(tmpIn, input);
+    await execFileAsync(gsBin, [
+      "-q", "-dNOPAUSE", "-dBATCH", "-dSAFER",
+      "-dSimulateOverprint=true",
+      "-sDEVICE=pdfwrite",
+      "-dCompatibilityLevel=1.4",
+      "-dPDFSETTINGS=/ebook",
+      "-dEmbedAllFonts=true",
+      "-dSubsetFonts=true",
+      "-dAutoRotatePages=/None",
+      "-dColorImageDownsampleType=/Bicubic",
+      "-dColorImageResolution=100",
+      "-dGrayImageDownsampleType=/Bicubic",
+      "-dGrayImageResolution=100",
+      "-dMonoImageDownsampleType=/Bicubic",
+      "-dMonoImageResolution=100",
+      `-sOutputFile=${tmpOut}`,
+      "-sOwnerPassword=",
+      "-sUserPassword=",
+      tmpIn,
+    ]);
+    return fs.readFileSync(tmpOut);
+  } finally {
+    try { fs.unlinkSync(tmpIn); } catch { /* already gone */ }
+    try { fs.unlinkSync(tmpOut); } catch { /* not written */ }
+  }
+}
 import { getSettings, setSettings } from "./settings";
 import type { ElectronJumpDocLoadResult, ElectronJumpDocMeta, ElectronJumpDocSaveMeta } from "../../src/types/electron";
 
 // ── In-memory state ───────────────────────────────────────────────────────────
+
+// The UUID of the jumpdoc currently open in the editor (only one at a time).
+let currentJumpdocId: string | null = null;
 
 // Pending (unsaved) jumpdocs: UUID → { data, pdfTempPath }
 const pendingJumpdocs = new Map<string, { data: unknown; pdfTempPath: string }>();
@@ -263,7 +316,7 @@ export function listJumpdocs(): ElectronJumpDocMeta[] {
   return results.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function registerJumpdocFromPdf(pdfPath: string): { filePath: string } {
+async function registerJumpdocFromPdf(pdfPath: string): Promise<{ filePath: string }> {
   const id = crypto.randomUUID();
   const name = path.basename(pdfPath, ".pdf").replace(/[<>:"/\\|?*]/g, "_");
   const data = {
@@ -301,7 +354,33 @@ function registerJumpdocFromPdf(pdfPath: string): { filePath: string } {
   const tmpDir = jumpdocTempDir(id);
   fs.mkdirSync(tmpDir, { recursive: true });
   const pdfDest = path.join(tmpDir, "pdf.pdf");
-  fs.copyFileSync(pdfPath, pdfDest);
+
+  console.log(`[pdf] reading: ${pdfPath}`);
+  const raw = fs.readFileSync(pdfPath);
+  console.log(`[pdf] read ${raw.length} bytes — starting Ghostscript compression (resolution: ebook)…`);
+  const compressStart = Date.now();
+
+  console.log(`[pdf] gs binary: ${getGsBinaryPath()}`);
+  let compressed: Buffer;
+  try {
+    compressed = await compressPdf(raw);
+    console.log(`[pdf] Ghostscript finished in ${Date.now() - compressStart}ms`);
+  } catch (err) {
+    console.error(`[pdf] Ghostscript threw after ${Date.now() - compressStart}ms:`, err);
+    throw err;
+  }
+
+  const savedBytes = raw.length - compressed.length;
+  const savedPct = ((savedBytes / raw.length) * 100).toFixed(1);
+  if (compressed.length < raw.length) {
+    console.log(`[pdf] compressed ${raw.length} → ${compressed.length} bytes (saved ${savedPct}%) — writing to ${pdfDest}`);
+    fs.writeFileSync(pdfDest, compressed);
+  } else {
+    console.log(`[pdf] compression had no effect (${raw.length} bytes) — copying original to ${pdfDest}`);
+    fs.copyFileSync(pdfPath, pdfDest);
+  }
+  console.log(`[pdf] done, temp path: ${pdfDest}`);
+
   const pdfTempPath = `file:///${pdfDest.replace(/\\/g, "/")}`;
   pendingJumpdocs.set(id, { data, pdfTempPath });
   pendingJumpdocIds.add(id);
@@ -309,34 +388,44 @@ function registerJumpdocFromPdf(pdfPath: string): { filePath: string } {
   return { filePath: id };
 }
 
-export async function initNewJumpdoc(): Promise<{ filePath: string } | null> {
+export async function initNewJumpdoc(
+  onPdfSelected?: () => void,
+): Promise<{ filePath: string } | null> {
   const result = await dialog.showOpenDialog({
     title: "Select PDF",
     filters: [{ name: "PDF", extensions: ["pdf"] }],
     properties: ["openFile"],
   });
   if (result.canceled || !result.filePaths[0]) return null;
-  return registerJumpdocFromPdf(result.filePaths[0]);
+  onPdfSelected?.();
+  return await registerJumpdocFromPdf(result.filePaths[0]);
 }
 
 /** Opens a .jumpdoc file by path (e.g. from a file-association open), returns its stable ID. */
 export function openJumpdocFromPath(filePath: string): { filePath: string } {
-  return { filePath: getOrAssignId(filePath) };
+  const id = getOrAssignId(filePath);
+  currentJumpdocId = id;
+  return { filePath: id };
 }
 
-export async function openJumpdocFilePicker(): Promise<{ filePath: string } | null> {
+export async function openJumpdocFilePicker(
+  onPdfSelected?: () => void,
+): Promise<{ filePath: string } | null> {
   const result = await dialog.showOpenDialog({
     title: "Open JumpDoc",
     filters: [{ name: "JumpDoc or PDF", extensions: ["jumpdoc", "pdf"] }],
     properties: ["openFile"],
   });
   if (result.canceled || !result.filePaths[0]) return null;
-  if (result.filePaths[0].toLowerCase().endsWith(".pdf"))
-    return registerJumpdocFromPdf(result.filePaths[0]);
+  if (result.filePaths[0].toLowerCase().endsWith(".pdf")) {
+    onPdfSelected?.();
+    return await registerJumpdocFromPdf(result.filePaths[0]);
+  }
   return { filePath: getOrAssignId(result.filePaths[0]) };
 }
 
 export function loadJumpdoc(id: string): ElectronJumpDocLoadResult & { isPending: boolean } {
+  currentJumpdocId = id;
   const pending = pendingJumpdocs.get(id);
   if (pending) return { data: pending.data, pdfTempPath: pending.pdfTempPath, isPending: true };
 
@@ -518,6 +607,18 @@ export async function saveJumpdocAs(id: string, data: unknown): Promise<{ ok: bo
   jumpdocIdToPath.set(id, filePath);
   jumpdocPathToId.set(filePath, id);
 
+  const folder = path.dirname(filePath);
+  updateIndexEntry(folder, filePath, data, id);
+  return { ok: true };
+}
+
+export async function autosaveJumpdoc(data: unknown): Promise<{ ok: boolean }> {
+  const id = currentJumpdocId;
+  if (!id || pendingJumpdocIds.has(id)) return { ok: false };
+  const filePath = resolveFilePath(id);
+  if (!filePath) return { ok: false };
+  await writeJumpdocZip(filePath, data, id);
+  jumpdocCache.set(id, data);
   const folder = path.dirname(filePath);
   updateIndexEntry(folder, filePath, data, id);
   return { ok: true };

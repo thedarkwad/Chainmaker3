@@ -312,6 +312,32 @@ export async function saveChainAs(): Promise<{ ok: boolean }> {
   return { ok: true };
 }
 
+export function closeChain(): void {
+  openChain = null;
+}
+
+/** Saves to the existing file path without showing a dialog. Returns { ok: false } if no path is set yet. */
+export async function autosaveChain(data: unknown): Promise<{ ok: boolean }> {
+  if (!openChain || !openChain.filePath) return { ok: false };
+
+  const isJson = (fp: string) => fp.toLowerCase().endsWith(".json");
+  if (isJson(openChain.filePath)) {
+    const { chain: stripped } = stripInternalImages(data);
+    writeJson(openChain.filePath, stripped);
+    openChain.data = stripped;
+  } else {
+    pruneOrphanedImages(data, openChain.tempDir);
+    writeZip(openChain.filePath, data, openChain.tempDir);
+    openChain.data = data;
+  }
+
+  const newName = (data as { name?: string }).name ?? "Untitled";
+  const record = findRecentByPath(openChain.filePath);
+  if (record && record.name !== newName) addRecentFile({ ...record, name: newName });
+
+  return { ok: true };
+}
+
 export function removeChainFromRecent(_id: string): void {
   // Recent chain management deferred — no-op for now.
 }

@@ -4,6 +4,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { activeDocHandlers } from "@/electron-api/activeDocHandlers";
 
 import { useChainStore } from "@/chain/state/Store";
 import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
@@ -28,9 +29,6 @@ export const Route = createRootRoute({
     links: [{ rel: "stylesheet", href: appCss }],
   }),
 
-  // shellComponent is used by TanStack Start for SSR — must not be set in
-  // Electron because plain TanStack Router will render it inside #root,
-  // producing an <html> inside a <div> and mounting unwanted global elements.
   ...(isElectron ? {} : { shellComponent: RootDocument }),
   component: RootContent,
 });
@@ -118,8 +116,6 @@ function RootContent() {
   const navigate = useNavigate();
   const [newChainOpen, setNewChainOpen] = useState(false);
 
-  // Electron global menu events: new chain, open chain, new/edit jumpdoc.
-  // Save/Save As are handled inside the chain route component.
   useEffect(() => {
     if (!isElectron) return;
     const api = window.electronAPI;
@@ -136,6 +132,11 @@ function RootContent() {
       return window.confirm("You have unsaved changes. Discard them and continue?");
     }
 
+    function closeChain() {
+      if (!api) return;
+      api.chains.closeChain().catch(console.error);
+    }
+
     const onNewChain = () => {
       if (!confirmNavigateAway()) return;
       setNewChainOpen(true);
@@ -147,25 +148,37 @@ function RootContent() {
       navigate({ to: "/chain/$chainId", params: { chainId: id } });
     };
 
-    const onNewJumpdoc = (result: unknown) => {
+    // Fires after the user picks a PDF but before compression starts.
+    const onJumpdocPreparing = () => {
       if (!confirmNavigateAway()) return;
+      closeChain();
+      navigate({ to: "/jumpdoc-loading" });
+    };
+
+    const onNewJumpdoc = (result: unknown) => {
+      // Navigation away was already confirmed in onJumpdocPreparing (always a PDF).
       const { filePath } = result as { filePath: string };
       navigate({ to: "/jumpdoc/$docId", params: { docId: filePath } });
     };
 
     const onEditJumpdoc = (result: unknown) => {
+      // For .jumpdoc files there is no prior preparing event, so check here.
+      // For PDFs we're already on /jumpdoc-loading with no unsaved changes, so this is a no-op.
       if (!confirmNavigateAway()) return;
+      closeChain();
       const { filePath } = result as { filePath: string };
       navigate({ to: "/jumpdoc/$docId", params: { docId: filePath } });
     };
 
     const onBrowseJumpdocs = () => {
       if (!confirmNavigateAway()) return;
+      closeChain();
       navigate({ to: "/gallery" });
     };
 
     const onClose = () => {
       if (!confirmNavigateAway()) return;
+      closeChain();
       navigate({ to: "/" });
     };
 
@@ -189,20 +202,29 @@ function RootContent() {
       toast.dismiss("updater");
     });
 
+    const onSave = () => activeDocHandlers.save?.();
+    const onSaveAs = () => activeDocHandlers.saveAs?.();
+
     api.onMenuEvent("menu:new-chain", onNewChain);
     api.onMenuEvent("menu:open-chain", onOpenChain);
+    api.onMenuEvent("menu:jumpdoc-preparing", onJumpdocPreparing);
     api.onMenuEvent("menu:new-jumpdoc", onNewJumpdoc);
     api.onMenuEvent("menu:edit-jumpdoc", onEditJumpdoc);
     api.onMenuEvent("menu:browse-jumpdocs", onBrowseJumpdocs);
     api.onMenuEvent("menu:close", onClose);
+    api.onMenuEvent("menu:save", onSave);
+    api.onMenuEvent("menu:save-as", onSaveAs);
     api.onBeforeClose(onBeforeClose);
     return () => {
       api.offMenuEvent("menu:new-chain", onNewChain);
       api.offMenuEvent("menu:open-chain", onOpenChain);
+      api.offMenuEvent("menu:jumpdoc-preparing", onJumpdocPreparing);
       api.offMenuEvent("menu:new-jumpdoc", onNewJumpdoc);
       api.offMenuEvent("menu:edit-jumpdoc", onEditJumpdoc);
       api.offMenuEvent("menu:browse-jumpdocs", onBrowseJumpdocs);
       api.offMenuEvent("menu:close", onClose);
+      api.offMenuEvent("menu:save", onSave);
+      api.offMenuEvent("menu:save-as", onSaveAs);
       // onBeforeClose is registered once and cleaned up with the component
     };
   }, [navigate]);

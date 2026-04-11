@@ -12,9 +12,8 @@ export function ElectronHome() {
     if (result) navigate({ to: "/chain/$chainId", params: { chainId: result.id } });
   }
 
-  async function handleEditJumpdoc() {
-    const result = await window.electronAPI?.jumpdocs.openJumpdocFilePicker?.();
-    if (result) navigate({ to: "/jumpdoc/$docId", params: { docId: result.filePath } });
+  function handleEditJumpdoc() {
+    window.electronAPI?.jumpdocs.openAndPrepare();
   }
 
   return (

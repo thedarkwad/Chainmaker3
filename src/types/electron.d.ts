@@ -102,8 +102,12 @@ type ElectronAPI = {
     loadChain(): Promise<{ chain: unknown; imagePaths: Record<string, string> }>;
     /** Writes chain data to disk. Shows save dialog if unsaved. */
     saveChain(data: unknown): Promise<{ ok: boolean }>;
+    /** Writes chain data to the existing file path. Returns { ok: false } if no path is set yet (no dialog). */
+    autosaveChain(data: unknown): Promise<{ ok: boolean }>;
     /** Shows OS save-as dialog and writes the open chain to a new location. */
     saveChainAs(): Promise<{ ok: boolean }>;
+    /** Clears the open chain state — call when navigating away from the chain editor. */
+    closeChain(): Promise<void>;
     /** Removes from recent files list (does not delete the file). */
     removeRecent(id: string): Promise<void>;
     /** Copies .chain zip to a new file with a new UUID + " (copy)" name suffix. */
@@ -117,11 +121,15 @@ type ElectronAPI = {
     /** Scans the configured folder and returns one summary per *.jumpdoc file. */
     listJumpdocs(): Promise<ElectronJumpDocMeta[]>;
     /** Reads data.json and extracts pdf.pdf from the .jumpdoc zip to temp dir. */
-    loadJumpdoc(filePath: string): Promise<ElectronJumpDocLoadResult>;
+    loadJumpdoc(filePath: string): Promise<ElectronJumpDocLoadResult & { isPending: boolean }>;
     /** Opens OS file picker for *.jumpdoc files, returns the path. */
     openJumpdocFilePicker(): Promise<{ filePath: string } | null>;
+    /** Opens picker and fires menu:jumpdoc-preparing / menu:edit-jumpdoc events directly (for homescreen). */
+    openAndPrepare(): Promise<void>;
     /** Writes jumpdoc data to disk. Shows save dialog on first save of a new doc. */
     saveJumpdoc(id: string, data: unknown): Promise<{ ok: boolean }>;
+    /** Writes jumpdoc data to the existing file path. Returns { ok: false } if unsaved (no dialog). */
+    autosaveJumpdoc(data: unknown): Promise<{ ok: boolean }>;
     /** Always opens save dialog to write jumpdoc to a new location. */
     saveJumpdocAs(id: string, data: unknown): Promise<{ ok: boolean }>;
     /** Persists gallery metadata (attributes, nsfw) to the jumpdoc zip's meta.json. */

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as UserimagesRouteImport } from './routes/userimages'
 import { Route as PurchasesRouteImport } from './routes/purchases'
 import { Route as PortalRouteImport } from './routes/portal'
+import { Route as JumpdocLoadingRouteImport } from './routes/jumpdoc-loading'
 import { Route as GuideRouteImport } from './routes/guide'
 import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as IndexRouteImport } from './routes/index'
@@ -60,6 +61,11 @@ const PurchasesRoute = PurchasesRouteImport.update({
 const PortalRoute = PortalRouteImport.update({
   id: '/portal',
   path: '/portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JumpdocLoadingRoute = JumpdocLoadingRouteImport.update({
+  id: '/jumpdoc-loading',
+  path: '/jumpdoc-loading',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuideRoute = GuideRouteImport.update({
@@ -257,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/gallery': typeof GalleryRoute
   '/guide': typeof GuideRoute
+  '/jumpdoc-loading': typeof JumpdocLoadingRoute
   '/portal': typeof PortalRoute
   '/purchases': typeof PurchasesRoute
   '/userimages': typeof UserimagesRoute
@@ -296,6 +303,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/gallery': typeof GalleryRoute
   '/guide': typeof GuideRoute
+  '/jumpdoc-loading': typeof JumpdocLoadingRoute
   '/portal': typeof PortalRoute
   '/purchases': typeof PurchasesRoute
   '/userimages': typeof UserimagesRoute
@@ -329,6 +337,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/gallery': typeof GalleryRoute
   '/guide': typeof GuideRoute
+  '/jumpdoc-loading': typeof JumpdocLoadingRoute
   '/portal': typeof PortalRoute
   '/purchases': typeof PurchasesRoute
   '/userimages': typeof UserimagesRoute
@@ -370,6 +379,7 @@ export interface FileRouteTypes {
     | '/'
     | '/gallery'
     | '/guide'
+    | '/jumpdoc-loading'
     | '/portal'
     | '/purchases'
     | '/userimages'
@@ -409,6 +419,7 @@ export interface FileRouteTypes {
     | '/'
     | '/gallery'
     | '/guide'
+    | '/jumpdoc-loading'
     | '/portal'
     | '/purchases'
     | '/userimages'
@@ -441,6 +452,7 @@ export interface FileRouteTypes {
     | '/'
     | '/gallery'
     | '/guide'
+    | '/jumpdoc-loading'
     | '/portal'
     | '/purchases'
     | '/userimages'
@@ -481,6 +493,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GalleryRoute: typeof GalleryRoute
   GuideRoute: typeof GuideRoute
+  JumpdocLoadingRoute: typeof JumpdocLoadingRoute
   PortalRoute: typeof PortalRoute
   PurchasesRoute: typeof PurchasesRoute
   UserimagesRoute: typeof UserimagesRoute
@@ -509,6 +522,13 @@ declare module '@tanstack/react-router' {
       path: '/portal'
       fullPath: '/portal'
       preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jumpdoc-loading': {
+      id: '/jumpdoc-loading'
+      path: '/jumpdoc-loading'
+      fullPath: '/jumpdoc-loading'
+      preLoaderRoute: typeof JumpdocLoadingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guide': {
@@ -920,6 +940,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GalleryRoute: GalleryRoute,
   GuideRoute: GuideRoute,
+  JumpdocLoadingRoute: JumpdocLoadingRoute,
   PortalRoute: PortalRoute,
   PurchasesRoute: PurchasesRoute,
   UserimagesRoute: UserimagesRoute,

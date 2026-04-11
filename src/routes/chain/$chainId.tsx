@@ -6,10 +6,11 @@ import { toast } from "react-toastify";
 
 import { useChain } from "@/chain/state/hooks";
 import { useChainStore } from "@/chain/state/Store";
+import { activeDocHandlers } from "@/electron-api/activeDocHandlers";
 import { AppHeader, navButtonClass } from "@/app/components/AppHeader";
 import { useTheme } from "@/providers/ThemeProvider";
 import { useCurrentUser } from "@/app/state/auth";
-import { loadChain, saveChain, forceReplaceChain } from "@/api/chains";
+import { loadChain, saveChain, autosaveChain, forceReplaceChain } from "@/api/chains";
 import { registerClipboardTab, deregisterClipboardTab } from "@/chain/state/clipboard";
 import { getImagePaths } from "@/api/images";
 import { useImageUrlCache } from "@/chain/state/ImageUrlCache";
@@ -45,6 +46,7 @@ function ChainLoader() {
   const editsRef = useRef(0);
   // Keep a stable ref to handleSave so the autosave interval doesn't need to be re-registered.
   const handleSaveRef = useRef<() => Promise<void>>(async () => {});
+  const handleAutoSaveRef = useRef<() => Promise<void>>(async () => {});
   // True until the first successful save — allows saving even with 0 patches (initial save).
   const isPendingRef = useRef(false);
   // Register this tab with the clipboard so it clears when all /chain tabs close.
@@ -165,30 +167,38 @@ function ChainLoader() {
     }
   }
 
-  // Keep ref in sync every render so the interval always calls the latest closure.
+  async function handleAutoSave() {
+    if (import.meta.env.VITE_PLATFORM === "electron") {
+      const { updates } = useChainStore.getState();
+      if (!updates.cumulativePatches.length) return;
+      await autosaveChain();
+    } else {
+      await handleSave();
+    }
+  }
+
+  // Keep refs in sync every render so the intervals always call the latest closures.
   handleSaveRef.current = handleSave;
+  handleAutoSaveRef.current = handleAutoSave;
 
   // Stable save function for child routes — always calls the latest handleSave via ref.
   const stableSave = useCallback(() => handleSaveRef.current(), []);
 
-  // Autosave: fire handleSave every 60 s when autosave is enabled.
+  // Autosave: fire handleAutoSave every 60 s when autosave is enabled.
   useEffect(() => {
     if (!settings.autosave) return;
     const id = setInterval(() => {
-      void handleSaveRef.current();
+      void handleAutoSaveRef.current();
     }, 60_000);
     return () => clearInterval(id);
   }, [settings.autosave]);
-
-  // Electron menu: Save / Save As
   useEffect(() => {
     if (import.meta.env.VITE_PLATFORM !== "electron") return;
     const api = window.electronAPI;
     if (!api) return;
 
-    const onSave = () => void handleSaveRef.current();
-
-    const onSaveAs = () => {
+    activeDocHandlers.save = () => void handleSaveRef.current();
+    activeDocHandlers.saveAs = () => {
       api.chains
         .saveChainAs()
         .then((result) => {
@@ -198,11 +208,9 @@ function ChainLoader() {
         .catch(console.error);
     };
 
-    api.onMenuEvent("menu:save", onSave);
-    api.onMenuEvent("menu:save-as", onSaveAs);
     return () => {
-      api.offMenuEvent("menu:save", onSave);
-      api.offMenuEvent("menu:save-as", onSaveAs);
+      activeDocHandlers.save = null;
+      activeDocHandlers.saveAs = null;
     };
   }, []);
 

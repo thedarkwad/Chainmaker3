@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "main": "dist-electron/main.cjs",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "scripts": {
     "dev": "vite dev --port 3000",
     "build": "NODE_OPTIONS=--max-old-space-size=2048 vite build",
@@ -12,7 +12,7 @@
     "electron:dev:main": "vite build -c vite.electron.main.config.ts --watch --mode development",
     "electron:dev:renderer": "vite serve -c vite.electron.config.ts",
     "electron:dev": "concurrently -k -n main,renderer,electron \"npm run electron:dev:main\" \"npm run electron:dev:renderer\" \"wait-on tcp:5174 && electron .\"",
-    "electron:build": "vite build -c vite.electron.main.config.ts && vite build -c vite.electron.config.ts && electron-builder",
+    "electron:build": "node -e \"require('fs').rmSync('dist-app', {recursive:true, force:true})\" && vite build -c vite.electron.main.config.ts && vite build -c vite.electron.config.ts && electron-builder",
     "electron:publish": "dotenv -e .env -- npm run electron:build:vite && dotenv -e .env -- electron-builder --publish always",
     "electron:build:vite": "vite build -c vite.electron.main.config.ts && vite build -c vite.electron.config.ts"
   },
@@ -22,6 +22,9 @@
     "files": [
       "dist-electron/**/*",
       "dist-electron-renderer/**/*"
+    ],
+    "asarUnpack": [
+      "**/node_modules/compress-pdf/**"
     ],
     "directories": {
       "output": "dist-app"
@@ -78,6 +81,7 @@
     "@tanstack/router-plugin": "^1.132.0",
     "@types/mdast": "^4.0.4",
     "adm-zip": "^0.5.16",
+    "compress-pdf": "^0.6.0",
     "electron-context-menu": "^3.6.1",
     "electron-updater": "^6.8.3",
     "fflate": "^0.8.2",

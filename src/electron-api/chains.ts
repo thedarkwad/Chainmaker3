@@ -37,6 +37,14 @@ export async function loadChain(
   };
 }
 
+export async function autosaveChain(): Promise<{ status: "ok"; edits: number } | { status: "not_found" | "bad_patches" }> {
+  const { useChainStore } = await import("@/chain/state/Store");
+  const chain = useChainStore.getState().chain;
+  const api = getAPI();
+  const result = await api.chains.autosaveChain(chain);
+  return result.ok ? { status: "ok", edits: 1 } : { status: "bad_patches" };
+}
+
 /** Saves the open chain by writing its full current data. The IPC resolves the file path. */
 export async function saveChain(
   _params: unknown,

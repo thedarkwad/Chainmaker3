@@ -7,6 +7,7 @@ import { connectToDatabase, Models } from "@/server/db";
 import { verifyIdToken } from "@/server/auth";
 import { syncJumpDocPurchases } from "@/server/purchases";
 import { uploadFile, deleteFile } from "@/server/storage";
+import { compressPdf } from "@/server/pdf";
 import { type SaveResult } from "@/api/types";
 import { customAlphabet } from "nanoid";
 import { alphanumeric } from "nanoid-dictionary";
@@ -562,16 +563,20 @@ export const createJumpDoc = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<{ publicUid: string }> => {
     if (data.bytes > 10 * 1048576)
-      throw new Error(`Please compress PDF before uploading. Max Size: 10 MB`);
+      throw new Error(`PDF is too large to upload (max 10 MB before compression).`);
 
     await connectToDatabase();
 
     const { uid } = await verifyIdToken(data.idToken);
 
+    const rawBuffer = Buffer.from(data.fileData, "base64");
+    const buffer = await compressPdf(rawBuffer);
+    const pdfBytes = buffer.length;
+
     // Check PDF storage quota
     const user = await Models.User.findOne({ firebaseUid: uid }, { pdfUsage: 1 }).lean();
     if (!user) throw new Error("User not found");
-    if (user.pdfUsage.currentBytes + data.bytes > user.pdfUsage.maxBytes) {
+    if (user.pdfUsage.currentBytes + pdfBytes > user.pdfUsage.maxBytes) {
       const limitMb = Math.round(user.pdfUsage.maxBytes / 1024 / 1024);
       const usedMb = Math.round(user.pdfUsage.currentBytes / 1024 / 1024);
       throw new Error(`PDF storage quota exceeded (${usedMb} MB used of ${limitMb} MB limit)`);
@@ -579,7 +584,6 @@ export const createJumpDoc = createServerFn({ method: "POST" })
 
     // Upload to Backblaze B2
     const key = `pdfs/${uid}/${customAlphabet(alphanumeric, 16)()}.pdf`;
-    const buffer = Buffer.from(data.fileData, "base64");
     const { url } = await uploadFile(key, buffer, "application/pdf");
 
     // Pre-generate the PDF ObjectId so JumpDoc can reference it before creation
@@ -664,12 +668,12 @@ export const createJumpDoc = createServerFn({ method: "POST" })
       usedInDocId: String(jumpdoc._id),
       path: url,
       backblazeFileId: key,
-      bytes: data.bytes,
+      bytes: pdfBytes,
     });
 
     await Models.User.updateOne(
       { firebaseUid: uid },
-      { $inc: { "pdfUsage.currentBytes": data.bytes } },
+      { $inc: { "pdfUsage.currentBytes": pdfBytes } },
     );
 
     return { publicUid: jumpdoc.publicUid };
@@ -766,8 +770,9 @@ export const importJumpDoc = createServerFn({ method: "POST" })
     };
     const nsfw = (meta.nsfw as boolean | undefined) ?? false;
 
-    // Upload PDF under the caller's quota.
-    const pdfBuffer = pdfEntry.getData();
+    // Compress then upload PDF under the caller's quota.
+    const rawPdfBuffer = pdfEntry.getData();
+    const pdfBuffer = await compressPdf(rawPdfBuffer);
     const pdfBytes = pdfBuffer.length;
     const user = await Models.User.findOne({ firebaseUid: uid }, { pdfUsage: 1 }).lean();
     if (!user) throw new Error("User not found");
@@ -851,3 +856,8 @@ export const importJumpDoc = createServerFn({ method: "POST" })
 
     return { publicUid: jumpdoc.publicUid as string };
   });
+
+// On web, handleAutoSave calls handleSave() directly — this stub is never invoked.
+export async function autosaveJumpDoc(): Promise<never> {
+  throw new Error("autosaveJumpDoc is only available in Electron");
+}

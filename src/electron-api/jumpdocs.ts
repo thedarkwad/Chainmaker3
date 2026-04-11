@@ -143,6 +143,15 @@ export async function saveJumpDocAs(
   return result?.ok ? { status: "ok" } : { status: "cancelled" };
 }
 
+/** Autosaves a jumpdoc. Silently skips (no dialog) if no save location is set yet. */
+export async function autosaveJumpDoc(): Promise<{ status: "ok"; edits: number } | { status: "bad_patches" }> {
+  const { useJumpDocStore } = await import("@/jumpdoc/state/JumpDocStore");
+  const doc = useJumpDocStore.getState().doc;
+  const api = getAPI();
+  const result = await api?.autosaveJumpdoc(doc);
+  return result?.ok ? { status: "ok", edits: 1 } : { status: "bad_patches" };
+}
+
 export async function saveJumpDoc(
   params: unknown,
 ): Promise<
