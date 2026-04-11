@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "main": "dist-electron/main.cjs",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "scripts": {
     "dev": "vite dev --port 3000",
     "build": "NODE_OPTIONS=--max-old-space-size=2048 vite build",
