@@ -33,6 +33,7 @@ export function CropModal({ src, fileName, onConfirm, onCancel }: Props) {
     const img = imgRef.current;
     if (!img || !completedCrop) return;
 
+<<<<<<< HEAD
     const scaleX = img.naturalWidth / img.width;
     const scaleY = img.naturalHeight / img.height;
 
@@ -41,12 +42,22 @@ export function CropModal({ src, fileName, onConfirm, onCancel }: Props) {
     const size = Math.min(naturalW, naturalH);
 
     const canvas = document.createElement("canvas");
+=======
+    const canvas = document.createElement("canvas");
+    const size = Math.min(completedCrop.width, completedCrop.height);
+>>>>>>> 9a3e440b7fa7286ef0af8855a7d2a00aea6bd42a
     canvas.width = size;
     canvas.height = size;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+<<<<<<< HEAD
+=======
+    const scaleX = img.naturalWidth / img.width;
+    const scaleY = img.naturalHeight / img.height;
+
+>>>>>>> 9a3e440b7fa7286ef0af8855a7d2a00aea6bd42a
     ctx.drawImage(
       img,
       completedCrop.x * scaleX,
@@ -59,12 +70,22 @@ export function CropModal({ src, fileName, onConfirm, onCancel }: Props) {
       size,
     );
 
+<<<<<<< HEAD
     // Output lossless PNG — the server (web) or IPC (Electron) converts to AVIF.
     const baseName = fileName.replace(/\.[^.]+$/, "");
     canvas.toBlob((blob) => {
       if (!blob) return;
       onConfirm(new File([blob], `${baseName}_cropped.png`, { type: "image/png" }));
     }, "image/png");
+=======
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const ext = fileName.replace(/^.*\./, "");
+      const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+      const baseName = fileName.replace(/\.[^.]+$/, "");
+      onConfirm(new File([blob], `${baseName}_cropped.${ext === "png" ? "png" : "jpg"}`, { type: mimeType }));
+    }, "image/jpeg", 0.95);
+>>>>>>> 9a3e440b7fa7286ef0af8855a7d2a00aea6bd42a
   }
 
   return createPortal(
@@ -72,7 +93,11 @@ export function CropModal({ src, fileName, onConfirm, onCancel }: Props) {
       className="fixed inset-0 z-200 flex items-center justify-center bg-canvas/70 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
+<<<<<<< HEAD
       <div className="flex flex-col bg-surface border border-edge rounded-lg shadow-xl max-w-[90vw] w-fit">
+=======
+      <div className="flex flex-col bg-canvas border border-edge rounded-lg shadow-xl max-w-[90vw] max-h-[90vh] overflow-hidden">
+>>>>>>> 9a3e440b7fa7286ef0af8855a7d2a00aea6bd42a
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-edge shrink-0">
           <span className="text-sm font-semibold text-ink">Crop Image</span>
@@ -85,7 +110,12 @@ export function CropModal({ src, fileName, onConfirm, onCancel }: Props) {
           </button>
         </div>
 
+<<<<<<< HEAD
         <div className="p-4 flex items-center justify-center">
+=======
+        {/* Crop area */}
+        <div className="flex-1 overflow-auto p-4 flex items-center justify-center min-h-0">
+>>>>>>> 9a3e440b7fa7286ef0af8855a7d2a00aea6bd42a
           <ReactCrop
             crop={crop}
             onChange={(c) => setCrop(c)}
@@ -98,7 +128,11 @@ export function CropModal({ src, fileName, onConfirm, onCancel }: Props) {
               ref={imgRef}
               src={src}
               onLoad={onImageLoad}
+<<<<<<< HEAD
               style={{ maxWidth: "min(70vw, 600px)", maxHeight: "calc(95vh - 9rem)" }}
+=======
+              className="max-w-[70vw] max-h-[60vh] object-contain"
+>>>>>>> 9a3e440b7fa7286ef0af8855a7d2a00aea6bd42a
               alt="Crop preview"
             />
           </ReactCrop>
