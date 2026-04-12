@@ -15,15 +15,6 @@ import {
 } from "./chainPresets";
 import { ChainSupplement } from "./ChainSupplement";
 
-/**
- * Builds a Jump seeded from a JumpDoc's structure (currencies, origin categories,
- * purchase subtypes, duration). Used by both new-chain creation and useAddJumpFromDoc
- * so the initialization logic is never duplicated.
- *
- * `defaultCP` — the chain's defaultCP setting (used to override the doc's primary-currency
- * budget when the doc uses the standard 1000 value).
- * `ignoreDrawbackLimit` — when true, drawbackLimit is omitted from the jump.
- */
 export function jumpFromDoc(
   doc: JumpDoc,
   docPublicUid: string,
@@ -37,8 +28,6 @@ export function jumpFromDoc(
     ),
     fId: createId<LID.Currency>(doc.currencies.fId),
   };
-  // If the doc's primary currency uses the standard 1000 budget, override with
-  // defaultCP. Otherwise the doc intentionally set a custom budget — respect it.
   const defaultCurrId = createId<LID.Currency>(0);
   const defaultCurr = currencies.O[defaultCurrId];
   if (defaultCurr && defaultCurr.budget === 1000) {
@@ -71,11 +60,8 @@ export function jumpFromDoc(
           {
             ...v,
             placement: v.essential ? "normal" : "section",
-            // Re-brand TID → LID for stipend/floatingDiscountThresholds; numeric
-            // values are identical by construction so only the brand changes.
             stipend: v.stipend.map((s) => ({
               amount: s.amount,
-              // Re-brand TID → LID; numeric value is identical by construction.
               currency: createId<LID.Currency>(s.currency),
             })),
             ...(v.floatingDiscountThresholds

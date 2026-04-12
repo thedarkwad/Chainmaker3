@@ -1,12 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  FileText,
-  X,
-} from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, FileText, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BlurInput, Pill, AddPill, DeleteButton } from "@/ui/FormPrimitives";
 
@@ -358,7 +351,8 @@ function FeaturesSection({ jumpId }: { jumpId: Id<GID.Jump> }) {
   const { settings: chainSettings } = useChainSettingsConfig();
   const currencyAbbrev = useJumpDefaultCurrencyAbbrev(jumpId);
   const currencies = useJumpCurrencies(jumpId);
-  const { stipend: companionStipend, actions: companionStipendActions } = useJumpCompanionStipend(jumpId);
+  const { stipend: companionStipend, actions: companionStipendActions } =
+    useJumpCompanionStipend(jumpId);
   if (!data) return null;
 
   const currencyList = Object.entries(currencies?.O ?? {});
@@ -401,10 +395,14 @@ function FeaturesSection({ jumpId }: { jumpId: Id<GID.Jump> }) {
           placeholder="None"
           className="w-24"
           onCommit={(v) =>
-            modifyJump("Set drawback limit", (j) => {
-              const n = parseFloat(v);
-              j.drawbackLimit = v === "" || isNaN(n) ? null : n;
-            }, true)
+            modifyJump(
+              "Set drawback limit",
+              (j) => {
+                const n = parseFloat(v);
+                j.drawbackLimit = v === "" || isNaN(n) ? null : n;
+              },
+              true,
+            )
           }
         />
         <span className="text-sm text-muted">{currencyAbbrev}</span>
@@ -414,9 +412,13 @@ function FeaturesSection({ jumpId }: { jumpId: Id<GID.Jump> }) {
             className="p-0.5 rounded text-muted hover:text-ink transition-colors"
             title="Remove drawback limit"
             onClick={() =>
-              modifyJump("Remove drawback limit", (j) => {
-                j.drawbackLimit = null;
-              }, true)
+              modifyJump(
+                "Remove drawback limit",
+                (j) => {
+                  j.drawbackLimit = null;
+                },
+                true,
+              )
             }
           >
             <X size={14} />
@@ -523,7 +525,17 @@ function CurrencyEditor({
       </div>
 
       {!cur.essential && (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-3">
+          <Checkbox
+            checked={!!cur.hidden}
+            onChange={(on) =>
+              commit("Toggle currency hidden", (o) => {
+                o.hidden = on;
+              })
+            }
+          >
+            Hide Currency
+          </Checkbox>
           <DeleteButton onClick={onDelete} label="Delete currency" />
         </div>
       )}

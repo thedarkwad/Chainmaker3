@@ -258,6 +258,7 @@ function BudgetDisplay({
       {(Object.entries(budget.currency) as [string, number][]).map(([cIdStr, amount]) => {
         const curr = currencies[cIdStr as any] as Currency | undefined;
         if (!curr) return null;
+        if (amount == 0 && curr.hidden) return null;
         return (
           <span key={cIdStr} className={pillClass}>
             {amount} {curr.abbrev}

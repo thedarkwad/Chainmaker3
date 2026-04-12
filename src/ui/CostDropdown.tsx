@@ -275,6 +275,14 @@ export function CostDropdown<T extends TID.Currency | LID.Currency = LID.Currenc
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
+  let activeCurrencies = useRef(
+    Object.keys(currencies.O).filter(
+      (c) =>
+        !currencies.O[+c as any].hidden ||
+        localValue.some((v) => v.currency == +c && v.amount != 0),
+    ),
+  );
+
   const openDropdown = () => {
     // Re-sync from current props each time the popup opens.
     setLocalValue(value);
@@ -422,6 +430,7 @@ export function CostDropdown<T extends TID.Currency | LID.Currency = LID.Currenc
           )}
           <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1.5 items-center">
             {currencyEntries.map(([id, cur]) => {
+              if (!activeCurrencies.current.includes(id)) return null;
               const currId = createId<T>(+id);
               return (
                 <Fragment key={id}>

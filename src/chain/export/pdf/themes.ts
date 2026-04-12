@@ -142,11 +142,6 @@ export const THEMES: Record<StaticColorTheme, Record<PdfFont, ThemeShape>> = {
   "black-and-white": { "sans-serif": buildTheme(COLORS["black-and-white"], FONTS["sans-serif"]), "serif": buildTheme(COLORS["black-and-white"], FONTS["serif"]), "mono": buildTheme(COLORS["black-and-white"], FONTS["mono"]) },
 };
 
-/**
- * Returns the theme for the given color/font combination.
- * For "app-theme", builds dynamically from the resolved CSS palette passed in.
- * Falls back to paper if the palette is missing (should not happen in practice).
- */
 export function getTheme(
   colorTheme: PdfColorTheme,
   font: PdfFont,

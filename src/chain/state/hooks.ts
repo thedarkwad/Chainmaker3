@@ -263,9 +263,6 @@ export function useAddJump() {
   }, []);
 }
 
-/** Returns a stable callback that creates a new jump seeded from a JumpDoc's structure
- *  (currencies, origin categories, purchase subtypes, duration) and links it to that doc.
- *  Inserts after `insertAfter` in jumpList, or appends to the end if omitted. */
 export function useAddJumpFromDoc() {
   return useCallback(
     (doc: JumpDoc, docPublicUid: string, insertAfter?: Id<GID.Jump>): Id<GID.Jump> => {

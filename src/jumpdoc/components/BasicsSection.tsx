@@ -57,6 +57,7 @@ import { AlternativeCostEditor } from "./AlternativeCostEditor";
 import type { Currency } from "@/chain/data/Jump";
 import type { AddBoundsTarget } from "./sectionTypes";
 import { SegmentedControl } from "@/ui/SegmentedControl";
+import { Checkbox } from "@/ui/Checkbox";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared primitives
@@ -65,7 +66,6 @@ import { SegmentedControl } from "@/ui/SegmentedControl";
 function Label({ children }: { children: ReactNode }) {
   return <p className="text-xs font-semibold text-muted mb-0.5">{children}</p>;
 }
-
 
 /** Compact inline text input — same blur-commit pattern as BlurInput but text-xs styled. */
 function InlineTextInput({
@@ -527,7 +527,17 @@ function CurrencyEditor({ id, onDelete }: { id: Id<TID.Currency>; onDelete: () =
         </div>
       </div>
       {!currency.essential && (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-3">
+          <Checkbox
+            checked={!!currency.hidden}
+            onChange={(on) =>
+              modify("Toggle currency hidden", (o) => {
+                o.hidden = on;
+              })
+            }
+          >
+            Hide Currency
+          </Checkbox>
           <DeleteButton onClick={onDelete} label="Delete currency" />
         </div>
       )}
@@ -757,7 +767,9 @@ function ThresholdAmountInput({
       min={0}
       value={local}
       onChange={(e) => setLocal(e.target.value)}
-      onFocus={() => { focused.current = true; }}
+      onFocus={() => {
+        focused.current = true;
+      }}
       onBlur={() => {
         focused.current = false;
         const n = Math.max(0, +local || 0);
@@ -963,12 +975,12 @@ function SubtypeEditor({ id, onDelete }: { id: Id<TID.PurchaseSubtype>; onDelete
           <div className="flex items-center gap-1.5">
             <Label>Floating discount access</Label>
             <Tip>
-              <strong>Free use</strong> — any purchase in this subtype can use a floating
-              discount (chosen by the jumper).
+              <strong>Free use</strong> — any purchase in this subtype can use a floating discount
+              (chosen by the jumper).
               <br />
-              <strong>Origin-based</strong> — the jumper must have a qualifying origin to
-              use a floating discount on a purchase, but the number of such discounts is
-              still limited by the thresholds above.
+              <strong>Origin-based</strong> — the jumper must have a qualifying origin to use a
+              floating discount on a purchase, but the number of such discounts is still limited by
+              the thresholds above.
             </Tip>
           </div>
           <SegmentedControl
@@ -1038,201 +1050,212 @@ export function BasicsSection({
 
   return (
     <>
-    <CollapsibleSection title="Basics" defaultOpen open={open} styled>
-      <div className="flex flex-col gap-0 p-1">
-        {/* ── Metadata ── */}
-        <div className="flex flex-col gap-2 pb-4">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label>Jump Name</Label>
-              <BlurInput
-                value={doc.name}
-                onCommit={(v) =>
-                  modifyDoc("Rename JumpDoc", (d) => {
-                    d.name = v;
-                  })
-                }
-                placeholder="Jump name…"
-                className="w-full text-sm"
-              />
-            </div>
-            <div>
-              <Label>
-                Author{" "}
-                <Tip>
-                  If there are multiple authors, separate their names with commas. Do not include
-                  yourself, unless you contributed to the original jumpdoc.{" "}
-                </Tip>
-              </Label>
-              <BlurInput
-                value={doc.author}
-                onCommit={(v) =>
-                  modifyDoc("Set Author", (d) => {
-                    d.author = v;
-                  })
-                }
-                placeholder="Author…"
-                className="w-full text-sm"
-              />
-            </div>
-          </div>
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-xs font-semibold text-muted shrink-0">
-              Duration{" "}
-              <Tip>
-                If the jump has a variable duration, make your best guess based on the source
-                material canon. If it's ambiguous or in doubt, it's never
-                wrong to leave it at 10 years.
-              </Tip>
-            </span>
-            <BlurNumberInput
-              value={doc.duration.years}
-              onCommit={(n) => modifyDoc("Set Duration Years", (d) => { d.duration.years = n; })}
-              className="w-16 text-right"
-            />
-            <span className="text-xs text-muted">yr</span>
-            <BlurNumberInput
-              value={doc.duration.months}
-              onCommit={(n) => modifyDoc("Set Duration Months", (d) => { d.duration.months = n; })}
-              className="w-16 text-right"
-            />
-            <span className="text-xs text-muted">mo</span>
-            <BlurNumberInput
-              value={doc.duration.days}
-              onCommit={(n) => modifyDoc("Set Duration Days", (d) => { d.duration.days = n; })}
-              className="w-16 text-right"
-            />
-            <span className="text-xs text-muted">day</span>
-          </div>
-        </div>
-
-        {/* ── Currencies ── */}
-        <div className="border-t border-line pt-3 pb-4">
-          <SubsectionHeader>Currencies</SubsectionHeader>
-          <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            {currencyIds.map((id) => (
-              <CurrencyPill
-                key={id as number}
-                id={id}
-                active={(activeCurrencyId as number) === (id as number)}
-                onClick={() =>
-                  setActiveCurrencyId((prev) => ((prev as number) === (id as number) ? null : id))
-                }
-              />
-            ))}
-            <AddPill
-              label="Add currency"
-              onClick={() => {
-                const newId = addCurrency();
-                setActiveCurrencyId(newId);
-              }}
-            />
-          </div>
-          {activeCurrencyId !== null && (
-            <CurrencyEditor
-              id={activeCurrencyId}
-              onDelete={() => {
-                removeCurrency(activeCurrencyId);
-                setActiveCurrencyId(null);
-              }}
-            />
-          )}
-        </div>
-
-        {/* ── Currency Exchanges ── */}
-        {currencyIds.length >= 2 && (
-          <div className="border-t border-line pt-3 pb-4">
-            <SubsectionHeader>Currency Exchanges</SubsectionHeader>
-            <div className="flex flex-col gap-1.5 mt-2">
-              {exchanges.map((ex, idx) => (
-                <CurrencyExchangeRow
-                  key={idx}
-                  exchange={ex}
-                  idx={idx}
-                  currencies={currencies}
-                  addBoundsTarget={addBoundsTarget}
-                  onAddBoundsRequest={onAddBoundsRequest as any}
-                  onModify={modifyExchange}
-                  onDelete={() => removeExchange(idx)}
-                />
-              ))}
+      <CollapsibleSection title="Basics" defaultOpen open={open} styled>
+        <div className="flex flex-col gap-0 p-1">
+          {/* ── Metadata ── */}
+          <div className="flex flex-col gap-2 pb-4">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <AddPill
-                  label="Add exchange"
-                  onClick={() => addExchange(currencyIds[0]!, currencyIds[1]!)}
+                <Label>Jump Name</Label>
+                <BlurInput
+                  value={doc.name}
+                  onCommit={(v) =>
+                    modifyDoc("Rename JumpDoc", (d) => {
+                      d.name = v;
+                    })
+                  }
+                  placeholder="Jump name…"
+                  className="w-full text-sm"
+                />
+              </div>
+              <div>
+                <Label>
+                  Author{" "}
+                  <Tip>
+                    If there are multiple authors, separate their names with commas. Do not include
+                    yourself, unless you contributed to the original jumpdoc.{" "}
+                  </Tip>
+                </Label>
+                <BlurInput
+                  value={doc.author}
+                  onCommit={(v) =>
+                    modifyDoc("Set Author", (d) => {
+                      d.author = v;
+                    })
+                  }
+                  placeholder="Author…"
+                  className="w-full text-sm"
                 />
               </div>
             </div>
-          </div>
-        )}
-
-        {/* ── Origin Categories ── */}
-        <div className="border-t border-line pt-3 pb-4">
-          <SubsectionHeader>Origin Categories</SubsectionHeader>
-          <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            {originCatIds.map((id) => (
-              <OriginCatPill
-                key={id}
-                id={id}
-                active={activeOriginCatId === id}
-                onClick={() => setActiveOriginCatId((prev) => (prev === id ? null : id))}
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-xs font-semibold text-muted shrink-0">
+                Duration{" "}
+                <Tip>
+                  If the jump has a variable duration, make your best guess based on the source
+                  material canon. If it's ambiguous or in doubt, it's never wrong to leave it at 10
+                  years.
+                </Tip>
+              </span>
+              <BlurNumberInput
+                value={doc.duration.years}
+                onCommit={(n) =>
+                  modifyDoc("Set Duration Years", (d) => {
+                    d.duration.years = n;
+                  })
+                }
+                className="w-16 text-right"
               />
-            ))}
-            <AddPill
-              label="Add origin category"
-              onClick={() => {
-                const newId = addOriginCat();
-                setActiveOriginCatId(newId);
-              }}
-            />
-          </div>
-          {activeOriginCatId !== null && (
-            <OriginCategoryEditor
-              id={activeOriginCatId}
-              onAddBoundsRequest={onAddBoundsRequest as any}
-              addBoundsTarget={addBoundsTarget}
-              onDelete={() => {
-                removeOriginCat(activeOriginCatId);
-                setActiveOriginCatId(null);
-              }}
-            />
-          )}
-        </div>
-
-        {/* ── Purchase Subtypes ── */}
-        <div className="border-t border-line pt-3">
-          <SubsectionHeader>Purchase Subtypes</SubsectionHeader>
-          <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            {subtypeIds.map((id) => (
-              <SubtypePill
-                key={id}
-                id={id}
-                active={activeSubtypeId === id}
-                onClick={() => setActiveSubtypeId((prev) => (prev === id ? null : id))}
+              <span className="text-xs text-muted">yr</span>
+              <BlurNumberInput
+                value={doc.duration.months}
+                onCommit={(n) =>
+                  modifyDoc("Set Duration Months", (d) => {
+                    d.duration.months = n;
+                  })
+                }
+                className="w-16 text-right"
               />
-            ))}
-            <AddPill
-              label="Add purchase subtype"
-              onClick={() => {
-                const newId = addSubtype(PurchaseType.Perk);
-                setActiveSubtypeId(newId);
-              }}
-            />
+              <span className="text-xs text-muted">mo</span>
+              <BlurNumberInput
+                value={doc.duration.days}
+                onCommit={(n) =>
+                  modifyDoc("Set Duration Days", (d) => {
+                    d.duration.days = n;
+                  })
+                }
+                className="w-16 text-right"
+              />
+              <span className="text-xs text-muted">day</span>
+            </div>
           </div>
-          {activeSubtypeId !== null && (
-            <SubtypeEditor
-              id={activeSubtypeId}
-              onDelete={() => {
-                removeSubtype(activeSubtypeId);
-                setActiveSubtypeId(null);
-              }}
-            />
-          )}
-        </div>
 
-      </div>
-    </CollapsibleSection>
-    <RarelyUsedSection />
+          {/* ── Currencies ── */}
+          <div className="border-t border-line pt-3 pb-4">
+            <SubsectionHeader>Currencies</SubsectionHeader>
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {currencyIds.map((id) => (
+                <CurrencyPill
+                  key={id as number}
+                  id={id}
+                  active={(activeCurrencyId as number) === (id as number)}
+                  onClick={() =>
+                    setActiveCurrencyId((prev) => ((prev as number) === (id as number) ? null : id))
+                  }
+                />
+              ))}
+              <AddPill
+                label="Add currency"
+                onClick={() => {
+                  const newId = addCurrency();
+                  setActiveCurrencyId(newId);
+                }}
+              />
+            </div>
+            {activeCurrencyId !== null && (
+              <CurrencyEditor
+                id={activeCurrencyId}
+                onDelete={() => {
+                  removeCurrency(activeCurrencyId);
+                  setActiveCurrencyId(null);
+                }}
+              />
+            )}
+          </div>
+
+          {/* ── Currency Exchanges ── */}
+          {currencyIds.length >= 2 && (
+            <div className="border-t border-line pt-3 pb-4">
+              <SubsectionHeader>Currency Exchanges</SubsectionHeader>
+              <div className="flex flex-col gap-1.5 mt-2">
+                {exchanges.map((ex, idx) => (
+                  <CurrencyExchangeRow
+                    key={idx}
+                    exchange={ex}
+                    idx={idx}
+                    currencies={currencies}
+                    addBoundsTarget={addBoundsTarget}
+                    onAddBoundsRequest={onAddBoundsRequest as any}
+                    onModify={modifyExchange}
+                    onDelete={() => removeExchange(idx)}
+                  />
+                ))}
+                <div>
+                  <AddPill
+                    label="Add exchange"
+                    onClick={() => addExchange(currencyIds[0]!, currencyIds[1]!)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Origin Categories ── */}
+          <div className="border-t border-line pt-3 pb-4">
+            <SubsectionHeader>Origin Categories</SubsectionHeader>
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {originCatIds.map((id) => (
+                <OriginCatPill
+                  key={id}
+                  id={id}
+                  active={activeOriginCatId === id}
+                  onClick={() => setActiveOriginCatId((prev) => (prev === id ? null : id))}
+                />
+              ))}
+              <AddPill
+                label="Add origin category"
+                onClick={() => {
+                  const newId = addOriginCat();
+                  setActiveOriginCatId(newId);
+                }}
+              />
+            </div>
+            {activeOriginCatId !== null && (
+              <OriginCategoryEditor
+                id={activeOriginCatId}
+                onAddBoundsRequest={onAddBoundsRequest as any}
+                addBoundsTarget={addBoundsTarget}
+                onDelete={() => {
+                  removeOriginCat(activeOriginCatId);
+                  setActiveOriginCatId(null);
+                }}
+              />
+            )}
+          </div>
+
+          {/* ── Purchase Subtypes ── */}
+          <div className="border-t border-line pt-3">
+            <SubsectionHeader>Purchase Subtypes</SubsectionHeader>
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {subtypeIds.map((id) => (
+                <SubtypePill
+                  key={id}
+                  id={id}
+                  active={activeSubtypeId === id}
+                  onClick={() => setActiveSubtypeId((prev) => (prev === id ? null : id))}
+                />
+              ))}
+              <AddPill
+                label="Add purchase subtype"
+                onClick={() => {
+                  const newId = addSubtype(PurchaseType.Perk);
+                  setActiveSubtypeId(newId);
+                }}
+              />
+            </div>
+            {activeSubtypeId !== null && (
+              <SubtypeEditor
+                id={activeSubtypeId}
+                onDelete={() => {
+                  removeSubtype(activeSubtypeId);
+                  setActiveSubtypeId(null);
+                }}
+              />
+            )}
+          </div>
+        </div>
+      </CollapsibleSection>
+      <RarelyUsedSection />
     </>
   );
 }
@@ -1263,14 +1286,13 @@ function RarelyUsedSection() {
   // JumpDoc.originStipend/companionStipend are typed as SimpleValue (defaults to LID.Currency)
   // but in a JumpDoc context the IDs are TID. Pre-existing type inconsistency in JumpDoc.ts.
   const mkStipend = (amount: number, currency: Id<TID.Currency>): SimpleValue =>
-    ({ amount, currency } as unknown as SimpleValue);
+    ({ amount, currency }) as unknown as SimpleValue;
 
   if (!doc) return null;
 
   return (
     <CollapsibleSection title="Rarely Used Features" styled secondary defaultOpen={false}>
       <div className="flex flex-col gap-5 pt-2">
-
         {/* ── Global Stipends ── */}
         <div className="flex flex-col items-center gap-2">
           <SubsectionHeader>Additional Stipends</SubsectionHeader>
@@ -1278,7 +1300,8 @@ function RarelyUsedSection() {
             {[
               {
                 label: "Origin Stipend",
-                tooltip: "This is the stipend granted for purchasing costly origins/species/etc. It is not a stipend granted by an origin (like an item or power stipend). That option can be found beneath the origin itself.",
+                tooltip:
+                  "This is the stipend granted for purchasing costly origins/species/etc. It is not a stipend granted by an origin (like an item or power stipend). That option can be found beneath the origin itself.",
                 value: originStipend,
                 onCommitAmount: (v: string) =>
                   modifyDoc("Set Origin Stipend Amount", (d) => {
@@ -1384,7 +1407,6 @@ function RarelyUsedSection() {
             />
           )}
         </div>
-
       </div>
     </CollapsibleSection>
   );

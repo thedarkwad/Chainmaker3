@@ -21,6 +21,7 @@ export interface Currency {
   abbrev: string;
   budget: number;
   essential: boolean;
+  hidden?: boolean;
   /** JumpDoc-only: purchases discounted to ≤ this amount become free. */
   discountFreeThreshold?: number;
 }
