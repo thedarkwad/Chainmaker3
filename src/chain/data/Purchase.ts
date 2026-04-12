@@ -18,6 +18,8 @@ export type StoredAlternativeCost = {
   /** OR semantics — any one satisfied is sufficient. */
   prerequisites: StoredAltCostPrerequisite[];
   mandatory: boolean;
+  /** When true, origin discounts apply on top of this alt cost instead of being overridden by it. */
+  beforeDiscounts?: boolean;
 };
 
 export const enum PurchaseType {
@@ -213,6 +215,8 @@ export type BasicPurchase = JumpPurchase<TID.Purchase | TID.Companion> & {
   alternativeCosts?: StoredAlternativeCost[];
   /** Set when the user explicitly chose an optional alt cost at purchase time. Preserved by recalculation unless a higher-priority modifier (free origin, mandatory alt cost) applies. */
   optionalAltCost?: true;
+  /** Raw alt cost value for beforeDiscounts optional alt costs; stored so recalculation can re-apply origin discounts when origins change. */
+  optionalAltCostBeforeDiscountsValue?: Value;
   /** Stored prerequisites; used for cascade-removal when a required purchase/drawback is removed. */
   storedPrerequisites?: StoredPurchasePrerequisite[];
   /** True when this item was added as a follower companion import (as opposed to a regular perk/item). */

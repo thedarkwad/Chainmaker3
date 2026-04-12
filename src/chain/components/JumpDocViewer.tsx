@@ -419,6 +419,7 @@ function resolveAltCostsForAction(
         value: { amount: number; currency: Id<TID.Currency> }[];
         prerequisites: { type: string; id: number }[];
         mandatory: boolean;
+        beforeDiscounts?: boolean;
       }[]
     | undefined,
   doc: JumpDoc,
@@ -442,6 +443,7 @@ function resolveAltCostsForAction(
       return [{ type: "purchase", templateId: createId<TID.Purchase>(prereq.id) }];
     }),
     mandatory: ac.mandatory,
+    beforeDiscounts: ac.beforeDiscounts,
   }));
 }
 

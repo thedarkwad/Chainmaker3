@@ -1397,6 +1397,8 @@ function applyPurchaseModifiersInDraft(
     alternativeCosts?: StoredAlternativeCost[];
     subtype?: Id<LID.PurchaseSubtype>;
     usesFloatingDiscount?: boolean;
+    optionalAltCost?: true;
+    optionalAltCostBeforeDiscountsValue?: Value;
   };
   const freeSlotsUsed = new Set<number>();
   const toRemove: Id<GID.Purchase>[] = [];
@@ -1446,15 +1448,26 @@ function applyPurchaseModifiersInDraft(
       continue;
     }
 
+    const mandatoryAlt = findBestMandatoryAltCost(bp.alternativeCosts, c, jump, charId);
+    const bpFull = bp as OriginDiscountable & { name?: string };
+
+    // For beforeDiscounts alt costs (mandatory or optional), origin discounts apply to the alt
+    // cost value. Use that value as the base for wouldBeFree/Reduced checks.
+    const beforeDiscountsBase: Value | undefined =
+      mandatoryAlt?.beforeDiscounts
+        ? mandatoryAlt.value
+        : bpFull.optionalAltCostBeforeDiscountsValue;
+
     let originIsFree = false;
     let originIsReduced = false;
     if (hasDiscount) {
       const templateKey = bp.template.id as number;
       const isFirstCopy = !freeSlotsUsed.has(templateKey);
+      const discountBase = beforeDiscountsBase ?? bp.value;
       const wouldBeFree =
         isFirstCopy &&
         (bp.originBenefit === "free" ||
-          bp.value.every((v) => {
+          discountBase.every((v) => {
             if (v.amount <= 0) return true;
             const currency = jump.currencies.O[v.currency];
             return (
@@ -1470,41 +1483,66 @@ function applyPurchaseModifiersInDraft(
       }
     }
 
-    const mandatoryAlt = findBestMandatoryAltCost(bp.alternativeCosts, c, jump, charId);
-    const bpFull = bp as OriginDiscountable & { optionalAltCost?: true; name?: string };
-
     const oldModifier = bp.cost.modifier;
+    const oldModifiedTo: Value | number | undefined =
+      oldModifier === CostModifier.Custom
+        ? (bp.cost as { modifier: CostModifier.Custom; modifiedTo: Value | number }).modifiedTo
+        : undefined;
 
-    // Priority: Free(origin) > Custom(mandatory alt) > Custom(optional alt, preserved) > Reduced(origin) > Full
-    if (originIsFree) {
+    // Priority: beforeDiscounts-alt+origin > Free(origin) > Custom(mandatory alt) > Custom(optional alt, preserved) > Reduced(origin) > Full
+    if (beforeDiscountsBase) {
+      // Origin discount stacks on top of alt cost base.
+      if (originIsFree) {
+        bp.cost = { modifier: CostModifier.Free };
+      } else if (originIsReduced) {
+        bp.cost = { modifier: CostModifier.Custom, modifiedTo: beforeDiscountsBase.map((v) => ({ amount: Math.floor(v.amount / 2), currency: v.currency })) };
+      } else {
+        bp.cost = { modifier: CostModifier.Custom, modifiedTo: beforeDiscountsBase };
+      }
+      if (mandatoryAlt?.beforeDiscounts) delete bpFull.optionalAltCost;
+    } else if (originIsFree) {
       bp.cost = { modifier: CostModifier.Free };
       delete bpFull.optionalAltCost;
+      delete bpFull.optionalAltCostBeforeDiscountsValue;
     } else if (mandatoryAlt) {
       bp.cost = { modifier: CostModifier.Custom, modifiedTo: mandatoryAlt.value };
       delete bpFull.optionalAltCost;
+      delete bpFull.optionalAltCostBeforeDiscountsValue;
     } else if (bpFull.optionalAltCost && bp.cost.modifier === CostModifier.Custom) {
-      // Preserve user-chosen optional alt cost — do not touch bp.cost.
+      // Preserve user-chosen non-beforeDiscounts optional alt cost — do not touch bp.cost.
     } else if (originIsReduced) {
       bp.cost = { modifier: CostModifier.Reduced };
+      delete bpFull.optionalAltCostBeforeDiscountsValue;
     } else {
       bp.cost = { modifier: CostModifier.Full };
+      delete bpFull.optionalAltCostBeforeDiscountsValue;
     }
 
     const newModifier = bp.cost.modifier;
-    if (newModifier !== oldModifier) {
+    const newModifiedTo: Value | number | undefined =
+      newModifier === CostModifier.Custom
+        ? (bp.cost as { modifier: CostModifier.Custom; modifiedTo: Value | number }).modifiedTo
+        : undefined;
+    const modifierChanged = newModifier !== oldModifier;
+    const customValueChanged =
+      !modifierChanged &&
+      newModifier === CostModifier.Custom &&
+      JSON.stringify(newModifiedTo) !== JSON.stringify(oldModifiedTo);
+    if (modifierChanged || customValueChanged) {
       const name = bpFull.name ?? "Purchase";
-      const wasDiscounted =
-        oldModifier === CostModifier.Free ||
-        oldModifier === CostModifier.Reduced ||
-        oldModifier === CostModifier.Custom;
-      const nowDiscounted =
-        newModifier === CostModifier.Free ||
-        newModifier === CostModifier.Reduced ||
-        newModifier === CostModifier.Custom;
+      const wasDiscounted = oldModifier !== CostModifier.Full;
+      const nowDiscounted = newModifier !== CostModifier.Full;
       if (wasDiscounted && !nowDiscounted) {
         queueNotification("costReverted", name);
       } else if (!wasDiscounted && nowDiscounted) {
         queueNotification("costUpdated", name);
+      } else {
+        // Cost changed between two discounted states (e.g. beforeDiscounts + origin stacking/unstacking).
+        if (originIsFree || originIsReduced) {
+          queueNotification("costUpdated", name);
+        } else {
+          queueNotification("costReverted", name);
+        }
       }
     }
   }
@@ -1733,6 +1771,7 @@ function createBasicPurchaseInDraft(
     originBenefit?: "discounted" | "free" | "access";
     alternativeCosts?: StoredAlternativeCost[];
     optionalAltCost?: boolean;
+    optionalAltCostBeforeDiscountsValue?: Value;
     storedPrerequisites?: StoredPurchasePrerequisite[];
     usesFloatingDiscount?: boolean;
     temporary?: boolean;
@@ -1758,6 +1797,7 @@ function createBasicPurchaseInDraft(
     ...(data.originBenefit ? { originBenefit: data.originBenefit } : {}),
     ...(data.alternativeCosts?.length ? { alternativeCosts: data.alternativeCosts } : {}),
     ...(data.optionalAltCost ? { optionalAltCost: true as const } : {}),
+    ...(data.optionalAltCostBeforeDiscountsValue?.length ? { optionalAltCostBeforeDiscountsValue: data.optionalAltCostBeforeDiscountsValue } : {}),
     ...(data.storedPrerequisites?.length ? { storedPrerequisites: data.storedPrerequisites } : {}),
     ...(data.usesFloatingDiscount ? { usesFloatingDiscount: true as const } : {}),
   };
@@ -1815,6 +1855,7 @@ export function useJumpDocPurchaseActions(jumpId: Id<GID.Jump>, charId: Id<GID.C
       originBenefit?: "discounted" | "free" | "access";
       alternativeCosts?: StoredAlternativeCost[];
       optionalAltCost?: boolean;
+      optionalAltCostBeforeDiscountsValue?: Value;
       storedPrerequisites?: StoredPurchasePrerequisite[];
       usesFloatingDiscount?: boolean;
       temporary?: boolean;
@@ -1840,6 +1881,7 @@ export function useJumpDocPurchaseActions(jumpId: Id<GID.Jump>, charId: Id<GID.C
           originBenefit: data.originBenefit,
           alternativeCosts: data.alternativeCosts,
           optionalAltCost: data.optionalAltCost,
+          optionalAltCostBeforeDiscountsValue: data.optionalAltCostBeforeDiscountsValue,
           storedPrerequisites: data.storedPrerequisites,
           usesFloatingDiscount: data.usesFloatingDiscount,
           temporary: data.temporary,

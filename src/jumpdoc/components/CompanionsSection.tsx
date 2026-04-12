@@ -431,6 +431,8 @@ const CompanionCard = memo(function CompanionCard({
       />
       <AlternativeCostEditor
         alternativeCosts={companion.alternativeCosts}
+        // TODO: stacking discounts on companion alt costs
+        // showDiscountToggle
         onAdd={(cost) =>
           modify("Add Companion Alternative Cost", (t) => {
             if (!t.alternativeCosts) t.alternativeCosts = [];

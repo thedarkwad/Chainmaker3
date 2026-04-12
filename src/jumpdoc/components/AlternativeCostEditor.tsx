@@ -28,11 +28,13 @@ import { Tip } from "@/ui/Tip";
 
 export function AlternativeCostEditor({
   alternativeCosts,
+  showDiscountToggle,
   onAdd,
   onRemove,
   onModify,
 }: {
   alternativeCosts: AlternativeCost[] | undefined;
+  showDiscountToggle?: boolean;
   onAdd: (cost: AlternativeCost) => void;
   onRemove: (index: number) => void;
   onModify: (index: number, updated: AlternativeCost) => void;
@@ -77,6 +79,7 @@ export function AlternativeCostEditor({
           key={i}
           cost={cost}
           currencies={currencies}
+          showDiscountToggle={showDiscountToggle}
           onRemove={() => onRemove(i)}
           onChange={(updated) => onModify(i, updated)}
         />
@@ -100,11 +103,13 @@ export function AlternativeCostEditor({
 function AltCostRow({
   cost,
   currencies,
+  showDiscountToggle,
   onRemove,
   onChange,
 }: {
   cost: AlternativeCost;
   currencies: ReturnType<typeof useJumpDocCurrenciesRegistry>;
+  showDiscountToggle?: boolean;
   onRemove: () => void;
   onChange: (updated: AlternativeCost) => void;
 }) {
@@ -145,6 +150,19 @@ function AltCostRow({
             ]}
           />
         </div>
+        {/* Discount interaction toggle — purchases and companions only */}
+        {showDiscountToggle && (
+          <div className="scale-[0.85] origin-left shrink-0 -my-0.5">
+            <SegmentedControl
+              value={cost.beforeDiscounts ? "stacks" : "overrides"}
+              onChange={(v) => onChange({ ...cost, beforeDiscounts: v === "stacks" ? true : undefined })}
+              options={[
+                { value: "overrides", label: "Overrides discounts" },
+                { value: "stacks", label: "Stacks with discounts" },
+              ]}
+            />
+          </div>
+        )}
 
         {/* Remove this whole alt cost */}
         <button

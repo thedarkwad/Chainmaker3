@@ -32,9 +32,9 @@ export type ResolvedPrerequisite =
 
 export type ResolvedAltCost = {
   value: { amount: number; currencyAbbrev: string }[];
-  /** OR semantics — any one prereq satisfied is sufficient. Empty = always qualifies. */
   prerequisites: ResolvedAltCostPrereq[];
   mandatory: boolean;
+  beforeDiscounts?: boolean;
 };
 
 /** Fields shared by every annotation action. */

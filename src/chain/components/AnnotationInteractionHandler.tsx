@@ -436,7 +436,7 @@ function CompanionInteractionPreview({
   currencies: Registry<LID.Currency, Currency> | undefined;
   hasOriginDiscount: boolean;
   originBenefit: "discounted" | "free" | "access" | undefined;
-  qualifyingMandatoryAltCost: { value: { amount: number; currencyAbbrev: string }[] } | undefined;
+  qualifyingMandatoryAltCost: { value: { amount: number; currencyAbbrev: string }[]; beforeDiscounts?: boolean } | undefined;
   qualifyingOptionalAltCosts: ResolvedAltCost[];
   storedAltCosts: StoredAlternativeCost[];
   addFromTemplate: ReturnType<typeof useJumpDocCompanionActions>["addFromTemplate"];
@@ -470,6 +470,12 @@ function CompanionInteractionPreview({
   // For "discounted"/"free" benefit the first copy gets the discount; companions don't allow
   // multiples so isFirstCopy is always true.
   const effectiveCostStr = (() => {
+    if (qualifyingMandatoryAltCost?.beforeDiscounts && hasOriginDiscount) {
+      return `${originDiscountCostStr(qualifyingMandatoryAltCost.value, currencies, originBenefit, true)} ; altered`;
+    }
+    if (qualifyingMandatoryAltCost?.beforeDiscounts) {
+      return `${altCostValueStr(qualifyingMandatoryAltCost.value)} ; altered`;
+    }
     if (hasOriginDiscount) {
       const originMod = originDiscountModifier(action.cost, currencies, originBenefit, true);
       if (originMod.modifier === CostModifier.Free) {
@@ -487,6 +493,20 @@ function CompanionInteractionPreview({
   })();
 
   const computeInitialCost = (): ModifiedCost | undefined => {
+    if (qualifyingMandatoryAltCost?.beforeDiscounts) {
+      const altResolved: Value = qualifyingMandatoryAltCost.value.map(
+        ({ amount, currencyAbbrev }) => ({
+          amount,
+          currency: resolveJumpCurrency(currencyAbbrev, currencies),
+        }),
+      );
+      if (hasOriginDiscount) {
+        const altMod = originDiscountModifier(qualifyingMandatoryAltCost.value, currencies, originBenefit, true);
+        if (altMod.modifier === CostModifier.Free) return { modifier: CostModifier.Free };
+        return { modifier: CostModifier.Custom, modifiedTo: altResolved.map((v) => ({ amount: Math.floor(v.amount / 2), currency: v.currency })) };
+      }
+      return { modifier: CostModifier.Custom, modifiedTo: altResolved };
+    }
     if (hasOriginDiscount) {
       const originMod = originDiscountModifier(action.cost, currencies, originBenefit, true);
       if (originMod.modifier === CostModifier.Free) return originMod;
@@ -1996,10 +2016,18 @@ function buildPurchaseInteraction(
       : undefined;
   const originIsFree = originModifier?.modifier === CostModifier.Free;
 
-  // Effective cost string: priority Free(origin) > Custom(mandatory alt) > Reduced(origin) > Full.
+  // Effective cost string.
+  // beforeDiscounts alt costs: origin discount applies on top of the alt cost base.
+  // Regular alt costs: override origin discount entirely.
+  // Priority: beforeDiscounts-alt+origin > origin-free > regular-alt > origin-reduced > full.
   // For origin-based floating discount subtypes, origin discounts are not auto-applied.
   const effectiveCostStr = (() => {
     if (existingId !== undefined) return undefined;
+    if (qualifyingMandatoryAltCost?.beforeDiscounts && hasOriginDiscount && !isAccessOnly && !floatingDiscountOriginRelevant) {
+      return `${originDiscountCostStr(qualifyingMandatoryAltCost.value, currencies, action.originBenefit, isFirstCopy)} ; altered`;
+    }
+    if (qualifyingMandatoryAltCost?.beforeDiscounts)
+      return `${altCostValueStr(qualifyingMandatoryAltCost.value)} ; altered`;
     if (originIsFree && !floatingDiscountOriginRelevant)
       return originDiscountCostStr(action.cost, currencies, action.originBenefit, isFirstCopy);
     if (qualifyingMandatoryAltCost)
@@ -2029,6 +2057,7 @@ function buildPurchaseInteraction(
     overrideInitialCost?: ModifiedCost,
     isOptionalAltCost?: boolean,
     usesFloatingDiscount?: boolean,
+    optionalAltCostBeforeDiscountsValue?: Value,
   ) => {
     if (existingId !== undefined) {
       removePurchase(existingId);
@@ -2061,11 +2090,29 @@ function buildPurchaseInteraction(
         currency: resolveJumpCurrency(currencyAbbrev, currencies),
       }));
 
-      // Compute initial cost: override > priority (origin free > mandatory alt > origin reduced).
+      // Compute initial cost: override > beforeDiscounts-alt+origin > origin-free > regular-alt > origin-reduced.
       // For origin-based floating discount subtypes, origin discount is never auto-applied.
       let initialCost: ModifiedCost | undefined = overrideInitialCost;
       if (!initialCost) {
-        if (originIsFree && !floatingDiscountOriginRelevant) {
+        if (qualifyingMandatoryAltCost?.beforeDiscounts) {
+          // Alt cost is the base; apply origin discount on top if applicable.
+          const altResolved: Value = qualifyingMandatoryAltCost.value.map(
+            ({ amount, currencyAbbrev }) => ({
+              amount,
+              currency: resolveJumpCurrency(currencyAbbrev, currencies),
+            }),
+          );
+          if (hasOriginDiscount && !isAccessOnly && !floatingDiscountOriginRelevant) {
+            const altMod = originDiscountModifier(qualifyingMandatoryAltCost.value, currencies, action.originBenefit, isFirstCopy);
+            if (altMod.modifier === CostModifier.Free) {
+              initialCost = { modifier: CostModifier.Free };
+            } else {
+              initialCost = { modifier: CostModifier.Custom, modifiedTo: altResolved.map((v) => ({ amount: Math.floor(v.amount / 2), currency: v.currency })) };
+            }
+          } else {
+            initialCost = { modifier: CostModifier.Custom, modifiedTo: altResolved };
+          }
+        } else if (originIsFree && !floatingDiscountOriginRelevant) {
           initialCost = originModifier;
         } else if (qualifyingMandatoryAltCost) {
           const resolvedValue: Value = qualifyingMandatoryAltCost.value.map(
@@ -2096,6 +2143,7 @@ function buildPurchaseInteraction(
         originBenefit: action.originBenefit,
         alternativeCosts: storedAltCosts.length ? storedAltCosts : undefined,
         optionalAltCost: isOptionalAltCost || undefined,
+        optionalAltCostBeforeDiscountsValue,
         storedPrerequisites: storedPrereqs.length ? storedPrereqs : undefined,
         usesFloatingDiscount: usesFloatingDiscount || undefined,
         temporary: action.template.temporary || undefined,
@@ -2105,22 +2153,49 @@ function buildPurchaseInteraction(
   };
 
   // Build extra actions for optional alt costs.
-  const optionalAltCostActions = qualifyingOptionalAltCosts.map((ac) => ({
-    label: `Add (${altCostValueStr(ac.value)})`,
-    variant: "confirm" as const,
-    onConfirm: (name: string, description: string) => {
-      const resolvedValue: Value = ac.value.map(({ amount, currencyAbbrev }) => ({
-        amount,
-        currency: resolveJumpCurrency(currencyAbbrev, currencies),
-      }));
-      doExecute(
-        name,
-        description,
-        { modifier: CostModifier.Custom, modifiedTo: resolvedValue },
-        true,
-      );
-    },
-  }));
+  const optionalAltCostActions = qualifyingOptionalAltCosts.map((ac) => {
+    const resolvedValue: Value = ac.value.map(({ amount, currencyAbbrev }) => ({
+      amount,
+      currency: resolveJumpCurrency(currencyAbbrev, currencies),
+    }));
+    if (ac.beforeDiscounts) {
+      // Alt cost stacks with origin discounts — compute effective cost and label accordingly.
+      const hasApplicableDiscount = hasOriginDiscount && !isAccessOnly && !floatingDiscountOriginRelevant;
+      let label: string;
+      let overrideInitialCost: ModifiedCost;
+      if (hasApplicableDiscount) {
+        label = `Add (${originDiscountCostStr(ac.value, currencies, action.originBenefit, isFirstCopy)}) ; altered`;
+        const altMod = originDiscountModifier(ac.value, currencies, action.originBenefit, isFirstCopy);
+        if (altMod.modifier === CostModifier.Free) {
+          overrideInitialCost = { modifier: CostModifier.Free };
+        } else {
+          overrideInitialCost = { modifier: CostModifier.Custom, modifiedTo: resolvedValue.map((v) => ({ amount: Math.floor(v.amount / 2), currency: v.currency })) };
+        }
+      } else {
+        label = `Add (${altCostValueStr(ac.value)}) ; altered`;
+        overrideInitialCost = { modifier: CostModifier.Custom, modifiedTo: resolvedValue };
+      }
+      return {
+        label,
+        variant: "confirm" as const,
+        onConfirm: (name: string, description: string) => {
+          doExecute(name, description, overrideInitialCost, true, undefined, resolvedValue);
+        },
+      };
+    }
+    return {
+      label: `Add (${altCostValueStr(ac.value)})`,
+      variant: "confirm" as const,
+      onConfirm: (name: string, description: string) => {
+        doExecute(
+          name,
+          description,
+          { modifier: CostModifier.Custom, modifiedTo: resolvedValue },
+          true,
+        );
+      },
+    };
+  });
 
   // Floating discount action — shown when relevant and only when adding (not removing).
   const floatingDiscountCost = floatingDiscountRelevant

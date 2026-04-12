@@ -310,6 +310,7 @@ export function resolveAltCostsToStorage(
       return { type: "purchase", docId, templateId: prereq.templateId };
     }),
     mandatory: ac.mandatory,
+    ...(ac.beforeDiscounts ? { beforeDiscounts: true as const } : {}),
   }));
 }
 

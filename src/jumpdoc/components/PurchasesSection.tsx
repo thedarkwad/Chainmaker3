@@ -391,6 +391,7 @@ const PurchaseCard = memo(function PurchaseCard({
             active: () => (
               <AlternativeCostEditor
                 alternativeCosts={purchase.alternativeCosts}
+                showDiscountToggle
                 onAdd={(cost) =>
                   modify("Add Alternative Cost", (t) => {
                     if (!t.alternativeCosts) t.alternativeCosts = [];

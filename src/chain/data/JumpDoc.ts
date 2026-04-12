@@ -85,6 +85,7 @@ export type AlternativeCostPrerequisite =
 export type AlternativeCost = {
   value: Value<TID.Currency>;
   prerequisites: AlternativeCostPrerequisite[];
+  beforeDiscounts?: boolean;
   mandatory: boolean;
 };
 

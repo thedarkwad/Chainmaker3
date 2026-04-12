@@ -1427,6 +1427,7 @@ function BulkAltCostApplicator({
     <div className="flex flex-col gap-2">
       <AlternativeCostEditor
         alternativeCosts={pendingCosts}
+        showDiscountToggle
         onAdd={(cost) => setPendingCosts((prev) => [...prev, cost])}
         onRemove={(i) => setPendingCosts((prev) => prev.filter((_, idx) => idx !== i))}
         onModify={(i, updated) =>
