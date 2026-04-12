@@ -1,6 +1,6 @@
 import { Document, Page, Text, View } from "@react-pdf/renderer";
-import type { IRPurchaseListEntry, IRPurchaseListExport, PdfColorTheme, PdfFont } from "../types";
-import { THEMES } from "./themes";
+import type { IRPurchaseListEntry, IRPurchaseListExport, PdfColorTheme, PdfFont, ResolvedColorPalette } from "../types";
+import { getTheme } from "./themes";
 
 function PurchaseListItem({
   entry,
@@ -9,11 +9,11 @@ function PurchaseListItem({
 }: {
   entry: IRPurchaseListEntry;
   depth?: number;
-  t: ReturnType<typeof THEMES[PdfColorTheme][PdfFont]>;
+  t: ReturnType<typeof getTheme>;
 }) {
   return (
     <View style={{ marginBottom: 3, marginLeft: depth * 12 }}>
-      <Text style={t.name}>{entry.name}</Text>
+      <Text style={{ ...t.name, ...t.cost }}>{entry.name}</Text>
       {entry.jumpName ? (
         <Text style={{ ...t.muted, fontSize: (t.muted as { fontSize?: number }).fontSize ?? 9 }}>
           {entry.jumpName}
@@ -33,12 +33,14 @@ export function PurchaseListDocument({
   ir,
   pdfColorTheme,
   pdfFont,
+  resolvedAppThemePalette,
 }: {
   ir: IRPurchaseListExport;
   pdfColorTheme: PdfColorTheme;
   pdfFont: PdfFont;
+  resolvedAppThemePalette?: ResolvedColorPalette;
 }) {
-  const t = THEMES[pdfColorTheme][pdfFont];
+  const t = getTheme(pdfColorTheme, pdfFont, resolvedAppThemePalette);
 
   const isGrouped = ir.groups.some((g) => g.heading !== "");
 
@@ -53,7 +55,7 @@ export function PurchaseListDocument({
         {ir.groups.map((group, gi) => (
           <View key={gi} style={{ marginBottom: 8 }}>
             {isGrouped && group.heading ? (
-              <Text style={{ ...t.h3, textAlign: "center", marginBottom: 4 }}>
+              <Text style={{ ...t.h2, textAlign: "center", marginBottom: 4 }}>
                 {group.heading}
               </Text>
             ) : null}

@@ -120,7 +120,7 @@ html[data-theme="azure"] {
 /* ── Amber: warm stone neutrals · golden amber accent · orange secondary ────── */
 html[data-theme="amber"] {
   --theme-surface: oklch(1 0 0);
-  --theme-canvas: oklch(0.97 0.008 78);
+  --theme-canvas: oklch(0.91 0.01 0);
   --theme-tint: oklch(0.94 0.012 78);
   --theme-line: oklch(0.91 0.015 78);
   --theme-edge: oklch(0.86 0.02 78);
@@ -128,10 +128,10 @@ html[data-theme="amber"] {
   --theme-ghost: oklch(0.72 0.028 78);
   --theme-muted: oklch(0.57 0.032 78);
   --theme-ink: oklch(0.34 0.036 78);
-  --theme-accent: oklch(0.62 0.2 75);
+  --theme-accent: oklch(0.69 0.16 95.97);
   --theme-accent-tint: oklch(0.97 0.05 75);
-  --theme-accent-ring: oklch(0.74 0.15 75);
-  --theme-accent2: oklch(0.64 0.2 52);
+  --theme-accent-ring: oklch(0.82 0.17 90);
+  --theme-accent2: oklch(0.69 0.18 68);
   --theme-accent2-tint: oklch(0.97 0.04 52);
   --theme-danger: oklch(0.62 0.22 30);
 }
@@ -196,7 +196,7 @@ html[data-theme="seafoam"] {
 /* ── Autumn: warm orange-red neutrals · orange accent · crimson secondary ──── */
 html[data-theme="autumn"] {
   --theme-surface: oklch(1 0 0);
-  --theme-canvas: oklch(0.97 0.008 28);
+  --theme-canvas: oklch(0.9 0.01 0);
   --theme-tint: oklch(0.94 0.012 28);
   --theme-line: oklch(0.91 0.016 28);
   --theme-edge: oklch(0.86 0.021 28);
@@ -271,7 +271,7 @@ html[data-theme="neon"] {
 
 html[data-theme="faerie"] {
   --theme-surface: oklch(1 0 0);
-  --theme-canvas: oklch(0.93 0.02 315.61);
+  --theme-canvas: oklch(0.96 0.02 315.63);
   --theme-tint: oklch(0.94 0.008 128);
   --theme-line: oklch(0.91 0.01 128);
   --theme-edge: oklch(0.86 0.013 128);
@@ -506,7 +506,7 @@ html[data-theme="azure"][data-dark] {
 /* Amber dark */
 html[data-theme="amber"][data-dark] {
   --theme-surface: oklch(0.21 0.012 78);
-  --theme-canvas: oklch(0.17 0.009 78);
+  --theme-canvas: oklch(0.34 0.01 0);
   --theme-tint: oklch(0.24 0.015 78);
   --theme-line: oklch(0.25 0.018 78);
   --theme-edge: oklch(0.3 0.023 78);
@@ -516,7 +516,7 @@ html[data-theme="amber"][data-dark] {
   --theme-ink: oklch(0.94 0.01 78);
   --theme-accent: oklch(0.82 0.21 85);
   --theme-accent-tint: oklch(0.22 0.07 85);
-  --theme-accent-ring: oklch(0.67 0.17 85);
+  --theme-accent-ring: oklch(0.82 0.19 86.5);
   --theme-accent2: oklch(0.8 0.2 70);
   --theme-accent2-tint: oklch(0.22 0.06 70);
   --theme-danger: oklch(0.72 0.22 30);
@@ -524,18 +524,18 @@ html[data-theme="amber"][data-dark] {
 
 /* Emerald dark */
 html[data-theme="emerald"][data-dark] {
-  --theme-surface: oklch(0.2 0.008 155);
-  --theme-canvas: oklch(0 0 0);
+  --theme-surface: oklch(0.25 0.01 159);
+  --theme-canvas: oklch(0.21 0.02 225);
   --theme-tint: oklch(0.23 0.01 155);
   --theme-line: oklch(0.24 0.012 155);
-  --theme-edge: oklch(0.29 0.014 155);
+  --theme-edge: oklch(0.35 0.02 155);
   --theme-trim: oklch(0.37 0.017 155);
   --theme-ghost: oklch(0.5 0.016 155);
   --theme-muted: oklch(0.65 0.018 155);
   --theme-ink: oklch(0.93 0.007 155);
   --theme-accent: oklch(0.77 0.22 151.43);
   --theme-accent-tint: oklch(0.2 0.05 152);
-  --theme-accent-ring: oklch(0.75 0.2 156.09);
+  --theme-accent-ring: oklch(0.75 0.2 156);
   --theme-accent2: oklch(0.68 0.15 178);
   --theme-accent2-tint: oklch(0.2 0.04 178);
   --theme-danger: oklch(0.72 0.22 25);
@@ -623,7 +623,7 @@ html[data-theme="faerie"][data-dark] {
   --theme-canvas: oklch(0.14 0.02 315.61);
   --theme-tint: oklch(0.22 0.012 128);
   --theme-line: oklch(0.28 0.014 128);
-  --theme-edge: oklch(0.34 0.016 128);
+  --theme-edge: oklch(0.27 0.01 323);
   --theme-trim: oklch(0.42 0.02 128);
   --theme-ghost: oklch(0.55 0.022 128);
   --theme-muted: oklch(0.68 0.02 128);
@@ -753,7 +753,7 @@ html[data-theme="neon"][data-dark] {
 /* Toxic dark */
 html[data-theme="toxic"][data-dark] {
   --theme-surface: oklch(0.17 0.015 120);
-  --theme-canvas: oklch(0.13 0.012 120);
+  --theme-canvas: oklch(0.29 0.028 249);
   --theme-tint: oklch(0.2 0.018 120);
   --theme-line: oklch(0.22 0.022 120);
   --theme-edge: oklch(0.27 0.028 120);
@@ -810,7 +810,7 @@ html[data-theme="hazard"][data-dark] {
 /* Imperial dark */
 html[data-theme="imperial"][data-dark] {
   --theme-surface: oklch(0.15 0.022 248);
-  --theme-canvas: oklch(0.1 0.016 248);
+  --theme-canvas: oklch(0.27 0.023 251);
   --theme-tint: oklch(0.18 0.027 248);
   --theme-line: oklch(0.2 0.031 248);
   --theme-edge: oklch(0.25 0.036 248);
@@ -829,8 +829,17 @@ html[data-theme="imperial"][data-dark] {
 body {
   @apply m-0 bg-linear-to-t to-canvas from-accent-tint/40 bg-canvas text-ink;
   font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell",
-    "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Roboto",
+    "Oxygen",
+    "Ubuntu",
+    "Cantarell",
+    "Fira Sans",
+    "Droid Sans",
+    "Helvetica Neue",
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

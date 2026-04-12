@@ -13,10 +13,7 @@ type Props = {
 };
 
 const PDF_COLOR_THEMES: { value: PdfColorTheme; label: string }[] = [
-  { value: "blue-light", label: "Blue (Light)" },
-  { value: "red-light", label: "Red (Light)" },
-  { value: "blue-dark", label: "Blue (Dark)" },
-  { value: "red-dark", label: "Red (Dark)" },
+  { value: "app-theme", label: "App Theme" },
   { value: "paper", label: "Paper" },
   { value: "black-and-white", label: "Black & White" },
 ];

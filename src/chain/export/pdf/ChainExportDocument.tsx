@@ -20,7 +20,7 @@ import type {
   IRScenario,
   IRSupplementSection,
 } from "../types";
-import { THEMES, type Theme } from "./themes";
+import { getTheme, type Theme } from "./themes";
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,6 +87,19 @@ function drawbackCostLabel(drawbacks: IRDrawback[]): string {
   return ` [gain: ${parts.join(", ")}]`;
 }
 
+function originCostLabel(origins: IROrigin[]): string {
+  const totals = new Map<string, number>();
+  for (const o of origins) {
+    if (!o.cost || o.cost.raw === 0) continue;
+    totals.set(o.cost.currencyAbbrev, (totals.get(o.cost.currencyAbbrev) ?? 0) + o.cost.raw);
+  }
+  if (totals.size === 0) return "";
+  const parts = Array.from(totals.entries()).map(([abbrev, total]) => `${Math.abs(total)} ${abbrev}`);
+  const allPositive = Array.from(totals.values()).every((v) => v >= 0);
+  const kind = allPositive ? "cost" : "gain";
+  return ` [${kind}: ${parts.join(", ")}]`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Jump section
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,7 +131,7 @@ function OriginsSection({ origins, t }: { origins: IROrigin[]; t: Theme }) {
   if (origins.length === 0) return null;
   return (
     <View style={{ marginBottom: 6 }}>
-      <SectionHeading title="Origins" t={t} centered />
+      <SectionHeading title={`Origins${originCostLabel(origins)}`} t={t} centered />
       {origins.map((o, i) => (
         <View key={i} style={{ marginBottom: 3 }}>
           <Text>
@@ -134,28 +147,76 @@ function OriginsSection({ origins, t }: { origins: IROrigin[]; t: Theme }) {
 }
 
 
-function PurchaseGroupSection({ sections, parentTitle, t }: { sections: IRPurchaseSection[]; parentTitle: string; t: Theme }) {
+function InlinePurchaseList({ purchases, t }: { purchases: IRPurchase[]; t: Theme }) {
+  return (
+    <Text style={t.body}>
+      {purchases.map((p, i) => (
+        <Text key={i}>
+          {i > 0 ? ", " : ""}
+          {p.name}
+          {p.cost ? <Text style={t.cost}> [{p.cost.display}]</Text> : null}
+          {p.subpurchases.length > 0 ? (
+            <Text style={t.muted}> ({p.subpurchases.map((s) => s.name).join(", ")})</Text>
+          ) : null}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
+function InlineDrawbackList({ drawbacks, t }: { drawbacks: IRDrawback[]; t: Theme }) {
+  return (
+    <Text style={t.body}>
+      {drawbacks.map((d, i) => (
+        <Text key={i}>
+          {i > 0 ? ", " : ""}
+          {d.name}
+          {d.cost ? <Text style={t.cost}> [{d.cost.display}]</Text> : null}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
+function PurchaseGroupSection({ sections, parentTitle, t, ultracompact = false }: { sections: IRPurchaseSection[]; parentTitle: string; t: Theme; ultracompact?: boolean }) {
   if (sections.length === 0) return null;
   const allPurchases = sections.flatMap((s) => s.purchases);
   const label = purchaseCostLabel(allPurchases, "cost");
   return (
     <View style={{ marginBottom: 6 }}>
       <SectionHeading title={`${parentTitle}${label}`} t={t} centered />
-      {sections.map((s, i) => {
-        const showHeading = s.heading && !/^(perk|item)$/i.test(s.heading);
-        return (
-        <View key={i} style={showHeading ? { marginLeft: 10, marginTop: 3 } : {}}>
-          {showHeading ? (
-            <Text style={{ ...t.name, fontSize: (t.h3 as { fontSize?: number }).fontSize ?? 10, marginBottom: 2 }}>
-              {s.heading}{purchaseCostLabel(s.purchases, "cost")}
-            </Text>
-          ) : null}
-          {s.purchases.map((p, j) => (
-            <PurchaseItem key={j} p={p} t={t} depth={0} />
-          ))}
-        </View>
-        );
-      })}
+      {ultracompact ? (
+        sections.map((s, i) => {
+          if (s.purchases.length === 0) return null;
+          const showHeading = s.heading && !/^(perk|item)$/i.test(s.heading);
+          return (
+            <View key={i}>
+              {showHeading ? (
+                <Text style={{ ...t.name, fontSize: (t.h3 as { fontSize?: number }).fontSize ?? 10, marginBottom: 1 }}>
+                  {s.heading}{purchaseCostLabel(s.purchases, "cost")}
+                </Text>
+              ) : null}
+              <InlinePurchaseList purchases={s.purchases} t={t} />
+            </View>
+          );
+        })
+      ) : (
+        sections.map((s, i) => {
+          const showHeading = s.heading && !/^(perk|item)$/i.test(s.heading);
+          return (
+            <View key={i} style={showHeading ? { marginLeft: 10, marginTop: 3 } : {}}>
+              {showHeading ? (
+                <Text style={{ ...t.name, fontSize: (t.h3 as { fontSize?: number }).fontSize ?? 10, marginBottom: 2 }}>
+                  {s.heading}{purchaseCostLabel(s.purchases, "cost")}
+                </Text>
+              ) : null}
+              {s.purchases.map((p, j) => (
+                <PurchaseItem key={j} p={p} t={t} depth={0} />
+              ))}
+            </View>
+          );
+        })
+      )}
     </View>
   );
 }
@@ -174,45 +235,63 @@ function DrawbackEntry({ d, t }: { d: IRDrawback; t: Theme }) {
   );
 }
 
-function DrawbacksSection({ drawbacks, t }: { drawbacks: IRDrawback[]; t: Theme }) {
+function DrawbacksSection({ drawbacks, t, ultracompact = false }: { drawbacks: IRDrawback[]; t: Theme; ultracompact?: boolean }) {
   if (drawbacks.length === 0) return null;
   const chain = drawbacks.filter((d) => d.isChainDrawback);
   const regular = drawbacks.filter((d) => !d.isChainDrawback);
-  const regularLabel = drawbackCostLabel(regular);
+  const regularLabel = drawbackCostLabel(drawbacks);
   const chainLabel = drawbackCostLabel(chain);
   return (
     <View style={{ marginBottom: 6 }}>
       <SectionHeading title={`Drawbacks${regularLabel}`} t={t} centered />
-      {chain.length > 0 && (
-        <View style={{ marginBottom: 2, marginLeft: 8 }}>
-          <Text style={{ ...t.muted, marginBottom: 2 }}>Chain Drawbacks{chainLabel}</Text>
-          {chain.map((d, i) => <DrawbackEntry key={i} d={d} t={t} />)}
-        </View>
+      {ultracompact ? (
+        <>
+          {chain.length > 0 && (
+            <Text style={t.body}>
+              <Text style={t.muted}>Chain{chainLabel}: </Text>
+              <InlineDrawbackList drawbacks={chain} t={t} />
+            </Text>
+          )}
+          {regular.length > 0 && <InlineDrawbackList drawbacks={regular} t={t} />}
+        </>
+      ) : (
+        <>
+          {chain.length > 0 && (
+            <View style={{ marginBottom: 2, marginLeft: 8 }}>
+              <Text style={{ ...t.muted, marginBottom: 2 }}>Chain Drawbacks{chainLabel}</Text>
+              {chain.map((d, i) => <DrawbackEntry key={i} d={d} t={t} />)}
+            </View>
+          )}
+          {regular.map((d, i) => <DrawbackEntry key={i} d={d} t={t} />)}
+        </>
       )}
-      {regular.map((d, i) => <DrawbackEntry key={i} d={d} t={t} />)}
     </View>
   );
 }
 
-function ScenariosSection({ scenarios, t }: { scenarios: IRScenario[]; t: Theme }) {
+function ScenariosSection({ scenarios, t, ultracompact = false }: { scenarios: IRScenario[]; t: Theme; ultracompact?: boolean }) {
   if (scenarios.length === 0) return null;
   return (
     <View style={{ marginBottom: 6 }}>
       <SectionHeading title="Scenarios" t={t} centered />
-      {scenarios.map((sc, i) => (
-        <View key={i} style={{ marginBottom: 3 }}>
-          <Text style={t.name}>{sc.name}</Text>
-          {sc.description ? <Description text={sc.description} t={t} /> : null}
-          {sc.rewards.length > 0 ? (
-            <Text style={t.muted}>Rewards: {sc.rewards.join(", ")}</Text>
-          ) : null}
-        </View>
-      ))}
+      {ultracompact ? (
+        <Text style={t.body}>{scenarios.map((sc) => sc.name).join(", ")}</Text>
+      ) : (
+        scenarios.map((sc, i) => (
+          <View key={i} style={{ marginBottom: 3 }}>
+            <Text style={t.name}>{sc.name}</Text>
+            {sc.description ? <Description text={sc.description} t={t} /> : null}
+            {sc.rewards.length > 0 ? (
+              <Text style={t.muted}>Rewards: {sc.rewards.join(", ")}</Text>
+            ) : null}
+          </View>
+        ))
+      )}
     </View>
   );
 }
 
-function SupplementSection({ supp, t }: { supp: IRSupplementSection; t: Theme }) {
+function SupplementSection({ supp, t, ultracompact = false }: { supp: IRSupplementSection; t: Theme; ultracompact?: boolean }) {
   return (
     <View style={{ marginBottom: 6 }}>
       <SectionHeading title={supp.name} t={t} centered />
@@ -226,8 +305,17 @@ function SupplementSection({ supp, t }: { supp: IRSupplementSection; t: Theme })
           Investment: {supp.investment} {supp.investmentCurrencyAbbrev}
         </Text>
       ) : null}
-      {supp.perks.map((p, j) => <PurchaseItem key={`p${j}`} p={p} t={t} />)}
-      {supp.items.map((p, j) => <PurchaseItem key={`i${j}`} p={p} t={t} />)}
+      {ultracompact ? (
+        <>
+          {supp.perks.length > 0 && <InlinePurchaseList purchases={supp.perks} t={t} />}
+          {supp.items.length > 0 && <InlinePurchaseList purchases={supp.items} t={t} />}
+        </>
+      ) : (
+        <>
+          {supp.perks.map((p, j) => <PurchaseItem key={`p${j}`} p={p} t={t} />)}
+          {supp.items.map((p, j) => <PurchaseItem key={`i${j}`} p={p} t={t} />)}
+        </>
+      )}
     </View>
   );
 }
@@ -331,6 +419,7 @@ function TableOfContents({ jumps, t }: { jumps: IRJump[]; t: Theme }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function JumpSection({ jump, sections, t, isFirst = false, isSingleJump = false, id }: { jump: IRJump; sections: ExportOptions["sections"]; t: Theme; isFirst?: boolean; isSingleJump?: boolean; id?: string }) {
+  const ultracompact = !sections.descriptions;
   const title = isSingleJump
     ? jump.jumpName
     : `Jump ${jump.jumpNumber} — ${jump.jumpName}`;
@@ -361,12 +450,12 @@ function JumpSection({ jump, sections, t, isFirst = false, isSingleJump = false,
         </Text>
       ) : null}
       {sections.origins && <OriginsSection origins={jump.origins} t={t} />}
-      <PurchaseGroupSection sections={jump.perkSections} parentTitle="Perks" t={t} />
-      <PurchaseGroupSection sections={jump.itemSections} parentTitle="Items" t={t} />
+      <PurchaseGroupSection sections={jump.perkSections} parentTitle="Perks" t={t} ultracompact={ultracompact} />
+      <PurchaseGroupSection sections={jump.itemSections} parentTitle="Items" t={t} ultracompact={ultracompact} />
       {sections.companions && <CompanionsSection companions={jump.companions} t={t} />}
-      {sections.drawbacks && <DrawbacksSection drawbacks={jump.drawbacks} t={t} />}
-      {sections.scenarios && <ScenariosSection scenarios={jump.scenarios} t={t} />}
-      {jump.supplements.map((supp, i) => <SupplementSection key={i} supp={supp} t={t} />)}
+      {sections.drawbacks && <DrawbacksSection drawbacks={jump.drawbacks} t={t} ultracompact={ultracompact} />}
+      {sections.scenarios && <ScenariosSection scenarios={jump.scenarios} t={t} ultracompact={ultracompact} />}
+      {jump.supplements.map((supp, i) => <SupplementSection key={i} supp={supp} t={t} ultracompact={ultracompact} />)}
       {sections.altForms && <AltFormsSection altForms={jump.altForms} t={t} />}
       {sections.narrative && jump.narrative && <NarrativeSection narrative={jump.narrative} t={t} />}
       {sections.notes && jump.notes ? (
@@ -418,7 +507,7 @@ export function ChainExportDocument({
   ir: ExportIR;
   options: ExportOptions;
 }) {
-  const t = THEMES[options.pdfColorTheme][options.pdfFont];
+  const t = getTheme(options.pdfColorTheme, options.pdfFont, options.resolvedAppThemePalette);
 
   const isSingleJump = ir.isSingleJump;
 

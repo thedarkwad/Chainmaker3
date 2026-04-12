@@ -11,7 +11,7 @@ export type ExportScope =
 
 export type ExportFormat = "markdown" | "bbcode" | "pdf";
 
-export type PdfColorTheme = "blue-light" | "red-light" | "blue-dark" | "red-dark" | "paper" | "black-and-white";
+export type PdfColorTheme = "app-theme" | "paper" | "black-and-white";
 export type PdfFont = "sans-serif" | "serif" | "mono";
 
 export type ExportSections = {
@@ -29,12 +29,24 @@ export type ExportSections = {
   budget: boolean;
 };
 
+/** Resolved hex-color palette for the "app-theme" PDF option, read from CSS vars on the main thread. */
+export type ResolvedColorPalette = {
+  bg: string;
+  text: string;
+  muted: string;
+  accent: string;
+  accentSubtle: string;
+  border: string;
+  cost: string;
+};
+
 export type ExportOptions = {
   scope: ExportScope;
   characterId: Id<GID.Character>;
   sections: ExportSections;
   pdfColorTheme: PdfColorTheme;
   pdfFont: PdfFont;
+  resolvedAppThemePalette?: ResolvedColorPalette;
 };
 
 export const DEFAULT_SECTIONS: ExportSections = {
@@ -215,4 +227,4 @@ export type ExportIR = {
 /** Serialisable input sent to the PDF web worker. */
 export type PdfWorkerInput =
   | { kind: "chain"; ir: ExportIR; options: ExportOptions }
-  | { kind: "purchase-list"; ir: IRPurchaseListExport; pdfColorTheme: PdfColorTheme; pdfFont: PdfFont };
+  | { kind: "purchase-list"; ir: IRPurchaseListExport; pdfColorTheme: PdfColorTheme; pdfFont: PdfFont; resolvedAppThemePalette?: ResolvedColorPalette };

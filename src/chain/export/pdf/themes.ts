@@ -1,5 +1,31 @@
-import { StyleSheet } from "@react-pdf/renderer";
-import type { PdfColorTheme, PdfFont } from "../types";
+import { Font, StyleSheet } from "@react-pdf/renderer";
+import type { PdfColorTheme, PdfFont, ResolvedColorPalette } from "../types";
+
+type StaticColorTheme = Exclude<PdfColorTheme, "app-theme">;
+
+Font.register({
+  family: "Fira Sans",
+  fonts: [
+    { src: "/fonts/Fira Sans/FiraSans-Regular.ttf", fontStyle: "normal" },
+    { src: "/fonts/Fira Sans/FiraSans-Italic.ttf", fontStyle: "italic" },
+  ],
+});
+Font.register({
+  family: "Fira Sans Bold",
+  src: "/fonts/Fira Sans/FiraSans-Bold.ttf",
+});
+
+Font.register({
+  family: "Libre Baskerville",
+  fonts: [
+    { src: "/fonts/Libre Baskerville/LibreBaskerville-Regular.ttf", fontStyle: "normal" },
+    { src: "/fonts/Libre Baskerville/LibreBaskerville-Italic.ttf", fontStyle: "italic" },
+  ],
+});
+Font.register({
+  family: "Libre Baskerville Bold",
+  src: "/fonts/Libre Baskerville/LibreBaskerville-Bold.ttf",
+});
 
 // All @react-pdf/renderer styles must use numeric values, not Tailwind classes.
 
@@ -17,45 +43,7 @@ type ColorPalette = {
   cost: string;
 };
 
-const COLORS: Record<PdfColorTheme, ColorPalette> = {
-  "blue-light": {
-    bg: "#eef4ff",
-    text: "#1a1a1a",
-    muted: "#6b7280",
-    accent: "#2563eb",
-    accentSubtle: "#374151",
-    border: "#bfdbfe",
-    cost: "#4b5563",
-  },
-  "red-light": {
-    bg: "#fff5f5",
-    text: "#1a1a1a",
-    muted: "#6b7280",
-    accent: "#dc2626",
-    accentSubtle: "#374151",
-    border: "#fecaca",
-    cost: "#4b5563",
-  },
-  "blue-dark": {
-    // Cool grey dark
-    bg: "#111827",
-    text: "#e5e7eb",
-    muted: "#9ca3af",
-    accent: "#818cf8",
-    accentSubtle: "#c7d2fe",
-    border: "#374151",
-    cost: "#c7d2fe",
-  },
-  "red-dark": {
-    // Warm grey dark
-    bg: "#1c1210",
-    text: "#f0e8e8",
-    muted: "#b0928e",
-    accent: "#f87171",
-    accentSubtle: "#fca5a5",
-    border: "#3d2a28",
-    cost: "#fca5a5",
-  },
+const COLORS: Record<StaticColorTheme, ColorPalette> = {
   "paper": {
     bg: "#fdf8f0",
     text: "#2d1b00",
@@ -87,8 +75,8 @@ type FontConfig = {
 };
 
 const FONTS: Record<PdfFont, FontConfig> = {
-  "sans-serif": { regular: "Helvetica", bold: "Helvetica-Bold", baseFontSize: 10 },
-  "serif":      { regular: "Times-Roman", bold: "Times-Bold", baseFontSize: 10 },
+  "sans-serif": { regular: "Fira Sans", bold: "Fira Sans Bold", baseFontSize: 10 },
+  "serif":      { regular: "Libre Baskerville", bold: "Libre Baskerville Bold", baseFontSize: 10 },
   "mono":       { regular: "Courier", bold: "Courier-Bold", baseFontSize: 9 },
 };
 
@@ -149,11 +137,23 @@ type ThemeShape = ReturnType<typeof buildTheme>;
 
 export type Theme = ThemeShape;
 
-export const THEMES: Record<PdfColorTheme, Record<PdfFont, ThemeShape>> = {
-  "blue-light":    { "sans-serif": buildTheme(COLORS["blue-light"], FONTS["sans-serif"]),    "serif": buildTheme(COLORS["blue-light"], FONTS["serif"]),    "mono": buildTheme(COLORS["blue-light"], FONTS["mono"]) },
-  "red-light":     { "sans-serif": buildTheme(COLORS["red-light"], FONTS["sans-serif"]),     "serif": buildTheme(COLORS["red-light"], FONTS["serif"]),     "mono": buildTheme(COLORS["red-light"], FONTS["mono"]) },
-  "blue-dark":     { "sans-serif": buildTheme(COLORS["blue-dark"], FONTS["sans-serif"]),     "serif": buildTheme(COLORS["blue-dark"], FONTS["serif"]),     "mono": buildTheme(COLORS["blue-dark"], FONTS["mono"]) },
-  "red-dark":      { "sans-serif": buildTheme(COLORS["red-dark"], FONTS["sans-serif"]),      "serif": buildTheme(COLORS["red-dark"], FONTS["serif"]),      "mono": buildTheme(COLORS["red-dark"], FONTS["mono"]) },
-  "paper":         { "sans-serif": buildTheme(COLORS["paper"], FONTS["sans-serif"]),         "serif": buildTheme(COLORS["paper"], FONTS["serif"]),         "mono": buildTheme(COLORS["paper"], FONTS["mono"]) },
+export const THEMES: Record<StaticColorTheme, Record<PdfFont, ThemeShape>> = {
+  "paper":           { "sans-serif": buildTheme(COLORS["paper"], FONTS["sans-serif"]),           "serif": buildTheme(COLORS["paper"], FONTS["serif"]),           "mono": buildTheme(COLORS["paper"], FONTS["mono"]) },
   "black-and-white": { "sans-serif": buildTheme(COLORS["black-and-white"], FONTS["sans-serif"]), "serif": buildTheme(COLORS["black-and-white"], FONTS["serif"]), "mono": buildTheme(COLORS["black-and-white"], FONTS["mono"]) },
 };
+
+/**
+ * Returns the theme for the given color/font combination.
+ * For "app-theme", builds dynamically from the resolved CSS palette passed in.
+ * Falls back to paper if the palette is missing (should not happen in practice).
+ */
+export function getTheme(
+  colorTheme: PdfColorTheme,
+  font: PdfFont,
+  resolvedPalette?: ResolvedColorPalette,
+): ThemeShape {
+  if (colorTheme === "app-theme") {
+    return buildTheme(resolvedPalette ?? COLORS["paper"], FONTS[font]);
+  }
+  return THEMES[colorTheme][font];
+}

@@ -21,6 +21,7 @@ import {
   type PdfWorkerInput,
   type PurchaseListOptions,
 } from "../types";
+import { resolveAppThemePalette } from "../resolveAppTheme";
 import { ScopePanel } from "./ScopePanel";
 import { CustomizationPanel } from "./CustomizationPanel";
 import { PurchaseListOptionsPanel } from "./PurchaseListOptionsPanel";
@@ -35,6 +36,7 @@ type GeneratedExport =
       plOptions: PurchaseListOptions;
       pdfColorTheme: PdfColorTheme;
       pdfFont: PdfFont;
+      resolvedAppThemePalette?: import("../types").ResolvedColorPalette;
     };
 
 export function SharePage() {
@@ -46,7 +48,7 @@ export function SharePage() {
   const [scope, setScope] = useState<ExportScope>({ kind: "chain" });
   const [characterId, setCharacterId] = useState(() => summary.characters[0]?.id ?? (0 as never));
   const [sections, setSections] = useState(DEFAULT_SECTIONS);
-  const [pdfColorTheme, setPdfColorTheme] = useState<PdfColorTheme>("blue-light");
+  const [pdfColorTheme, setPdfColorTheme] = useState<PdfColorTheme>("app-theme");
   const [pdfFont, setPdfFont] = useState<PdfFont>("sans-serif");
   const [purchaseListOptions, setPurchaseListOptions] = useState<PurchaseListOptions>(
     DEFAULT_PURCHASE_LIST_OPTIONS,
@@ -98,6 +100,8 @@ export function SharePage() {
     const { chain, calculatedData } = snapshot;
     if (!chain) return;
     setGenerating(true);
+    // Resolve CSS vars on the main thread before the worker runs (worker has no DOM access).
+    const resolvedAppThemePalette = pdfColorTheme === "app-theme" ? resolveAppThemePalette() : undefined;
     setTimeout(() => {
       try {
         if (isPurchaseList) {
@@ -108,9 +112,10 @@ export function SharePage() {
             plOptions: purchaseListOptions,
             pdfColorTheme,
             pdfFont,
+            resolvedAppThemePalette,
           });
         } else {
-          const options: ExportOptions = { scope, characterId, sections, pdfColorTheme, pdfFont };
+          const options: ExportOptions = { scope, characterId, sections, pdfColorTheme, pdfFont, resolvedAppThemePalette };
           const ir = buildExportIR(chain, calculatedData, options);
           setGenerated({ kind: "chain", ir, options });
         }
@@ -144,6 +149,7 @@ export function SharePage() {
       ir: generated.ir,
       pdfColorTheme: generated.pdfColorTheme,
       pdfFont: generated.pdfFont,
+      resolvedAppThemePalette: generated.resolvedAppThemePalette,
     };
   }, [generated]);
 
@@ -250,10 +256,7 @@ export function SharePage() {
               >
                 {(
                   [
-                    { value: "blue-light", label: "Blue (Light)" },
-                    { value: "red-light", label: "Red (Light)" },
-                    { value: "blue-dark", label: "Blue (Dark)" },
-                    { value: "red-dark", label: "Red (Dark)" },
+                    { value: "app-theme", label: "App Theme" },
                     { value: "paper", label: "Paper" },
                     { value: "black-and-white", label: "Black & White" },
                   ] as { value: PdfColorTheme; label: string }[]

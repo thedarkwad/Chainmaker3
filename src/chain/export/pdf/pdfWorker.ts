@@ -27,9 +27,10 @@ self.onmessage = async (e: MessageEvent<PdfWorkerInput>) => {
             ir: input.ir,
             pdfColorTheme: input.pdfColorTheme,
             pdfFont: input.pdfFont,
+            resolvedAppThemePalette: input.resolvedAppThemePalette,
           });
 
-    const blob = await pdf(element).toBlob();
+    const blob = await pdf(element as Parameters<typeof pdf>[0]).toBlob();
     const buffer = await blob.arrayBuffer();
     self.postMessage({ ok: true, buffer }, [buffer]);
   } catch (err) {

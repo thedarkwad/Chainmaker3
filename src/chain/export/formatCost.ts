@@ -4,7 +4,7 @@ import {
   type ModifiedCost,
   type Value,
 } from "@/chain/data/Purchase";
-import type { Currency } from "@/chain/data/Jump";
+import { DEFAULT_CURRENCY_ID, type Currency } from "@/chain/data/Jump";
 import type { LID, Registry } from "@/chain/data/types";
 import type { IRCost } from "./types";
 
@@ -19,18 +19,20 @@ export function formatCostForExport(
 ): IRCost {
   const effective = purchaseValue(rawValue, cost);
 
-  // For supplement purchases the value is a plain number (SP).
   if (typeof effective === "number") {
     const raw = effective;
+    const abbrev = currencies != null
+      ? (currencies.O[DEFAULT_CURRENCY_ID]?.abbrev ?? "CP")
+      : "CP";
     let display: string;
     if (cost.modifier === CostModifier.Free) {
       display = "Free";
     } else if (cost.modifier === CostModifier.Reduced) {
-      display = raw === 0 ? "Free (reduced)" : `${raw} SP (reduced)`;
+      display = raw === 0 ? "Free (reduced)" : `${raw} ${abbrev} (reduced)`;
     } else {
-      display = `${raw} SP`;
+      display = `${raw} ${abbrev}`;
     }
-    return { display, raw, currencyAbbrev: "SP" };
+    return { display, raw, currencyAbbrev: abbrev };
   }
 
   // For jump purchases the value is a Value array.
