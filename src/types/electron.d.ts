@@ -41,6 +41,7 @@ export type ElectronJumpDocMeta = {
   filePath: string;
   name: string;
   author: string[];
+  version?: string;
   imageUrl?: string;
   attributes?: ElectronJumpDocSaveMeta["attributes"];
   nsfw?: boolean;

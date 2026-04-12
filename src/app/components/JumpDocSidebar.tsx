@@ -82,7 +82,10 @@ export function JumpDocSidebar({
     <div className="flex flex-col gap-4 p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <h2 className="text-sm font-semibold text-ink leading-snug">{doc.name}</h2>
+          <h2 className="text-sm font-semibold text-ink leading-snug">
+            {doc.name}
+            {doc.version && <span className="ml-1.5 text-xs font-normal text-ghost">v{doc.version}</span>}
+          </h2>
           {doc.author.length > 0 && (
             <div className="flex flex-wrap gap-x-1 gap-y-0.5">
               {doc.author.map((a) =>

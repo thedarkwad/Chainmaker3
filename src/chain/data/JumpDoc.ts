@@ -184,6 +184,7 @@ export type JumpDoc = {
   name: string;
   url: string;
   author: string;
+  version?: string;
 
   duration: Duration;
   drawbackLimit?: number | null;

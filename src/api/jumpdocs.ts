@@ -50,15 +50,16 @@ export const saveJumpDoc = createServerFn({ method: "POST" })
     } catch {
       return { status: "bad_patches" };
     }
-    const updatedContents = updated as { name?: string; author?: string };
+    const updatedContents = updated as { name?: string; author?: string; version?: string };
     const updatedName = updatedContents.name ?? "";
     const updatedAuthor = (updatedContents.author ?? "")
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+    const updatedDocVersion = updatedContents.version?.trim() ?? "";
     await Models.JumpDoc.findByIdAndUpdate(
       data.docMongoId,
-      { $set: { contents: updated, name: updatedName, author: updatedAuthor }, $inc: { edits: 1 } },
+      { $set: { contents: updated, name: updatedName, author: updatedAuthor, docVersion: updatedDocVersion }, $inc: { edits: 1 } },
       { strict: false },
     );
     await syncJumpDocPurchases(doc.publicUid, updatedName, doc.published, updated as never);
@@ -120,16 +121,17 @@ export const forceReplaceJumpDoc = createServerFn({ method: "POST" })
     const doc = await Models.JumpDoc.findById(data.docMongoId).lean();
     if (!doc) return { status: "not_found" };
     if (!(await isAuthorizedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
-    const contents = data.contents as { name?: string; author?: string };
+    const contents = data.contents as { name?: string; author?: string; version?: string };
     const updatedName = contents.name ?? "";
     const updatedAuthor = (contents.author ?? "")
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+    const updatedDocVersion = contents.version?.trim() ?? "";
     await Models.JumpDoc.findByIdAndUpdate(
       data.docMongoId,
       {
-        $set: { contents: data.contents, name: updatedName, author: updatedAuthor },
+        $set: { contents: data.contents, name: updatedName, author: updatedAuthor, docVersion: updatedDocVersion },
         $inc: { edits: 1 },
       },
       { strict: false },
@@ -151,6 +153,8 @@ export type JumpDocSummary = {
   name: string;
   /** Denormalized from contents.author — split on comma and trimmed. */
   author: string[];
+  /** Denormalized from contents.version. */
+  version?: string;
   createdAt: string;
   updatedAt: string;
   published: boolean;
@@ -168,6 +172,7 @@ type RawJumpDoc = {
   publicUid: string;
   name?: string;
   author?: string[];
+  docVersion?: string;
   published?: boolean;
   nsfw?: boolean;
   imageId?: string;
@@ -193,6 +198,7 @@ function mapJumpDocSummary(
     publicUid: d.publicUid,
     name: d.name ?? "Untitled",
     author: d.author ?? [],
+    ...(d.docVersion ? { version: d.docVersion } : {}),
     published: published ?? d.published ?? false,
     nsfw: d.nsfw ?? false,
     createdAt: (d.createdAt as Date).toISOString(),
@@ -222,6 +228,7 @@ export const listJumpDocs = createServerFn({ method: "POST" })
       {
         name: 1,
         author: 1,
+        docVersion: 1,
         publicUid: 1,
         imageId: 1,
         published: 1,
@@ -345,6 +352,7 @@ export const listPublishedJumpDocs = createServerFn({ method: "POST" })
       ? {
           name: 1,
           author: 1,
+          docVersion: 1,
           publicUid: 1,
           imageId: 1,
           nsfw: 1,
@@ -356,6 +364,7 @@ export const listPublishedJumpDocs = createServerFn({ method: "POST" })
       : {
           name: 1,
           author: 1,
+          docVersion: 1,
           publicUid: 1,
           imageId: 1,
           nsfw: 1,
@@ -406,6 +415,7 @@ export const getPublishedJumpDocSummary = createServerFn({ method: "POST" })
       {
         name: 1,
         author: 1,
+        docVersion: 1,
         publicUid: 1,
         imageId: 1,
         nsfw: 1,

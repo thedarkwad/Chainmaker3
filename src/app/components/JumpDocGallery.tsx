@@ -289,9 +289,11 @@ function DocCard({
       </div>
       <div className="px-2 py-1.5 flex flex-col gap-0.5">
         <p className="text-xs font-medium text-ink leading-snug" title={doc.name}>
-          {doc.name}
+          {doc.name} {doc.version && <span className="text-[10px] text-ghost">v{doc.version}</span>}
         </p>
-        <p className="text-[10px] text-ghost flex flex-wrap">Updated {timeAgo(doc.updatedAt)}</p>
+        <p className="text-[10px] text-ghost flex flex-wrap">
+          <span>Updated {timeAgo(doc.updatedAt)}</span>
+        </p>
       </div>
     </>
   );

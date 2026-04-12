@@ -104,6 +104,7 @@ type IndexEntry = {
   mtime: number;
   name: string;
   author: string[];
+  version?: string;
   /** Relative path within the jumpdoc folder, e.g. "_thumbs/uuid.jpg", or null. */
   thumbFile: string | null;
   attributes?: ElectronJumpDocSaveMeta["attributes"];
@@ -158,9 +159,16 @@ function buildIndexEntry(
     const meta = JSON.parse(zip.readAsText(metaEntry)) as {
       name?: string;
       author?: string | string[];
+      version?: string;
       attributes?: Record<string, unknown>;
       nsfw?: boolean;
     };
+
+    // Also read data.json for version if not in meta.
+    const dataEntry = zip.getEntry("data.json");
+    const dataVersion = dataEntry
+      ? (JSON.parse(zip.readAsText(dataEntry)) as { version?: string }).version
+      : undefined;
 
     const name = meta.name ?? filename.replace(/\.jumpdoc$/i, "");
     const author = Array.isArray(meta.author)
@@ -168,6 +176,7 @@ function buildIndexEntry(
       : meta.author
         ? meta.author.split(",").map((s: string) => s.trim()).filter(Boolean)
         : [];
+    const version = (meta.version ?? dataVersion ?? "").trim() || undefined;
     const attributes = meta.attributes
       ? {
           genre: Array.isArray(meta.attributes.genre) ? (meta.attributes.genre as string[]) : [],
@@ -199,7 +208,7 @@ function buildIndexEntry(
     jumpdocIdToPath.set(id, filePath);
     jumpdocPathToId.set(filePath, id);
 
-    return { id, createdAt, mtime, name, author, thumbFile, ...(attributes ? { attributes } : {}), ...(nsfw !== undefined ? { nsfw } : {}) };
+    return { id, createdAt, mtime, name, author, ...(version ? { version } : {}), thumbFile, ...(attributes ? { attributes } : {}), ...(nsfw !== undefined ? { nsfw } : {}) };
   } catch {
     return null;
   }
@@ -216,6 +225,7 @@ function updateIndexEntry(folder: string, filePath: string, data: unknown, id: s
   const authorArr = Array.isArray(author)
     ? author
     : author ? String(author).split(",").map((s) => s.trim()).filter(Boolean) : [];
+  const version = ((data as { version?: string }).version ?? "").trim() || undefined;
 
   const meta = jumpdocMetaCache.get(id);
   index.entries[filename] = {
@@ -224,6 +234,7 @@ function updateIndexEntry(folder: string, filePath: string, data: unknown, id: s
     mtime,
     name,
     author: authorArr,
+    ...(version ? { version } : {}),
     thumbFile: existing?.thumbFile ?? null,
     ...(meta ? { attributes: meta.attributes, nsfw: meta.nsfw } : {
       attributes: existing?.attributes,
@@ -293,7 +304,7 @@ export function listJumpdocs(): ElectronJumpDocMeta[] {
       const thumbPath = cached.thumbFile
         ? `file:///${path.join(folder, cached.thumbFile).replace(/\\/g, "/")}`
         : undefined;
-      results.push({ filePath: cached.id, name: cached.name, author: cached.author, imageUrl: thumbPath, attributes: cached.attributes, nsfw: cached.nsfw, createdAt: cached.createdAt, updatedAt: cached.mtime });
+      results.push({ filePath: cached.id, name: cached.name, author: cached.author, version: cached.version, imageUrl: thumbPath, attributes: cached.attributes, nsfw: cached.nsfw, createdAt: cached.createdAt, updatedAt: cached.mtime });
     } else {
       // Cache miss — read zip, extract thumb, update index.
       const entry = buildIndexEntry(folder, filename, filePath, mtime, cached?.id, cached?.createdAt);
@@ -303,7 +314,7 @@ export function listJumpdocs(): ElectronJumpDocMeta[] {
       const thumbPath = entry.thumbFile
         ? `file:///${path.join(folder, entry.thumbFile).replace(/\\/g, "/")}`
         : undefined;
-      results.push({ filePath: entry.id, name: entry.name, author: entry.author, imageUrl: thumbPath, attributes: entry.attributes, nsfw: entry.nsfw, createdAt: entry.createdAt, updatedAt: entry.mtime });
+      results.push({ filePath: entry.id, name: entry.name, author: entry.author, version: entry.version, imageUrl: thumbPath, attributes: entry.attributes, nsfw: entry.nsfw, createdAt: entry.createdAt, updatedAt: entry.mtime });
     }
   }
 

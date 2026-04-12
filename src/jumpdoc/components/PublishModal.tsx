@@ -1,15 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, ImagePlus, Globe, Lock } from "lucide-react";
+import { X, ImagePlus, Globe, Lock, AlertTriangle } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { TagField } from "@/ui/TagField";
 import { useJumpDocMetaStore, type JumpDocAttributes } from "@/jumpdoc/state/JumpDocMetaStore";
+import { useJumpDoc } from "@/jumpdoc/state/hooks";
 import { publishJumpDoc } from "@/api/jumpdocs";
-import {
-  GENRE_OPTIONS,
-  MEDIUM_OPTIONS,
-  SUPERNATURAL_ELEMENTS_OPTIONS,
-} from "@/jumpdoc/data/jumpDocAttributeOptions";
+import { GENRE_OPTIONS, MEDIUM_OPTIONS } from "@/jumpdoc/data/jumpDocAttributeOptions";
 import { Tip } from "@/ui/Tip";
 import { ImageGallery } from "@/app/components/ImageGallery";
 import type { ImageSummary } from "@/api/images";
@@ -24,17 +21,23 @@ type Props = {
  * Lets the user set metadata attributes and publish (or update) the JumpDoc.
  */
 export function PublishModal({ firebaseUser, onClose }: Props) {
-  const { docMongoId, published, nsfw: storeNsfw, attributes, imageId: storeImageId, imageUrl: storeImageUrl } =
-    useJumpDocMetaStore(
-      useShallow((s) => ({
-        docMongoId: s.docMongoId,
-        published: s.published,
-        nsfw: s.nsfw,
-        attributes: s.attributes,
-        imageId: s.imageId,
-        imageUrl: s.imageUrl,
-      })),
-    );
+  const {
+    docMongoId,
+    published,
+    nsfw: storeNsfw,
+    attributes,
+    imageId: storeImageId,
+    imageUrl: storeImageUrl,
+  } = useJumpDocMetaStore(
+    useShallow((s) => ({
+      docMongoId: s.docMongoId,
+      published: s.published,
+      nsfw: s.nsfw,
+      attributes: s.attributes,
+      imageId: s.imageId,
+      imageUrl: s.imageUrl,
+    })),
+  );
   const setPublished = useJumpDocMetaStore((s) => s.setPublished);
   const setNsfw = useJumpDocMetaStore((s) => s.setNsfw);
   const setAttributes = useJumpDocMetaStore((s) => s.setAttributes);
@@ -47,8 +50,10 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
   const [draftImageUrl, setDraftImageUrl] = useState<string | null>(storeImageUrl);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warningQueue, setWarningQueue] = useState<string[]>([]);
 
   const isElectron = import.meta.env.VITE_PLATFORM === "electron";
+  const doc = useJumpDoc();
 
   // Image picker dropdown state (web only)
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -90,14 +95,65 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
     setDraft((d) => ({ ...d, [field]: d[field].filter((v) => v !== val) }));
   }
 
-  async function handlePublish() {
+  const JUMP_NAME_RE = /\bjump(chain|doc)?\b/i;
+  const VERSION_IN_NAME_RE = /\bv\.?\s*\d+(\.\d+)*\b|\bversion\s+\d+/i;
+  const FILETYPE_RE = /\.(pdf|docx?|rtf)$/i;
+
+  const WARNING_MESSAGES: Record<string, string> = {
+    jump: 'It\'s recommended that you don\'t include "Jump" or "Jumpchain" in the title of the \
+    document, especially if it\'s an inclusion from the filename that isn\'t part of the displayed title of the document, as is often the case. After all, every document here is a jumpdoc! \
+                If their inclusion is a meaningful and intentional choice \
+                (i.e. titles like "Generic First Jump"), feel free to keep them.',
+    version:
+      "The title appears to contain a version number. Consider moving it to the Version field instead.",
+    filetype:
+      "The title appears to end with a file extension. This is usually a mistake. Consider removing it.",
+  };
+
+  function buildWarningQueue(name: string): string[] {
+    const q: string[] = [];
+    if (JUMP_NAME_RE.test(name)) q.push("jump");
+    if (VERSION_IN_NAME_RE.test(name)) q.push("version");
+    if (FILETYPE_RE.test(name)) q.push("filetype");
+    return q;
+  }
+
+  function handlePublishClick() {
+    if (!isEditMode && doc) {
+      const q = buildWarningQueue(doc.name);
+      if (q.length > 0) {
+        setWarningQueue(q);
+        return;
+      }
+    }
+    void doPublish();
+  }
+
+  function handlePublishAnyway() {
+    const next = warningQueue.slice(1);
+    if (next.length > 0) {
+      setWarningQueue(next);
+      return;
+    }
+    void doPublish();
+  }
+
+  async function doPublish() {
     if ((!firebaseUser && !isElectron) || !docMongoId) return;
+    setWarningQueue([]);
     setSaving(true);
     setError(null);
     try {
       const idToken = firebaseUser ? await firebaseUser.getIdToken() : "";
       const result = await publishJumpDoc({
-        data: { docMongoId, idToken, published: true, nsfw: draftNsfw, attributes: draft, imageId: draftImageId },
+        data: {
+          docMongoId,
+          idToken,
+          published: true,
+          nsfw: draftNsfw,
+          attributes: draft,
+          imageId: draftImageId,
+        },
       });
       if (result.status === "ok") {
         setAttributes(draft);
@@ -226,7 +282,11 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
           {/* Franchise — free entry */}
           <div className="flex flex-col gap-2">
             <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">
-              Franchise <Tip>Admins may adjust this slightly to ensure consistency within the franchise (e.g. "Lupin the Third" → "Lupin III")</Tip>
+              Franchise{" "}
+              <Tip>
+                Admins may adjust this slightly to ensure consistency within the franchise (e.g.
+                "Lupin the Third" → "Lupin III")
+              </Tip>
             </p>
             <TagField
               values={draft.franchise}
@@ -282,28 +342,45 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 flex items-center justify-end gap-2 px-4 py-3 border-t border-edge">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 text-sm text-muted hover:text-ink border border-edge rounded hover:border-trim transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handlePublish}
-            disabled={saving || (!firebaseUser && import.meta.env.VITE_PLATFORM !== "electron")}
-            className="flex items-center gap-1.5 px-4 py-1.5 text-sm rounded bg-accent2-tint text-accent2 border border-accent2/40 hover:bg-accent2/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
-          >
-            <Globe size={13} />
-            {saving ? "Publishing…" : isEditMode ? "Save" : "Publish"}
-          </button>
+        <div className="shrink-0 flex flex-col gap-2 px-4 py-3 border-t border-edge">
+          {warningQueue.length > 0 && (
+            <div className="flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+              <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-600 leading-snug">
+                {WARNING_MESSAGES[warningQueue[0]!]}
+              </p>
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={warningQueue.length > 0 ? () => setWarningQueue([]) : onClose}
+              className="px-3 py-1.5 text-sm text-muted hover:text-ink border border-edge rounded hover:border-trim transition-colors"
+            >
+              {warningQueue.length > 0 ? "Go Back" : "Cancel"}
+            </button>
+            <button
+              type="button"
+              onClick={warningQueue.length > 0 ? handlePublishAnyway : handlePublishClick}
+              disabled={saving || (!firebaseUser && import.meta.env.VITE_PLATFORM !== "electron")}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-sm rounded bg-accent2-tint text-accent2 border border-accent2/40 hover:bg-accent2/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              <Globe size={13} />
+              {saving
+                ? "Publishing…"
+                : isEditMode
+                  ? "Save"
+                  : warningQueue.length > 0
+                    ? "Publish Anyway"
+                    : "Publish"}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Image picker dropdown — portaled to document.body to avoid clipping (web only) */}
-      {!isElectron && pickerOpen &&
+      {!isElectron &&
+        pickerOpen &&
         createPortal(
           <>
             {/* Invisible backdrop to close on outside click */}

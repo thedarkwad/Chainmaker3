@@ -1054,7 +1054,7 @@ export function BasicsSection({
         <div className="flex flex-col gap-0 p-1">
           {/* ── Metadata ── */}
           <div className="flex flex-col gap-2 pb-4">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
               <div>
                 <Label>Jump Name</Label>
                 <BlurInput
@@ -1084,6 +1084,20 @@ export function BasicsSection({
                     })
                   }
                   placeholder="Author…"
+                  className="w-full text-sm"
+                />
+              </div>
+              <div className="w-20">
+                <Label>Version</Label>
+                <BlurInput
+                  value={doc.version ?? ""}
+                  onCommit={(v) => {
+                    const stripped = v.trim().replace(/^v(?:ersion)?\s*\.?\s*/i, "");
+                    modifyDoc("Set Version", (d) => {
+                      d.version = stripped || undefined;
+                    });
+                  }}
+                  placeholder="1.0…"
                   className="w-full text-sm"
                 />
               </div>

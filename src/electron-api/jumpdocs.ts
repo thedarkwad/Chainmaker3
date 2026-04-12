@@ -16,6 +16,7 @@ export type JumpDocSummary = {
   publicUid: string;
   name: string;
   author: string[];
+  version?: string;
   createdAt: string;
   updatedAt: string;
   published: boolean;
@@ -97,6 +98,7 @@ export async function listPublishedJumpDocs(
     publicUid: m.filePath,
     name: m.name,
     author: m.author,
+    ...(m.version ? { version: m.version } : {}),
     createdAt: m.createdAt ? new Date(m.createdAt).toISOString() : "",
     updatedAt: m.updatedAt ? new Date(m.updatedAt).toISOString() : "",
     published: true,
