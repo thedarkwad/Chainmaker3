@@ -29,6 +29,7 @@ import {
   saveJumpdocAs,
   saveJumpdocMeta,
   uploadJumpdocThumb,
+  saveJumpdocThumb,
 } from "./ipc/jumpdocs";
 import {
   getSettings,
@@ -458,6 +459,7 @@ ipcMain.handle("jumpdocs:saveJumpdocMeta", (_e, id: string, meta: unknown) =>
   saveJumpdocMeta(id, meta as import("../src/types/electron").ElectronJumpDocSaveMeta),
 );
 ipcMain.handle("jumpdocs:uploadJumpdocThumb", (_e, id: string) => uploadJumpdocThumb(id));
+ipcMain.handle("jumpdocs:saveJumpdocThumb", (_e, id: string, base64: string, ext: string) => saveJumpdocThumb(id, base64, ext));
 
 // Images
 ipcMain.handle("images:uploadImage", () => uploadImage());

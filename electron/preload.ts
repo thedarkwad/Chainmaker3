@@ -53,6 +53,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("jumpdocs:saveJumpdocMeta", id, meta),
     uploadJumpdocThumb: (id: string) =>
       ipcRenderer.invoke("jumpdocs:uploadJumpdocThumb", id),
+    saveJumpdocThumb: (id: string, base64: string, ext: string) =>
+      ipcRenderer.invoke("jumpdocs:saveJumpdocThumb", id, base64, ext),
   },
   images: {
     uploadImage: () => ipcRenderer.invoke("images:uploadImage"),

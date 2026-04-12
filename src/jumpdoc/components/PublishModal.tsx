@@ -9,6 +9,7 @@ import { publishJumpDoc } from "@/api/jumpdocs";
 import { GENRE_OPTIONS, MEDIUM_OPTIONS } from "@/jumpdoc/data/jumpDocAttributeOptions";
 import { Tip } from "@/ui/Tip";
 import { ImageGallery } from "@/app/components/ImageGallery";
+import { CropModal } from "@/ui/CropModal";
 import type { ImageSummary } from "@/api/images";
 
 type Props = {
@@ -55,6 +56,32 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
   const isElectron = import.meta.env.VITE_PLATFORM === "electron";
   const doc = useJumpDoc();
 
+  const electronFileInputRef = useRef<HTMLInputElement>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropFileName, setCropFileName] = useState<string>("");
+
+  function handleElectronFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setCropFileName(file.name);
+    setCropSrc(URL.createObjectURL(file));
+  }
+
+  async function handleElectronCropConfirm(croppedFile: File) {
+    const src = cropSrc;
+    setCropSrc(null);
+    if (src) URL.revokeObjectURL(src);
+    const arrayBuffer = await croppedFile.arrayBuffer();
+    const uint8 = new Uint8Array(arrayBuffer);
+    let binary = "";
+    for (let i = 0; i < uint8.byteLength; i++) binary += String.fromCharCode(uint8[i]);
+    const base64 = btoa(binary);
+    const ext = croppedFile.name.endsWith(".png") ? ".png" : ".jpg";
+    const result = await window.electronAPI?.jumpdocs.saveJumpdocThumb(docMongoId, base64, ext);
+    if (result?.url) setDraftImageUrl(result.url);
+  }
+
   // Image picker dropdown state (web only)
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -79,13 +106,6 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
     setDraftImageId(image._id);
     setDraftImageUrl(image.path);
     setPickerOpen(false);
-  }
-
-  async function handleElectronImageUpload() {
-    const result = await window.electronAPI?.jumpdocs.uploadJumpdocThumb(docMongoId);
-    if (result?.url) {
-      setDraftImageUrl(result.url);
-    }
   }
 
   function addTag(field: keyof JumpDocAttributes, val: string) {
@@ -195,9 +215,7 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
   return createPortal(
     <div
       className="absolute inset-0 z-50 flex items-center justify-center bg-canvas/60 backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="flex flex-col bg-canvas border border-edge rounded-lg shadow-xl w-80 max-h-[85%]">
         {/* Header */}
@@ -228,10 +246,19 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
             <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">
               Cover Image
             </p>
+            {isElectron && (
+              <input
+                ref={electronFileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif"
+                className="hidden"
+                onChange={handleElectronFileChange}
+              />
+            )}
             <button
               ref={triggerRef}
               type="button"
-              onClick={isElectron ? handleElectronImageUpload : openPicker}
+              onClick={isElectron ? () => electronFileInputRef.current?.click() : openPicker}
               className="relative flex items-center gap-2 w-full border border-dashed border-edge rounded-lg overflow-hidden transition-colors hover:border-trim group"
               style={{ minHeight: 56 }}
             >
@@ -397,12 +424,22 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
                 onSelect={handleSelectImage}
                 minCardWidth={80}
                 pageSize={9}
+                square
                 note="Images are cropped to a square in the gallery thumbnail."
               />
             </div>
           </>,
           document.body,
         )}
+
+      {cropSrc && (
+        <CropModal
+          src={cropSrc}
+          fileName={cropFileName}
+          onConfirm={(f) => void handleElectronCropConfirm(f)}
+          onCancel={() => { URL.revokeObjectURL(cropSrc); setCropSrc(null); }}
+        />
+      )}
     </div>,
     panel,
   );

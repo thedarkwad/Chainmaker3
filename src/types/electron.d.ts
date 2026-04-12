@@ -139,6 +139,8 @@ type ElectronAPI = {
     saveJumpdocMeta(id: string, meta: ElectronJumpDocSaveMeta): Promise<{ ok: boolean }>;
     /** Opens an image picker, copies the selected image as the jumpdoc thumbnail. */
     uploadJumpdocThumb(id: string): Promise<{ url: string } | null>;
+    /** Saves a base64-encoded cropped image as the jumpdoc thumbnail (called after renderer-side crop). */
+    saveJumpdocThumb(id: string, base64: string, ext: string): Promise<{ url: string } | null>;
   };
   images: {
     /** Opens OS file picker for images, copies to the open chain's temp dir, returns ID + URL. */

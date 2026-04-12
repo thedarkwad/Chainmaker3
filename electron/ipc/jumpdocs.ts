@@ -107,6 +107,8 @@ type IndexEntry = {
   version?: string;
   /** Relative path within the jumpdoc folder, e.g. "_thumbs/uuid.jpg", or null. */
   thumbFile: string | null;
+  /** Timestamp of last thumb write */
+  thumbMtime?: number;
   attributes?: ElectronJumpDocSaveMeta["attributes"];
   nsfw?: boolean;
 };
@@ -236,6 +238,7 @@ function updateIndexEntry(folder: string, filePath: string, data: unknown, id: s
     author: authorArr,
     ...(version ? { version } : {}),
     thumbFile: existing?.thumbFile ?? null,
+    ...(existing?.thumbMtime !== undefined ? { thumbMtime: existing.thumbMtime } : {}),
     ...(meta ? { attributes: meta.attributes, nsfw: meta.nsfw } : {
       attributes: existing?.attributes,
       nsfw: existing?.nsfw,
@@ -301,8 +304,36 @@ export function listJumpdocs(): ElectronJumpDocMeta[] {
         index.entries[filename] = cached;
         indexDirty = true;
       }
+
+      const tmpDir = jumpdocTempDir(cached.id);
+      if (fs.existsSync(tmpDir)) {
+        const tmpThumb = fs.readdirSync(tmpDir).find((f) => /^thumb\./i.test(f));
+        if (tmpThumb) {
+          const tmpThumbPath = path.join(tmpDir, tmpThumb);
+          const tmpMtime = fs.statSync(tmpThumbPath).mtimeMs;
+          const existingThumbPath = cached.thumbFile ? path.join(folder, cached.thumbFile) : null;
+          const existingMtime = existingThumbPath && fs.existsSync(existingThumbPath)
+            ? fs.statSync(existingThumbPath).mtimeMs
+            : 0;
+          if (tmpMtime > existingMtime) {
+            const thumbsFolder = thumbsDir(folder);
+            fs.mkdirSync(thumbsFolder, { recursive: true });
+            const ext = path.extname(tmpThumb);
+            // Remove any existing thumbs for this id.
+            for (const f of fs.readdirSync(thumbsFolder)) {
+              if (f.startsWith(cached.id)) fs.unlinkSync(path.join(thumbsFolder, f));
+            }
+            const thumbFilename = `${cached.id}${ext}`;
+            fs.copyFileSync(tmpThumbPath, path.join(thumbsFolder, thumbFilename));
+            cached.thumbFile = path.join("_thumbs", thumbFilename);
+            index.entries[filename] = cached;
+            indexDirty = true;
+          }
+        }
+      }
+
       const thumbPath = cached.thumbFile
-        ? `file:///${path.join(folder, cached.thumbFile).replace(/\\/g, "/")}`
+        ? `file:///${path.join(folder, cached.thumbFile).replace(/\\/g, "/")}${cached.thumbMtime ? `?t=${cached.thumbMtime}` : ""}`
         : undefined;
       results.push({ filePath: cached.id, name: cached.name, author: cached.author, version: cached.version, imageUrl: thumbPath, attributes: cached.attributes, nsfw: cached.nsfw, createdAt: cached.createdAt, updatedAt: cached.mtime });
     } else {
@@ -312,7 +343,7 @@ export function listJumpdocs(): ElectronJumpDocMeta[] {
       index.entries[filename] = entry;
       indexDirty = true;
       const thumbPath = entry.thumbFile
-        ? `file:///${path.join(folder, entry.thumbFile).replace(/\\/g, "/")}`
+        ? `file:///${path.join(folder, entry.thumbFile).replace(/\\/g, "/")}${entry.thumbMtime ? `?t=${entry.thumbMtime}` : ""}`
         : undefined;
       results.push({ filePath: entry.id, name: entry.name, author: entry.author, version: entry.version, imageUrl: thumbPath, attributes: entry.attributes, nsfw: entry.nsfw, createdAt: entry.createdAt, updatedAt: entry.mtime });
     }
@@ -520,16 +551,54 @@ export async function uploadJumpdocThumb(id: string): Promise<{ url: string } | 
   if (result.canceled || !result.filePaths[0]) return null;
 
   const srcPath = result.filePaths[0];
-  const ext = path.extname(srcPath).toLowerCase();
 
-  // Remove any existing thumb.* before writing new one.
   for (const f of fs.readdirSync(tmpDir)) {
     if (/^thumb\./i.test(f)) fs.unlinkSync(path.join(tmpDir, f));
   }
 
-  const destPath = path.join(tmpDir, `thumb${ext}`);
-  fs.copyFileSync(srcPath, destPath);
+  const avif = await sharp(fs.readFileSync(srcPath)).avif({ quality: 80 }).toBuffer();
+  const destPath = path.join(tmpDir, "thumb.avif");
+  fs.writeFileSync(destPath, avif);
   return { url: `file:///${destPath.replace(/\\/g, "/")}` };
+}
+
+export async function saveJumpdocThumb(
+  id: string,
+  base64: string,
+): Promise<{ url: string } | null> {
+  const uuid = jumpdocPathToId.get(id) ?? id;
+  const tmpDir = jumpdocTempDir(uuid);
+  if (!fs.existsSync(tmpDir)) return null;
+
+  const avif = await sharp(Buffer.from(base64, "base64")).avif({ quality: 80 }).toBuffer();
+
+  for (const f of fs.readdirSync(tmpDir)) {
+    if (/^thumb\./i.test(f)) fs.unlinkSync(path.join(tmpDir, f));
+  }
+  const tmpThumbPath = path.join(tmpDir, "thumb.avif");
+  fs.writeFileSync(tmpThumbPath, avif);
+
+  const filePath = jumpdocIdToPath.get(uuid);
+  if (filePath) {
+    const folder = path.dirname(filePath);
+    const filename = path.basename(filePath);
+    const thumbsFolder = thumbsDir(folder);
+    fs.mkdirSync(thumbsFolder, { recursive: true });
+    for (const f of fs.readdirSync(thumbsFolder)) {
+      if (f.startsWith(uuid)) fs.unlinkSync(path.join(thumbsFolder, f));
+    }
+    const thumbFilename = `${uuid}.avif`;
+    fs.writeFileSync(path.join(thumbsFolder, thumbFilename), avif);
+    const index = readIndex(folder);
+    const entry = index.entries[filename];
+    if (entry) {
+      entry.thumbFile = path.join("_thumbs", thumbFilename);
+      entry.thumbMtime = Date.now();
+      writeIndex(folder, index);
+    }
+  }
+
+  return { url: `file:///${tmpThumbPath.replace(/\\/g, "/")}?t=${Date.now()}` };
 }
 
 async function writeJumpdocZip(destPath: string, data: unknown, id: string): Promise<void> {
