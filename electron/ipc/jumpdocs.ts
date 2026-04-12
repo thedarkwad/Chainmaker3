@@ -100,6 +100,7 @@ function resolveFilePath(id: string): string | undefined {
 
 type IndexEntry = {
   id: string;
+  createdAt: number;
   mtime: number;
   name: string;
   author: string[];
@@ -147,6 +148,7 @@ function buildIndexEntry(
   filePath: string,
   mtime: number,
   existingId: string | undefined,
+  existingCreatedAt: number | undefined,
 ): IndexEntry | null {
   try {
     const zip = new AdmZip(filePath);
@@ -177,6 +179,7 @@ function buildIndexEntry(
     const nsfw = typeof meta.nsfw === "boolean" ? meta.nsfw : undefined;
 
     const id = existingId ?? crypto.randomUUID();
+    const createdAt = existingCreatedAt ?? fs.statSync(filePath).birthtimeMs;
 
     // Extract thumbnail if present.
     let thumbFile: string | null = null;
@@ -196,7 +199,7 @@ function buildIndexEntry(
     jumpdocIdToPath.set(id, filePath);
     jumpdocPathToId.set(filePath, id);
 
-    return { id, mtime, name, author, thumbFile, ...(attributes ? { attributes } : {}), ...(nsfw !== undefined ? { nsfw } : {}) };
+    return { id, createdAt, mtime, name, author, thumbFile, ...(attributes ? { attributes } : {}), ...(nsfw !== undefined ? { nsfw } : {}) };
   } catch {
     return null;
   }
@@ -217,6 +220,7 @@ function updateIndexEntry(folder: string, filePath: string, data: unknown, id: s
   const meta = jumpdocMetaCache.get(id);
   index.entries[filename] = {
     id,
+    createdAt: existing?.createdAt ?? fs.statSync(filePath).birthtimeMs,
     mtime,
     name,
     author: authorArr,
@@ -281,20 +285,25 @@ export function listJumpdocs(): ElectronJumpDocMeta[] {
       // Cache hit — restore ID maps and use cached metadata.
       jumpdocIdToPath.set(cached.id, filePath);
       jumpdocPathToId.set(filePath, cached.id);
+      if (cached.createdAt === undefined) {
+        cached.createdAt = fs.statSync(filePath).birthtimeMs;
+        index.entries[filename] = cached;
+        indexDirty = true;
+      }
       const thumbPath = cached.thumbFile
         ? `file:///${path.join(folder, cached.thumbFile).replace(/\\/g, "/")}`
         : undefined;
-      results.push({ filePath: cached.id, name: cached.name, author: cached.author, imageUrl: thumbPath, attributes: cached.attributes, nsfw: cached.nsfw });
+      results.push({ filePath: cached.id, name: cached.name, author: cached.author, imageUrl: thumbPath, attributes: cached.attributes, nsfw: cached.nsfw, createdAt: cached.createdAt, updatedAt: cached.mtime });
     } else {
       // Cache miss — read zip, extract thumb, update index.
-      const entry = buildIndexEntry(folder, filename, filePath, mtime, cached?.id);
+      const entry = buildIndexEntry(folder, filename, filePath, mtime, cached?.id, cached?.createdAt);
       if (!entry) continue;
       index.entries[filename] = entry;
       indexDirty = true;
       const thumbPath = entry.thumbFile
         ? `file:///${path.join(folder, entry.thumbFile).replace(/\\/g, "/")}`
         : undefined;
-      results.push({ filePath: entry.id, name: entry.name, author: entry.author, imageUrl: thumbPath, attributes: entry.attributes, nsfw: entry.nsfw });
+      results.push({ filePath: entry.id, name: entry.name, author: entry.author, imageUrl: thumbPath, attributes: entry.attributes, nsfw: entry.nsfw, createdAt: entry.createdAt, updatedAt: entry.mtime });
     }
   }
 

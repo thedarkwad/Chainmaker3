@@ -74,12 +74,17 @@ export async function listPublishedJumpDocs(
     );
   }
 
-  // Sorting (local .jumpdocs only support name sort meaningfully)
-  if (p.sortKey === "name") {
-    filtered = [...filtered].sort((a, b) =>
-      p.sortDir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name),
-    );
-  }
+  filtered = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    if (p.sortKey === "name") {
+      cmp = a.name.localeCompare(b.name);
+    } else if (p.sortKey === "updatedAt") {
+      cmp = (a.updatedAt ?? 0) - (b.updatedAt ?? 0);
+    } else if (p.sortKey === "createdAt") {
+      cmp = (a.createdAt ?? 0) - (b.createdAt ?? 0);
+    }
+    return p.sortDir === "asc" ? cmp : -cmp;
+  });
 
   // Pagination
   const total = filtered.length;
@@ -92,8 +97,8 @@ export async function listPublishedJumpDocs(
     publicUid: m.filePath,
     name: m.name,
     author: m.author,
-    createdAt: "",
-    updatedAt: "",
+    createdAt: m.createdAt ? new Date(m.createdAt).toISOString() : "",
+    updatedAt: m.updatedAt ? new Date(m.updatedAt).toISOString() : "",
     published: true,
     nsfw: m.nsfw ?? false,
     attributes: m.attributes ?? EMPTY_ATTRS,

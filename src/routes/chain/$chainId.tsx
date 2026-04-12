@@ -142,7 +142,7 @@ function ChainLoader() {
     setSaving(true);
     try {
       const result = await saveChain({
-        data: { chainId: chainMongoId, idToken, patches, edits: editsRef.current },
+        data: { chainId: chainMongoId ?? "", idToken, patches, edits: editsRef.current },
       });
       if (result.status === "ok") {
         editsRef.current = result.edits;
@@ -151,7 +151,7 @@ function ChainLoader() {
       } else if (result.status === "bad_patches") {
         const contents = useChainStore.getState().chain;
         if (contents) {
-          const r = await forceReplaceChain({ data: { chainId: chainMongoId, idToken, contents } });
+          const r = await forceReplaceChain({ data: { chainId: chainMongoId ?? "", idToken, contents } });
           if (r.status === "ok") {
             editsRef.current = r.edits;
             useChainStore.getState().declareSynched();

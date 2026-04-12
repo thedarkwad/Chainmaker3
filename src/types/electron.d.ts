@@ -44,6 +44,8 @@ export type ElectronJumpDocMeta = {
   imageUrl?: string;
   attributes?: ElectronJumpDocSaveMeta["attributes"];
   nsfw?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
 };
 
 export type ElectronJumpDocSaveMeta = {
