@@ -35,6 +35,10 @@ self.onmessage = async (e: MessageEvent<PdfWorkerInput>) => {
     const buffer = await blob.arrayBuffer();
     self.postMessage({ ok: true, buffer }, [buffer]);
   } catch (err) {
-    self.postMessage({ ok: false, error: String(err) });
+    const msg = err instanceof Error
+      ? `${err.name}: ${err.message}\n${err.stack ?? "(no stack)"}`
+      : String(err);
+    console.error("[pdfWorker] error:", err);
+    self.postMessage({ ok: false, error: msg });
   }
 };

@@ -551,7 +551,7 @@ function JumpSection({
   const title = isSingleJump ? jump.jumpName : `Jump ${jump.jumpNumber} — ${jump.jumpName}`;
   const titleStyle = { ...t.h2, textAlign: "center" as const };
   return (
-    <View break={isFirst || !ultracompact} style={{ marginBottom: ultracompact ? 10 : 0 }}>
+    <View break={!isSingleJump && !ultracompact} style={{ marginBottom: ultracompact ? 10 : 0 }}>
       {id && <View id={id} style={{ height: 0 }} />}
       {!isFirst && <View style={t.divider} />}
       {jump.sourceUrl ? (

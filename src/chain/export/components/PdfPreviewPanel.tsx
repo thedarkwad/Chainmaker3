@@ -35,6 +35,7 @@ export function PdfPreviewPanel({ data, filename }: Props) {
     workerRef.current = worker;
 
     worker.onmessage = (e: MessageEvent<{ ok: true; buffer: ArrayBuffer } | { ok: false; error: string }>) => {
+      if (!e.data.ok) console.error("[PdfPreviewPanel] worker error:", e.data.error);
       if (e.data.ok) {
         const blob = new Blob([e.data.buffer], { type: "application/pdf" });
         const url = URL.createObjectURL(blob);
@@ -49,6 +50,7 @@ export function PdfPreviewPanel({ data, filename }: Props) {
     };
 
     worker.onerror = (e) => {
+      console.error("[PdfPreviewPanel] worker onerror:", e);
       setError(e.message);
       setLoading(false);
       worker.terminate();

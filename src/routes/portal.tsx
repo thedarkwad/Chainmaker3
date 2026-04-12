@@ -26,7 +26,7 @@ import {
   duplicateChain,
   type ChainSummary,
 } from "@/api/chains";
-import { listJumpDocs, createJumpDoc, deleteJumpDoc, JumpDocSummary } from "@/api/jumpdocs";
+import { listJumpDocs, createJumpDoc, importJumpDoc, deleteJumpDoc, JumpDocSummary } from "@/api/jumpdocs";
 import { uploadImage } from "@/api/images";
 import { convertChain } from "@/chain/conversion";
 import { unzipSync } from "fflate";
@@ -473,7 +473,7 @@ function ActionsCard({
   return (
     <section className="flex w-full md:w-40 lg:w-52 shrink-0 flex-row md:flex-col items-center justify-evenly gap-5 rounded-xl border border-accent2/30 bg-linear-to-b from-tint to-accent2-tint px-5 py-8 shadow-sm md:justify-stretch">
       <input ref={jsonInputRef} type="file" accept=".json,.chain" className="hidden" onChange={onImport} />
-      <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={onConvert} />
+      <input ref={pdfInputRef} type="file" accept=".pdf,.jumpdoc" className="hidden" onChange={onConvert} />
 
       {/* New Chain */}
       <div className="flex flex-col items-center gap-3">
@@ -731,9 +731,12 @@ function PortalPage() {
       for (let i = 0; i < uint8.byteLength; i++) binary += String.fromCharCode(uint8[i]);
       const fileData = btoa(binary);
       const idToken = await firebaseUser.getIdToken();
-      const { publicUid } = await createJumpDoc({
-        data: { idToken, fileName: file.name, fileData, bytes },
-      });
+      let publicUid: string;
+      if (file.name.endsWith(".jumpdoc")) {
+        ({ publicUid } = await importJumpDoc({ data: { idToken, zipBase64: fileData } }));
+      } else {
+        ({ publicUid } = await createJumpDoc({ data: { idToken, fileName: file.name, fileData, bytes } }));
+      }
       // Navigation out of the portal into a new jumpdoc editor.
       // No UpdateStack exists yet so bare useNavigate is used intentionally.
       navigate({ to: "/jumpdoc/$docId", params: { docId: publicUid } });

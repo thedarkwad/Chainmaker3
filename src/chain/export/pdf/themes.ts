@@ -6,25 +6,25 @@ type StaticColorTheme = "paper" | "black-and-white";
 Font.register({
   family: "Fira Sans",
   fonts: [
-    { src: "/fonts/Fira Sans/FiraSans-Regular.ttf", fontStyle: "normal" },
-    { src: "/fonts/Fira Sans/FiraSans-Italic.ttf", fontStyle: "italic" },
+    { src: "/fonts/Fira%20Sans/FiraSans-Regular.ttf", fontStyle: "normal" },
+    { src: "/fonts/Fira%20Sans/FiraSans-Italic.ttf", fontStyle: "italic" },
   ],
 });
 Font.register({
   family: "Fira Sans Bold",
-  src: "/fonts/Fira Sans/FiraSans-Bold.ttf",
+  src: "/fonts/Fira%20Sans/FiraSans-Bold.ttf",
 });
 
 Font.register({
   family: "Libre Baskerville",
   fonts: [
-    { src: "/fonts/Libre Baskerville/LibreBaskerville-Regular.ttf", fontStyle: "normal" },
-    { src: "/fonts/Libre Baskerville/LibreBaskerville-Italic.ttf", fontStyle: "italic" },
+    { src: "/fonts/Libre%20Baskerville/LibreBaskerville-Regular.ttf", fontStyle: "normal" },
+    { src: "/fonts/Libre%20Baskerville/LibreBaskerville-Italic.ttf", fontStyle: "italic" },
   ],
 });
 Font.register({
   family: "Libre Baskerville Bold",
-  src: "/fonts/Libre Baskerville/LibreBaskerville-Bold.ttf",
+  src: "/fonts/Libre%20Baskerville/LibreBaskerville-Bold.ttf",
 });
 
 // All @react-pdf/renderer styles must use numeric values, not Tailwind classes.
