@@ -94,7 +94,6 @@
     "nanoid-dictionary": "^5.0.0",
     "nitro": "latest",
     "pdfjs-dist": "^5.5.207",
-    "primereact": "^10.9.7",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
