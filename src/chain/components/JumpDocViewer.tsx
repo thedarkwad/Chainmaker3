@@ -802,11 +802,14 @@ export function JumpDocViewer({
 
   const [jumpDoc, setJumpDoc] = useState<JumpDoc | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // In Electron, loadJumpDoc returns a pdfUrl (file:// temp path) that overrides doc.url.
+  const [pdfUrlOverride, setPdfUrlOverride] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
     setJumpDoc(null);
     setLoadError(null);
+    setPdfUrlOverride(null);
     useJumpDocStore.setState({ doc: undefined });
 
     let cancelled = false;
@@ -816,6 +819,7 @@ export function JumpDocViewer({
         const result = await loadJumpDoc({ data: { publicUid: docId, idToken } });
         if (cancelled) return;
         const doc = result.contents as JumpDoc;
+        setPdfUrlOverride((result as { pdfUrl?: string }).pdfUrl ?? null);
         setJumpDoc(doc);
         useJumpDocStore.getState().setDoc(doc);
       } catch (err) {
@@ -842,7 +846,7 @@ export function JumpDocViewer({
     displayScale,
     error: pdfError,
     changeZoom,
-  } = usePdfRenderer({ url: jumpDoc?.url ?? null, ownerDocument });
+  } = usePdfRenderer({ url: pdfUrlOverride ?? jumpDoc?.url ?? null, ownerDocument });
 
   const [ctrlHeld, setCtrlHeld] = useState(false);
   const [shiftHeld, setShiftHeld] = useState(false);

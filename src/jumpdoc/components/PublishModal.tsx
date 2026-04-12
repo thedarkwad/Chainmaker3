@@ -91,11 +91,11 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
   }
 
   async function handlePublish() {
-    if (!firebaseUser || !docMongoId) return;
+    if ((!firebaseUser && !isElectron) || !docMongoId) return;
     setSaving(true);
     setError(null);
     try {
-      const idToken = await firebaseUser.getIdToken();
+      const idToken = firebaseUser ? await firebaseUser.getIdToken() : "";
       const result = await publishJumpDoc({
         data: { docMongoId, idToken, published: true, nsfw: draftNsfw, attributes: draft, imageId: draftImageId },
       });

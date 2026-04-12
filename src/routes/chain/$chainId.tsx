@@ -86,7 +86,11 @@ function ChainLoader() {
         isPendingRef.current = (result as { isPending?: boolean }).isPending ?? false;
         useChainStore.getState().setChain(result.contents);
         useChainStore.getState().declareSynched();
-        recordRecentChain(chainId, (result.contents as { name?: string }).name ?? "Untitled", result.ownerUid);
+        recordRecentChain(
+          chainId,
+          (result.contents as { name?: string }).name ?? "Untitled",
+          result.ownerUid,
+        );
 
         // Batch-resolve all internal alt-form image IDs in a single call.
         const altforms =
@@ -127,12 +131,12 @@ function ChainLoader() {
 
   useEffect(adjustJumpOrganization, [chainId, !chain]);
 
-  async function handleSave() {
-    if (saving || !chainMongoIdRef.current) return;
+  async function handleSave(manual: boolean) {
+    if (!chainId) return;
+    if (manual && document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const { updates } = useChainStore.getState();
     const patches = updates.cumulativePatches;
     if (!patches.length && !isPendingRef.current) return;
-
     const chainId = chainMongoIdRef.current;
     const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
     setSaving(true);
@@ -173,12 +177,12 @@ function ChainLoader() {
       if (!updates.cumulativePatches.length) return;
       await autosaveChain();
     } else {
-      await handleSave();
+      await handleSave(false);
     }
   }
 
   // Keep refs in sync every render so the intervals always call the latest closures.
-  handleSaveRef.current = handleSave;
+  handleSaveRef.current = () =>  handleSave(true);
   handleAutoSaveRef.current = handleAutoSave;
 
   // Stable save function for child routes — always calls the latest handleSave via ref.
@@ -375,7 +379,7 @@ function ChainLoader() {
     <>
       <button
         title={saving ? "Saving…" : "Save"}
-        onClick={handleSave}
+        onClick={() => handleSave(true)}
         disabled={saving || chainLoading}
         className="p-1.5 rounded text-white/70 hover:text-white transition-colors disabled:opacity-40"
       >

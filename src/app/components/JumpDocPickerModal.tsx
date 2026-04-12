@@ -17,6 +17,8 @@ import { AddJumpDocToChain } from "@/app/components/AddJumpDocToChain";
 import { useCurrentUser } from "@/app/state/auth";
 import type { JumpDocSummary } from "@/api/jumpdocs";
 
+const isElectron = import.meta.env.VITE_PLATFORM === "electron";
+
 type Tab = "new" | "existing";
 
 export type JumpDocPickerModalProps = {
@@ -34,6 +36,17 @@ export function JumpDocPickerModal({ doc, onClose, defaultTab = "new" }: JumpDoc
   function handleCreated(publicUid: string) {
     onClose();
     navigate({ to: "/chain/$chainId", params: { chainId: publicUid } });
+  }
+
+  async function handleElectronExistingChain() {
+    const result = await window.electronAPI!.chains.openFilePicker();
+    if (!result) return;
+    onClose();
+    navigate({
+      to: "/chain/$chainId/add-doc",
+      params: { chainId: "local" },
+      search: doc ? { doc: doc.publicUid } : {},
+    });
   }
 
   return createPortal(
@@ -69,9 +82,9 @@ export function JumpDocPickerModal({ doc, onClose, defaultTab = "new" }: JumpDoc
               Add to New Chain
             </button>
             <button
-              onClick={() => setTab("existing")}
+              onClick={isElectron ? handleElectronExistingChain : () => setTab("existing")}
               className={`flex-1 py-2 text-center transition-colors ${
-                tab === "existing" ? "bg-accent text-white" : "text-muted hover:text-ink"
+                !isElectron && tab === "existing" ? "bg-accent text-white" : "text-muted hover:text-ink"
               }`}
             >
               Add to Existing Chain

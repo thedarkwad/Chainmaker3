@@ -3,29 +3,31 @@ import type { PdfColorTheme, PdfFont, ResolvedColorPalette } from "../types";
 
 type StaticColorTheme = "paper" | "black-and-white";
 
-Font.register({
-  family: "Fira Sans",
-  fonts: [
-    { src: "/fonts/Fira%20Sans/FiraSans-Regular.ttf", fontStyle: "normal" },
-    { src: "/fonts/Fira%20Sans/FiraSans-Italic.ttf", fontStyle: "italic" },
-  ],
-});
-Font.register({
-  family: "Fira Sans Bold",
-  src: "/fonts/Fira%20Sans/FiraSans-Bold.ttf",
-});
+export function registerFonts(fontsDir: string): void {
+  Font.register({
+    family: "Fira Sans",
+    fonts: [
+      { src: `${fontsDir}/Fira%20Sans/FiraSans-Regular.ttf`, fontStyle: "normal" },
+      { src: `${fontsDir}/Fira%20Sans/FiraSans-Italic.ttf`, fontStyle: "italic" },
+    ],
+  });
+  Font.register({
+    family: "Fira Sans Bold",
+    src: `${fontsDir}/Fira%20Sans/FiraSans-Bold.ttf`,
+  });
 
-Font.register({
-  family: "Libre Baskerville",
-  fonts: [
-    { src: "/fonts/Libre%20Baskerville/LibreBaskerville-Regular.ttf", fontStyle: "normal" },
-    { src: "/fonts/Libre%20Baskerville/LibreBaskerville-Italic.ttf", fontStyle: "italic" },
-  ],
-});
-Font.register({
-  family: "Libre Baskerville Bold",
-  src: "/fonts/Libre%20Baskerville/LibreBaskerville-Bold.ttf",
-});
+  Font.register({
+    family: "Libre Baskerville",
+    fonts: [
+      { src: `${fontsDir}/Libre%20Baskerville/LibreBaskerville-Regular.ttf`, fontStyle: "normal" },
+      { src: `${fontsDir}/Libre%20Baskerville/LibreBaskerville-Italic.ttf`, fontStyle: "italic" },
+    ],
+  });
+  Font.register({
+    family: "Libre Baskerville Bold",
+    src: `${fontsDir}/Libre%20Baskerville/LibreBaskerville-Bold.ttf`,
+  });
+}
 
 // All @react-pdf/renderer styles must use numeric values, not Tailwind classes.
 

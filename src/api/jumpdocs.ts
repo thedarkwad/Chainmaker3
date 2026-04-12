@@ -40,7 +40,7 @@ export const saveJumpDoc = createServerFn({ method: "POST" })
     const doc = await Models.JumpDoc.findById(data.docMongoId).lean();
     if (!doc) return { status: "not_found" };
 
-    if (!await isAuthorizedForDoc(uid, doc.ownerUid)) return { status: "unauthorized" };
+    if (!(await isAuthorizedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
 
     if (doc.edits !== data.edits) return { status: "conflict" };
 
@@ -78,7 +78,7 @@ export const deleteJumpDoc = createServerFn({ method: "POST" })
     const { uid } = await verifyIdToken(data.idToken);
     const doc = await Models.JumpDoc.findOne({ publicUid: data.publicUid }).lean();
     if (!doc) return { status: "not_found" };
-    if (!await isAuthorizedForDoc(uid, doc.ownerUid)) return { status: "unauthorized" };
+    if (!(await isAuthorizedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
     const docIdStr = String(doc._id);
     const pdf = await Models.PDF.findOne({ usedInDocId: docIdStr }).lean();
     const ops: Promise<unknown>[] = [
@@ -119,7 +119,7 @@ export const forceReplaceJumpDoc = createServerFn({ method: "POST" })
     const { uid } = await verifyIdToken(data.idToken);
     const doc = await Models.JumpDoc.findById(data.docMongoId).lean();
     if (!doc) return { status: "not_found" };
-    if (!await isAuthorizedForDoc(uid, doc.ownerUid)) return { status: "unauthorized" };
+    if (!(await isAuthorizedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
     const contents = data.contents as { name?: string; author?: string };
     const updatedName = contents.name ?? "";
     const updatedAuthor = (contents.author ?? "")
@@ -241,7 +241,11 @@ export const listJumpDocs = createServerFn({ method: "POST" })
     const imagePathById = new Map(images.map((img) => [String(img._id), img.path as string]));
 
     return docs.map((d) =>
-      mapJumpDocSummary(d as RawJumpDoc, d.imageId ? imagePathById.get(d.imageId) : undefined, null),
+      mapJumpDocSummary(
+        d as RawJumpDoc,
+        d.imageId ? imagePathById.get(d.imageId) : undefined,
+        null,
+      ),
     );
   });
 
@@ -443,7 +447,7 @@ export const loadJumpDoc = createServerFn({ method: "POST" })
     if (doc.ownerUid && !doc.published) {
       if (!data.idToken) throw new Error("Authentication required");
       const { uid } = await verifyIdToken(data.idToken);
-      if (!await isAuthorizedForDoc(uid, doc.ownerUid)) throw new Error("Unauthorized");
+      if (!(await isAuthorizedForDoc(uid, doc.ownerUid))) throw new Error("Unauthorized");
     }
 
     // Fetch cover image URL if the doc has one
@@ -501,7 +505,7 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
       const doc = await Models.JumpDoc.findById(data.docMongoId).lean();
       if (!doc) return { status: "not_found" };
 
-      if (!await isAuthorizedForDoc(uid, doc.ownerUid)) return { status: "unauthorized" };
+      if (!(await isAuthorizedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
 
       const oldImageId = (doc.imageId as string | undefined) ?? null;
       const newImageId = data.imageId ?? null;
@@ -823,6 +827,7 @@ export const importJumpDoc = createServerFn({ method: "POST" })
     const jumpdoc = await Models.JumpDoc.create({
       contents,
       name,
+      author: ((contents.author as string) ?? "").split(",").map((s) => s.trim()),
       ownerUid: uid,
       publicUid: customAlphabet(alphanumeric, 16)(),
       pdf: String(pdfObjId),

@@ -11,6 +11,13 @@ import type { PdfWorkerInput } from "../types";
 
 self.onmessage = async (e: MessageEvent<PdfWorkerInput>) => {
   try {
+    const { registerFonts } = await import("./themes");
+    const fontsDir =
+      self.location.protocol === "file:"
+        ? new URL("../fonts", import.meta.url).href.replace(/\/$/, "")
+        : "/fonts";
+    registerFonts(fontsDir);
+
     const [{ createElement }, { pdf }, { ChainExportDocument }, { PurchaseListDocument }] =
       await Promise.all([
         import("react"),

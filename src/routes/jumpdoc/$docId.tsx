@@ -86,7 +86,8 @@ function JumpDocLoader() {
     };
   }, [authLoading, firebaseUser, docId]);
 
-  async function handleSave() {
+  async function handleSave(manual: boolean) {
+    if (manual && document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const isElectron = import.meta.env.VITE_PLATFORM === "electron";
     if (saving || (!isElectron && !firebaseUser) || !docMongoIdRef.current) return;
     const { updates } = useJumpDocStore.getState();
@@ -142,12 +143,12 @@ function JumpDocLoader() {
       if (!updates.cumulativePatches.length) return;
       await autosaveJumpDoc();
     } else {
-      await handleSave();
+      await handleSave(false);
     }
   }
 
   // Keep refs in sync every render so the intervals always call the latest closures.
-  handleSaveRef.current = handleSave;
+  handleSaveRef.current = () => handleSave(true);
   handleAutoSaveRef.current = handleAutoSave;
 
   useEffect(() => {
@@ -210,7 +211,7 @@ function JumpDocLoader() {
       </a>
       <button
         title={saving ? "Saving…" : "Save"}
-        onClick={handleSave}
+        onClick={() => handleSave(true)}
         disabled={saving}
         className="p-1.5 rounded text-white/70 hover:text-white transition-colors disabled:opacity-40"
       >
@@ -227,7 +228,10 @@ function JumpDocLoader() {
         <div className="shrink-0 flex items-center justify-between gap-4 bg-accent-tint border-b border-accent-ring px-4 py-2">
           <p className="text-sm text-ink">
             New to converting jumpdocs? Check out the{" "}
-            <Link to="/guide" className="font-medium text-accent underline underline-offset-2 hover:opacity-80">
+            <Link
+              to="/guide"
+              className="font-medium text-accent underline underline-offset-2 hover:opacity-80"
+            >
               conversion guide
             </Link>{" "}
             to learn best practices.
