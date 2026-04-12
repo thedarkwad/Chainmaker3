@@ -11,6 +11,8 @@ const config = defineConfig({
     ssr: false,
     minify: "esbuild",
     rollupOptions: {
+      // chart.js is an optional peer dep of primereact — not installed, skip it
+      external: ["chart.js/auto"],
       output: {
         manualChunks: {
           "vendor-react": ["react", "react-dom"],
