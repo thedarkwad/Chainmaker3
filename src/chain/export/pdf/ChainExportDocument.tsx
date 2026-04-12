@@ -490,17 +490,15 @@ function NarrativeSection({ narrative, t }: { narrative: IRNarrative; t: Theme }
 // Table of Contents
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TableOfContents({ jumps, t }: { jumps: IRJump[]; t: Theme }) {
+function TableOfContents({ jumps, t }: { jumps: IRJump[]; t: Theme; ultracompact: boolean }) {
   const accentColor = (t.h2 as Record<string, unknown>).color as string;
   return (
-    <View break style={{ paddingTop: 16 }}>
+    <View style={{ paddingTop: 16 }}>
       <Text style={{ ...t.h2, textAlign: "center", marginTop: 0, marginBottom: 10 }}>
         Table of Contents
       </Text>
       <View style={t.divider} />
       {jumps.map((jump, i) => {
-        // Only show the jump number for the first entry in a run of the same jumpNumber
-        // (supplements share their parent's number).
         const isFirstInGroup = i === 0 || jumps[i - 1]!.jumpNumber !== jump.jumpNumber;
         return (
           <Link key={i} src={`#jump-${i}`} style={{ textDecoration: "none" }}>
@@ -553,10 +551,9 @@ function JumpSection({
   const title = isSingleJump ? jump.jumpName : `Jump ${jump.jumpNumber} — ${jump.jumpName}`;
   const titleStyle = { ...t.h2, textAlign: "center" as const };
   return (
-    <View break={!isFirst}>
-      {/* Zero-height anchor at the very top so the TOC link lands at the start of
-          this jump section, not somewhere inside the multi-page content. */}
+    <View break={isFirst || !ultracompact} style={{ marginBottom: ultracompact ? 10 : 0 }}>
       {id && <View id={id} style={{ height: 0 }} />}
+      {!isFirst && <View style={t.divider} />}
       {jump.sourceUrl ? (
         <Link src={jump.sourceUrl} style={{ textDecoration: "none" }}>
           <Text style={titleStyle}>{title}</Text>
@@ -592,7 +589,9 @@ function JumpSection({
         t={t}
         ultracompact={ultracompact}
       />
-      {sections.companions && <CompanionsSection companions={jump.companions} t={t} ultracompact={ultracompact} />}
+      {sections.companions && (
+        <CompanionsSection companions={jump.companions} t={t} ultracompact={ultracompact} />
+      )}
       {sections.drawbacks && (
         <DrawbacksSection drawbacks={jump.drawbacks} t={t} ultracompact={ultracompact} />
       )}
@@ -661,6 +660,7 @@ export function ChainExportDocument({ ir, options }: { ir: ExportIR; options: Ex
   );
 
   const isSingleJump = ir.isSingleJump;
+  const ultracompact = !options.sections.descriptions;
 
   return (
     <Document title={ir.chainName} author={ir.characterName}>
@@ -675,7 +675,7 @@ export function ChainExportDocument({ ir, options }: { ir: ExportIR; options: Ex
         )}
 
         {/* Table of Contents — chain exports only */}
-        {!isSingleJump && <TableOfContents jumps={ir.jumps} t={t} />}
+        {!isSingleJump && <TableOfContents jumps={ir.jumps} t={t} ultracompact={ultracompact} />}
 
         {/* Jumps */}
         {ir.jumps.map((jump, i) => (
@@ -684,7 +684,7 @@ export function ChainExportDocument({ ir, options }: { ir: ExportIR; options: Ex
             jump={jump}
             sections={options.sections}
             t={t}
-            isFirst={i === 0 && isSingleJump}
+            isFirst={i === 0 && !isSingleJump}
             isSingleJump={isSingleJump}
             id={isSingleJump ? undefined : `jump-${i}`}
           />

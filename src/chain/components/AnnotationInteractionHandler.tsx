@@ -13,8 +13,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
-import type { GID, Id, LID, TID, Registry } from "@/chain/data/types";
+import { createId, type GID, type Id, type LID, type TID, type Registry } from "@/chain/data/types";
 import type { Currency, CurrencyExchange, Origin, OriginCategory, PurchaseSubtype } from "@/chain/data/Jump";
+import type { Budget } from "@/chain/data/CalculatedData";
 import {
   CostModifier,
   PurchaseType,
@@ -37,6 +38,7 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   useAllCharacters,
   useRemoveCharacter,
+  useBudget,
   useCurrencyExchanges,
   useJumpCurrencies,
   useJumpDocCompanionActions,
@@ -1819,6 +1821,7 @@ function buildPurchaseInteraction(
   originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
   purchaseSubtypes: Registry<LID.PurchaseSubtype, PurchaseSubtype> | undefined,
   currencies: Registry<LID.Currency, Currency> | undefined,
+  budget: Budget | undefined,
   addFromTemplate: ReturnType<typeof useJumpDocPurchaseActions>["addFromTemplate"],
   removePurchase: ReturnType<typeof useJumpDocPurchaseActions>["removePurchase"],
   findByTemplate: ReturnType<typeof useJumpDocPurchaseActions>["findByTemplate"],
@@ -1963,18 +1966,28 @@ function buildPurchaseInteraction(
     return q.find((ac) => ac.value.every((v) => v.amount === 0)) ?? q[0]!;
   })();
 
-  const qualifyingOptionalAltCosts = action.alternativeCosts.filter(
-    (ac) =>
-      !ac.mandatory &&
-      checkResolvedAltCostPrereqs(
-        ac.prerequisites,
-        action.docId,
-        origins,
-        originCategories,
-        findByTemplate,
-        findDrawback,
-      ),
-  );
+  const qualifyingOptionalAltCosts = action.alternativeCosts.filter((ac) => {
+    if (ac.mandatory) return false;
+    if (!checkResolvedAltCostPrereqs(ac.prerequisites, action.docId, origins, originCategories, findByTemplate, findDrawback)) return false;
+    // Exclude alt costs that spend a hidden currency the user has no balance or stipend of.
+    if (currencies && budget) {
+      for (const v of ac.value) {
+        if (v.amount === 0) continue;
+        const abbrev = v.currencyAbbrev;
+        for (const [idStr, c] of Object.entries(currencies.O) as [string, Currency | undefined][]) {
+          if (c?.abbrev !== abbrev) continue;
+          const currId = createId<LID.Currency>(+idStr);
+          if (c.hidden && (budget.currency[currId] ?? 0) <= 0) {
+            const subtypeStipends = subtype ? budget.stipends[subtype.lid] : undefined;
+            const stipend = subtypeStipends ? (subtypeStipends[currId] ?? 0) : 0;
+            if (stipend <= 0) return false;
+          }
+          break;
+        }
+      }
+    }
+    return true;
+  });
 
   // Determine origin modifier (for priority comparison).
   const originModifier =
@@ -2655,6 +2668,7 @@ function buildCompanionInteraction(
   origins: Record<Id<LID.OriginCategory>, Origin[]> | null,
   originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
   currencies: Registry<LID.Currency, Currency> | undefined,
+  budget: Budget | undefined,
   addFromTemplate: ReturnType<typeof useJumpDocCompanionActions>["addFromTemplate"],
   remove: ReturnType<typeof useJumpDocCompanionActions>["remove"],
   findByTemplate: ReturnType<typeof useJumpDocCompanionActions>["findByTemplate"],
@@ -2701,18 +2715,27 @@ function buildCompanionInteraction(
     return q.find((ac) => ac.value.every((v) => v.amount === 0)) ?? q[0]!;
   })();
 
-  const qualifyingOptionalAltCosts = action.alternativeCosts.filter(
-    (ac) =>
-      !ac.mandatory &&
-      checkResolvedAltCostPrereqs(
-        ac.prerequisites,
-        action.docId,
-        origins as Record<number, Origin[]> | null,
-        originCategories,
-        findPurchase,
-        findDrawback,
-      ),
-  );
+  const qualifyingOptionalAltCosts = action.alternativeCosts.filter((ac) => {
+    if (ac.mandatory) return false;
+    if (!checkResolvedAltCostPrereqs(ac.prerequisites, action.docId, origins as Record<number, Origin[]> | null, originCategories, findPurchase, findDrawback)) return false;
+    if (currencies && budget) {
+      for (const v of ac.value) {
+        if (v.amount === 0) continue;
+        const abbrev = v.currencyAbbrev;
+        for (const [idStr, c] of Object.entries(currencies.O) as [string, Currency | undefined][]) {
+          if (c?.abbrev !== abbrev) continue;
+          const currId = createId<LID.Currency>(+idStr);
+          if (c.hidden && (budget.currency[currId] ?? 0) <= 0) {
+            const hasCompanionStipend =
+              budget.companionStipend.currency === currId && budget.companionStipend.amount > 0;
+            if (!hasCompanionStipend) return false;
+          }
+          break;
+        }
+      }
+    }
+    return true;
+  });
 
   const storedAltCosts = resolveAltCostsToStorage(
     action.alternativeCosts,
@@ -2925,6 +2948,7 @@ export function AnnotationInteractionHandler({
   const { origins, setOrigins } = useJumpOrigins(jumpId, charId);
   const originCategories = useJumpOriginCategories(jumpId);
   const currencies = useJumpCurrencies(jumpId);
+  const budget = useBudget(charId, jumpId);
   const purchaseSubtypes = usePurchaseSubtypes(jumpId);
   const {
     addFromTemplate,
@@ -2960,6 +2984,8 @@ export function AnnotationInteractionHandler({
   categoriesRef.current = originCategories;
   const currenciesRef = useRef(currencies);
   currenciesRef.current = currencies;
+  const budgetRef = useRef(budget);
+  budgetRef.current = budget;
   const setOriginsRef = useRef(setOrigins);
   setOriginsRef.current = setOrigins;
   const purchaseSubtypesRef = useRef(purchaseSubtypes);
@@ -3163,6 +3189,7 @@ export function AnnotationInteractionHandler({
           categoriesRef.current,
           purchaseSubtypesRef.current,
           currenciesRef.current,
+          budgetRef.current,
           addFromTemplateRef.current,
           removePurchaseRef.current,
           findByTemplateRef.current,
@@ -3228,6 +3255,7 @@ export function AnnotationInteractionHandler({
           originsRef.current as Record<number, Origin[]> | null,
           categoriesRef.current,
           currenciesRef.current,
+          budgetRef.current,
           addCompanionRef.current,
           removeCompanionRef.current,
           findCompanionRef.current,

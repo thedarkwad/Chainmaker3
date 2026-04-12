@@ -138,7 +138,7 @@ function buildTheme(color: ColorPalette, font: FontConfig) {
     name: { fontFamily: bold },
     cost: { color: cost },
     tag: { color: muted, fontStyle: "italic" },
-    divider: { borderTopWidth: 1, borderTopColor: border, marginTop: 8, marginBottom: 8 },
+    divider: { borderTopWidth: 1, borderTopColor: accent, marginTop: 8, marginBottom: 8, opacity: 0.5 },
     narrative: {
       borderLeftWidth: 2,
       borderLeftColor: accent,

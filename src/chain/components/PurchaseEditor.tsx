@@ -513,6 +513,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
               })
             }
             floatingDiscount={floatingDiscount ?? undefined}
+            hideCurrencies
           />
         )}
 

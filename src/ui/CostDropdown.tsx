@@ -243,6 +243,7 @@ export function CostDropdown<T extends TID.Currency | LID.Currency = LID.Currenc
   defaultCurrency,
   floatingDiscount,
   freeLabel,
+  hideCurrencies,
 }: {
   value: Value<T>;
   className?: string;
@@ -256,6 +257,7 @@ export function CostDropdown<T extends TID.Currency | LID.Currency = LID.Currenc
   /** When provided, shows a "floating discount" checkbox for non-Full modifiers. */
   floatingDiscount?: { checked: boolean; onChange: (checked: boolean) => void };
   freeLabel?: string;
+  hideCurrencies?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [dropRight, setDropRight] = useState(false);
@@ -278,6 +280,7 @@ export function CostDropdown<T extends TID.Currency | LID.Currency = LID.Currenc
   let activeCurrencies = useRef(
     Object.keys(currencies.O).filter(
       (c) =>
+        !hideCurrencies ||
         !currencies.O[+c as any].hidden ||
         localValue.some((v) => v.currency == +c && v.amount != 0),
     ),
@@ -439,7 +442,7 @@ export function CostDropdown<T extends TID.Currency | LID.Currency = LID.Currenc
                     key={`${currId as number}v${inputVersion}`}
                     type="number"
                     step={50}
-                    className="min-w-0 border border-edge rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring"
+                    className="min-w-20 border border-edge rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring"
                     defaultValue={localValue.find((sv) => sv.currency === currId)?.amount ?? 0}
                     onChange={(e) => {
                       const n = e.target.valueAsNumber;
@@ -459,7 +462,7 @@ export function CostDropdown<T extends TID.Currency | LID.Currency = LID.Currenc
                   const currId = createId<T>(+id);
                   return (
                     <Fragment key={id}>
-                      <span className="text-xs text-muted text-right">{cur.abbrev}</span>
+                      <span className="text-xs text-muted text-right w-min">{cur.abbrev}</span>
                       <input
                         type="number"
                         step={50}
