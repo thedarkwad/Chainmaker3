@@ -220,7 +220,7 @@ export function JumpDocSidebar({
               )}
             </div>
           )}
-          {isOwner && (
+          {(isOwner || isElectron) && (
             <Link
               to="/jumpdoc/$docId"
               params={{ docId: doc.publicUid }}

@@ -137,12 +137,12 @@ function ChainLoader() {
     const { updates } = useChainStore.getState();
     const patches = updates.cumulativePatches;
     if (!patches.length && !isPendingRef.current) return;
-    const chainId = chainMongoIdRef.current;
+    const chainMongoId = chainMongoIdRef.current;
     const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
     setSaving(true);
     try {
       const result = await saveChain({
-        data: { chainId, idToken, patches, edits: editsRef.current },
+        data: { chainId: chainMongoId, idToken, patches, edits: editsRef.current },
       });
       if (result.status === "ok") {
         editsRef.current = result.edits;
@@ -151,7 +151,7 @@ function ChainLoader() {
       } else if (result.status === "bad_patches") {
         const contents = useChainStore.getState().chain;
         if (contents) {
-          const r = await forceReplaceChain({ data: { chainId, idToken, contents } });
+          const r = await forceReplaceChain({ data: { chainId: chainMongoId, idToken, contents } });
           if (r.status === "ok") {
             editsRef.current = r.edits;
             useChainStore.getState().declareSynched();

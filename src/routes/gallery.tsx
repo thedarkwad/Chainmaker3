@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { FileText, FolderOpen } from "lucide-react";
 import { useTheme } from "@/providers/ThemeProvider";
 import { AppHeader } from "@/app/components/AppHeader";
@@ -42,6 +42,19 @@ function GalleryPage() {
     () => (firebaseUser ? firebaseUser.getIdToken() : Promise.resolve(null)),
     [firebaseUser],
   );
+
+  const navigate = useNavigate();
+
+  async function openExistingChainElectron(doc: JumpDocSummary | null) {
+    const result = await window.electronAPI!.chains.openFilePicker();
+    if (!result) return;
+    setSelectedDoc(null);
+    navigate({
+      to: "/chain/$chainId/add-doc",
+      params: { chainId: "local" },
+      search: { doc: doc?.publicUid ?? "" },
+    });
+  }
 
   function openPicker(tab: "new" | "existing") {
     setPickerTab(tab);
@@ -140,7 +153,7 @@ function GalleryPage() {
                   onClose={() => setSelectedDoc(null)}
                   onSearchChange={(s) => setSearch(s)}
                   onNewChain={() => openPicker("new")}
-                  onExistingChain={() => openPicker("existing")}
+                  onExistingChain={isElectron ? () => openExistingChainElectron(selectedDoc) : () => openPicker("existing")}
                 />
               )}
             </div>
@@ -166,7 +179,7 @@ function GalleryPage() {
                   setSelectedDoc(null);
                 }}
                 onNewChain={() => openPicker("new")}
-                onExistingChain={() => openPicker("existing")}
+                onExistingChain={isElectron ? () => openExistingChainElectron(selectedDoc) : () => openPicker("existing")}
               />
             </div>
           </div>
