@@ -16,3 +16,4 @@ dist-electron
 dist-electron-renderer
 dist-app
 src/routeTree.electron.gen.ts
+deploy.env
