@@ -397,6 +397,7 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
                 onSelect={handleSelectImage}
                 minCardWidth={80}
                 pageSize={9}
+                square
                 note="Images are cropped to a square in the gallery thumbnail."
               />
             </div>

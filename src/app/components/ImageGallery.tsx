@@ -26,6 +26,7 @@ import {
 } from "@/api/images";
 import { Pagination } from "@/ui/Pagination";
 import { Tip } from "@/ui/Tip";
+import { CropModal } from "@/ui/CropModal";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StorageBar (image quota)
@@ -102,15 +103,13 @@ export type ImageGalleryProps = {
   minCardWidth?: number;
   /** Applied to the outermost wrapper div. */
   className?: string;
-  /** Optional informational message shown below the toolbar. */
+  /** Optional message shown below the toolbar. */
   note?: React.ReactNode;
-  /**
-   * If set, the image grid scrolls independently and its max-height is capped
-   * to this many rows. No scrollbar appears when the content fits within the cap.
-   */
   maxRows?: number;
   /** Number of images per page. If omitted, all images are shown. */
   pageSize?: number;
+  /** If true, prompts the user to crop the image to a square before uploading. */
+  square?: boolean;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -124,6 +123,7 @@ export function ImageGallery({
   note,
   maxRows,
   pageSize,
+  square,
 }: ImageGalleryProps) {
   const { firebaseUser, dbUser } = useCurrentUser();
 
@@ -138,6 +138,9 @@ export function ImageGallery({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imgChestFileInputRef = useRef<HTMLInputElement>(null);
+  const pendingUploadTypeRef = useRef<"native" | "imgchest">("native");
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropFileName, setCropFileName] = useState<string>("");
 
   // Track imageUsage locally so the bar updates after upload/delete without a full reload
   const [usageBytes, setUsageBytes] = useState(dbUser?.imageUsage.currentBytes ?? 0);
@@ -167,10 +170,8 @@ export function ImageGallery({
     reload();
   }, [reload]);
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !firebaseUser) return;
-    e.target.value = "";
+  async function uploadFile(file: File, via: "native" | "imgchest") {
+    if (!firebaseUser) return;
     setError(null);
     setUploading(true);
     try {
@@ -181,11 +182,12 @@ export function ImageGallery({
       for (let i = 0; i < uint8.byteLength; i++) binary += String.fromCharCode(uint8[i]);
       const fileData = btoa(binary);
       const token = await firebaseUser.getIdToken();
-      const newImage = await uploadImage({
-        data: { idToken: token, fileName: file.name, fileData, bytes },
-      });
+      const newImage =
+        via === "native"
+          ? await uploadImage({ data: { idToken: token, fileName: file.name, fileData, bytes } })
+          : await uploadImgChestImage({ data: { idToken: token, fileName: file.name, fileData, bytes } });
       setImages((prev) => [newImage, ...prev]);
-      setUsageBytes((prev) => prev + bytes);
+      if (via === "native") setUsageBytes((prev) => prev + bytes);
       setSelectedId(newImage._id);
       setPage(1);
       onSelect?.(newImage);
@@ -196,32 +198,29 @@ export function ImageGallery({
     }
   }
 
-  async function handleImgChestFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>, via: "native" | "imgchest") {
     const file = e.target.files?.[0];
-    if (!file || !firebaseUser) return;
+    if (!file) return;
     e.target.value = "";
-    setError(null);
-    setUploading(true);
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const bytes = arrayBuffer.byteLength;
-      const uint8 = new Uint8Array(arrayBuffer);
-      let binary = "";
-      for (let i = 0; i < uint8.byteLength; i++) binary += String.fromCharCode(uint8[i]);
-      const fileData = btoa(binary);
-      const token = await firebaseUser.getIdToken();
-      const newImage = await uploadImgChestImage({
-        data: { idToken: token, fileName: file.name, fileData, bytes },
-      });
-      setImages((prev) => [newImage, ...prev]);
-      setSelectedId(newImage._id);
-      setPage(1);
-      onSelect?.(newImage);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "ImgChest upload failed.");
-    } finally {
-      setUploading(false);
+    if (square) {
+      pendingUploadTypeRef.current = via;
+      setCropFileName(file.name);
+      setCropSrc(URL.createObjectURL(file));
+    } else {
+      void uploadFile(file, via);
     }
+  }
+
+  function handleCropConfirm(croppedFile: File) {
+    const src = cropSrc;
+    setCropSrc(null);
+    if (src) URL.revokeObjectURL(src);
+    void uploadFile(croppedFile, pendingUploadTypeRef.current);
+  }
+
+  function handleCropCancel() {
+    if (cropSrc) URL.revokeObjectURL(cropSrc);
+    setCropSrc(null);
   }
 
   async function handleDelete() {
@@ -297,7 +296,7 @@ export function ImageGallery({
           type="file"
           accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
           className="hidden"
-          onChange={handleFileChange}
+          onChange={(e) => handleFileInputChange(e, "native")}
         />
         <button
           type="button"
@@ -314,7 +313,7 @@ export function ImageGallery({
           type="file"
           accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
           className="hidden"
-          onChange={handleImgChestFileChange}
+          onChange={(e) => handleFileInputChange(e, "imgchest")}
         />
         <button
           type="button"
@@ -408,6 +407,16 @@ export function ImageGallery({
 
       {/* Usage bar */}
       <StorageBar currentBytes={usageBytes} maxBytes={maxBytes} />
+
+      {/* Square crop modal */}
+      {cropSrc && (
+        <CropModal
+          src={cropSrc}
+          fileName={cropFileName}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
     </div>
   );
 }
