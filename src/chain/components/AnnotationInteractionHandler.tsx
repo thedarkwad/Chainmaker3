@@ -2141,7 +2141,20 @@ function buildPurchaseInteraction(
         discountOrigins:
           !isAccessOnly && action.originNames.length > 0 ? action.originNames : undefined,
         originBenefit: action.originBenefit,
-        alternativeCosts: storedAltCosts.length ? storedAltCosts : undefined,
+        alternativeCosts: (() => {
+          const altCosts = isFirstCopy
+            ? storedAltCosts.filter((ac) => {
+                if (!ac.mandatory || ac.prerequisites.length === 0) return true;
+                return !ac.prerequisites.every(
+                  (p) =>
+                    p.type === "purchase" &&
+                    p.docId === action.docId &&
+                    p.templateId === action.docTemplateId,
+                );
+              })
+            : storedAltCosts;
+          return altCosts.length ? altCosts : undefined;
+        })(),
         optionalAltCost: isOptionalAltCost || undefined,
         optionalAltCostBeforeDiscountsValue,
         storedPrerequisites: storedPrereqs.length ? storedPrereqs : undefined,
