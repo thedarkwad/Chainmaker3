@@ -15,7 +15,7 @@ const config = defineConfig({
         manualChunks: {
           "vendor-react": ["react", "react-dom"],
           "vendor-pdf": ["@react-pdf/renderer", "pdfjs-dist"],
-          "vendor-firebase": ["firebase"],
+          "vendor-firebase": ["firebase/app", "firebase/auth"],
           "vendor-tanstack": ["@tanstack/react-router", "@tanstack/react-start"],
           "vendor-ui": ["primereact", "react-toastify", "sweetalert2", "sweetalert2-react-content"],
         },
