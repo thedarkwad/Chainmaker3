@@ -1,7 +1,7 @@
 import { Font, StyleSheet } from "@react-pdf/renderer";
 import type { PdfColorTheme, PdfFont, ResolvedColorPalette } from "../types";
 
-type StaticColorTheme = Exclude<PdfColorTheme, "app-theme">;
+type StaticColorTheme = "paper" | "black-and-white";
 
 Font.register({
   family: "Fira Sans",
@@ -61,6 +61,27 @@ const COLORS: Record<StaticColorTheme, ColorPalette> = {
     accentSubtle: "#222222",
     border: "#000000",
     cost: "#333333",
+  },
+};
+
+const DARK_COLORS: Record<StaticColorTheme, ColorPalette> = {
+  "paper": {
+    bg: "#1a1108",
+    text: "#f0e4c8",
+    muted: "#b88c5a",
+    accent: "#d4a76a",
+    accentSubtle: "#c4956a",
+    border: "#4a3218",
+    cost: "#d4a76a",
+  },
+  "black-and-white": {
+    bg: "#000000",
+    text: "#ffffff",
+    muted: "#aaaaaa",
+    accent: "#ffffff",
+    accentSubtle: "#dddddd",
+    border: "#666666",
+    cost: "#cccccc",
   },
 };
 
@@ -142,13 +163,23 @@ export const THEMES: Record<StaticColorTheme, Record<PdfFont, ThemeShape>> = {
   "black-and-white": { "sans-serif": buildTheme(COLORS["black-and-white"], FONTS["sans-serif"]), "serif": buildTheme(COLORS["black-and-white"], FONTS["serif"]), "mono": buildTheme(COLORS["black-and-white"], FONTS["mono"]) },
 };
 
+export const STATIC_THEMES = new Set<string>(["paper", "black-and-white"]);
+
+/**
+ * Returns the theme for the given color/font combination.
+ * Static themes ("paper", "black-and-white") are looked up from THEMES.
+ * App themes use the resolved CSS palette passed in from the main thread.
+ * Falls back to paper if the palette is missing (should not happen in practice).
+ */
 export function getTheme(
   colorTheme: PdfColorTheme,
   font: PdfFont,
   resolvedPalette?: ResolvedColorPalette,
+  dark?: boolean,
 ): ThemeShape {
-  if (colorTheme === "app-theme") {
-    return buildTheme(resolvedPalette ?? COLORS["paper"], FONTS[font]);
+  if (STATIC_THEMES.has(colorTheme)) {
+    const key = colorTheme as StaticColorTheme;
+    return buildTheme(dark ? DARK_COLORS[key] : COLORS[key], FONTS[font]);
   }
-  return THEMES[colorTheme][font];
+  return buildTheme(resolvedPalette ?? COLORS["paper"], FONTS[font]);
 }

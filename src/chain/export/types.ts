@@ -11,7 +11,8 @@ export type ExportScope =
 
 export type ExportFormat = "markdown" | "bbcode" | "pdf";
 
-export type PdfColorTheme = "app-theme" | "paper" | "black-and-white";
+import type { ThemeSetting } from "@/app/ThemeSetting";
+export type PdfColorTheme = ThemeSetting | "paper" | "black-and-white";
 export type PdfFont = "sans-serif" | "serif" | "mono";
 
 export type ExportSections = {
@@ -46,6 +47,7 @@ export type ExportOptions = {
   sections: ExportSections;
   pdfColorTheme: PdfColorTheme;
   pdfFont: PdfFont;
+  pdfDark: boolean;
   resolvedAppThemePalette?: ResolvedColorPalette;
 };
 
@@ -227,4 +229,4 @@ export type ExportIR = {
 /** Serialisable input sent to the PDF web worker. */
 export type PdfWorkerInput =
   | { kind: "chain"; ir: ExportIR; options: ExportOptions }
-  | { kind: "purchase-list"; ir: IRPurchaseListExport; pdfColorTheme: PdfColorTheme; pdfFont: PdfFont; resolvedAppThemePalette?: ResolvedColorPalette };
+  | { kind: "purchase-list"; ir: IRPurchaseListExport; pdfColorTheme: PdfColorTheme; pdfFont: PdfFont; pdfDark: boolean; resolvedAppThemePalette?: ResolvedColorPalette };

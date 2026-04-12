@@ -16,9 +16,6 @@ button {
   cursor: pointer;
 }
 
-/* Force select options to use the OS default text color, not the page theme color.
-   `color: initial` resolves to the browser/OS default (black on light, white on dark
-   system dropdowns). This prevents themed text colors from making options unreadable. */
 option {
   background-color: var(--theme-surface) !important;
 }

@@ -33,14 +33,16 @@ export function PurchaseListDocument({
   ir,
   pdfColorTheme,
   pdfFont,
+  pdfDark,
   resolvedAppThemePalette,
 }: {
   ir: IRPurchaseListExport;
   pdfColorTheme: PdfColorTheme;
   pdfFont: PdfFont;
+  pdfDark: boolean;
   resolvedAppThemePalette?: ResolvedColorPalette;
 }) {
-  const t = getTheme(pdfColorTheme, pdfFont, resolvedAppThemePalette);
+  const t = getTheme(pdfColorTheme, pdfFont, resolvedAppThemePalette, pdfDark);
 
   const isGrouped = ir.groups.some((g) => g.heading !== "");
 

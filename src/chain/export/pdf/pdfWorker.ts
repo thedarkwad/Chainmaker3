@@ -27,6 +27,7 @@ self.onmessage = async (e: MessageEvent<PdfWorkerInput>) => {
             ir: input.ir,
             pdfColorTheme: input.pdfColorTheme,
             pdfFont: input.pdfFont,
+            pdfDark: input.pdfDark,
             resolvedAppThemePalette: input.resolvedAppThemePalette,
           });
 

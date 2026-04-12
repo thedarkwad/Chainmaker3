@@ -21,7 +21,10 @@ import {
   type PdfWorkerInput,
   type PurchaseListOptions,
 } from "../types";
-import { resolveAppThemePalette } from "../resolveAppTheme";
+import { resolveThemePalette } from "../resolveAppTheme";
+import { STATIC_THEMES } from "../pdf/themes";
+import { useTheme } from "@/providers/ThemeProvider";
+import { THEMES as APP_THEMES } from "@/app/ThemeSetting";
 import { ScopePanel } from "./ScopePanel";
 import { CustomizationPanel } from "./CustomizationPanel";
 import { PurchaseListOptionsPanel } from "./PurchaseListOptionsPanel";
@@ -36,19 +39,22 @@ type GeneratedExport =
       plOptions: PurchaseListOptions;
       pdfColorTheme: PdfColorTheme;
       pdfFont: PdfFont;
+      pdfDark: boolean;
       resolvedAppThemePalette?: import("../types").ResolvedColorPalette;
     };
 
 export function SharePage() {
   const summary = useExportChainSummary();
   const snapshot = useExportSnapshot();
+  const { settings: themeSettings } = useTheme();
 
   // ── State ──
   const [format, setFormat] = useState<ExportFormat>("markdown");
   const [scope, setScope] = useState<ExportScope>({ kind: "chain" });
   const [characterId, setCharacterId] = useState(() => summary.characters[0]?.id ?? (0 as never));
   const [sections, setSections] = useState(DEFAULT_SECTIONS);
-  const [pdfColorTheme, setPdfColorTheme] = useState<PdfColorTheme>("app-theme");
+  const [pdfColorTheme, setPdfColorTheme] = useState<PdfColorTheme>(() => themeSettings.theme);
+  const [pdfDark, setPdfDark] = useState<boolean>(() => themeSettings.dark);
   const [pdfFont, setPdfFont] = useState<PdfFont>("sans-serif");
   const [purchaseListOptions, setPurchaseListOptions] = useState<PurchaseListOptions>(
     DEFAULT_PURCHASE_LIST_OPTIONS,
@@ -101,7 +107,9 @@ export function SharePage() {
     if (!chain) return;
     setGenerating(true);
     // Resolve CSS vars on the main thread before the worker runs (worker has no DOM access).
-    const resolvedAppThemePalette = pdfColorTheme === "app-theme" ? resolveAppThemePalette() : undefined;
+    const resolvedAppThemePalette = !STATIC_THEMES.has(pdfColorTheme)
+      ? resolveThemePalette(pdfColorTheme as import("@/app/ThemeSetting").ThemeSetting, pdfDark)
+      : undefined;
     setTimeout(() => {
       try {
         if (isPurchaseList) {
@@ -112,10 +120,11 @@ export function SharePage() {
             plOptions: purchaseListOptions,
             pdfColorTheme,
             pdfFont,
+            pdfDark,
             resolvedAppThemePalette,
           });
         } else {
-          const options: ExportOptions = { scope, characterId, sections, pdfColorTheme, pdfFont, resolvedAppThemePalette };
+          const options: ExportOptions = { scope, characterId, sections, pdfColorTheme, pdfFont, pdfDark, resolvedAppThemePalette };
           const ir = buildExportIR(chain, calculatedData, options);
           setGenerated({ kind: "chain", ir, options });
         }
@@ -149,6 +158,7 @@ export function SharePage() {
       ir: generated.ir,
       pdfColorTheme: generated.pdfColorTheme,
       pdfFont: generated.pdfFont,
+      pdfDark: generated.pdfDark,
       resolvedAppThemePalette: generated.resolvedAppThemePalette,
     };
   }, [generated]);
@@ -235,11 +245,13 @@ export function SharePage() {
           <CustomizationPanel
             sections={sections}
             pdfColorTheme={pdfColorTheme}
+            pdfDark={pdfDark}
             pdfFont={pdfFont}
             format={format}
             availableSupplements={availableSupplements}
             onSectionsChange={setSections}
             onColorThemeChange={setPdfColorTheme}
+            onPdfDarkChange={setPdfDark}
             onFontChange={setPdfFont}
           />
         )}
@@ -249,23 +261,33 @@ export function SharePage() {
           <div className="flex flex-col gap-4">
             <section>
               <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-1">Color</p>
-              <select
-                value={pdfColorTheme}
-                onChange={(e) => setPdfColorTheme(e.target.value as PdfColorTheme)}
-                className="w-full text-sm rounded border border-edge bg-surface px-1.5 py-0.5"
-              >
-                {(
-                  [
-                    { value: "app-theme", label: "App Theme" },
-                    { value: "paper", label: "Paper" },
-                    { value: "black-and-white", label: "Black & White" },
-                  ] as { value: PdfColorTheme; label: string }[]
-                ).map(({ value, label }) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-1">
+                <select
+                  value={pdfColorTheme}
+                  onChange={(e) => setPdfColorTheme(e.target.value as PdfColorTheme)}
+                  className="flex-1 min-w-0 text-sm rounded border border-edge bg-surface px-1.5 py-0.5"
+                >
+                  {(
+                    [
+                      ...APP_THEMES.map(({ id, label }) => ({ value: id as PdfColorTheme, label })),
+                      { value: "paper", label: "Paper" },
+                      { value: "black-and-white", label: "Black & White" },
+                    ] as { value: PdfColorTheme; label: string }[]
+                  ).map(({ value, label }) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={pdfDark ? "dark" : "light"}
+                  onChange={(e) => setPdfDark(e.target.value === "dark")}
+                  className="text-sm rounded border border-edge bg-surface px-1.5 py-0.5"
+                >
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </div>
             </section>
             <section>
               <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-1">Font</p>

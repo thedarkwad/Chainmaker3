@@ -1,3 +1,4 @@
+import type { ThemeSetting } from "@/app/ThemeSetting";
 import type { ResolvedColorPalette } from "./types";
 
 const _canvas = document.createElement("canvas");
@@ -14,14 +15,37 @@ function resolveCSSVarToHex(varName: string): string {
   return "#" + [r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("");
 }
 
-export function resolveAppThemePalette(): ResolvedColorPalette {
+function readCurrentPalette(): ResolvedColorPalette {
   return {
-    bg: resolveCSSVarToHex("--color-canvas"),
-    text: resolveCSSVarToHex("--color-ink"),
-    muted: resolveCSSVarToHex("--color-muted"),
-    accent: resolveCSSVarToHex("--color-accent-ring"),
+    bg:           resolveCSSVarToHex("--color-canvas"),
+    text:         resolveCSSVarToHex("--color-ink"),
+    muted:        resolveCSSVarToHex("--color-muted"),
+    accent:       resolveCSSVarToHex("--color-accent-ring"),
     accentSubtle: resolveCSSVarToHex("--color-ink"),
-    border: resolveCSSVarToHex("--color-edge"),
-    cost: resolveCSSVarToHex("--color-accent2"),
+    border:       resolveCSSVarToHex("--color-edge"),
+    cost:         resolveCSSVarToHex("--color-accent2"),
   };
+}
+
+/**
+ * Resolves the palette for any app theme by temporarily swapping the html
+ * data-theme / data-dark attributes. The swap is synchronous so nothing repaints.
+ */
+export function resolveThemePalette(themeId: ThemeSetting, dark: boolean): ResolvedColorPalette {
+  const html = document.documentElement;
+  const prevTheme = html.getAttribute("data-theme");
+  const prevDark = html.hasAttribute("data-dark");
+
+  html.setAttribute("data-theme", themeId);
+  if (dark) html.setAttribute("data-dark", "");
+  else html.removeAttribute("data-dark");
+
+  const palette = readCurrentPalette();
+
+  if (prevTheme != null) html.setAttribute("data-theme", prevTheme);
+  else html.removeAttribute("data-theme");
+  if (prevDark) html.setAttribute("data-dark", "");
+  else html.removeAttribute("data-dark");
+
+  return palette;
 }

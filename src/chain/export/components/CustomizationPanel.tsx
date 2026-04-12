@@ -1,19 +1,22 @@
 import { SegmentedControl } from "@/ui/SegmentedControl";
+import { THEMES as APP_THEMES } from "@/app/ThemeSetting";
 import type { ExportFormat, ExportSections, PdfColorTheme, PdfFont } from "../types";
 
 type Props = {
   sections: ExportSections;
   pdfColorTheme: PdfColorTheme;
+  pdfDark: boolean;
   pdfFont: PdfFont;
   format: ExportFormat;
   availableSupplements: string[];
   onSectionsChange: (sections: ExportSections) => void;
   onColorThemeChange: (theme: PdfColorTheme) => void;
+  onPdfDarkChange: (dark: boolean) => void;
   onFontChange: (font: PdfFont) => void;
 };
 
 const PDF_COLOR_THEMES: { value: PdfColorTheme; label: string }[] = [
-  { value: "app-theme", label: "App Theme" },
+  ...APP_THEMES.map(({ id, label }) => ({ value: id as PdfColorTheme, label })),
   { value: "paper", label: "Paper" },
   { value: "black-and-white", label: "Black & White" },
 ];
@@ -39,7 +42,7 @@ function CheckRow({ label, checked, onChange }: { label: string; checked: boolea
   );
 }
 
-export function CustomizationPanel({ sections, pdfColorTheme, pdfFont, format, availableSupplements, onSectionsChange, onColorThemeChange, onFontChange }: Props) {
+export function CustomizationPanel({ sections, pdfColorTheme, pdfDark, pdfFont, format, availableSupplements, onSectionsChange, onColorThemeChange, onPdfDarkChange, onFontChange }: Props) {
   function toggle(key: keyof ExportSections) {
     onSectionsChange({ ...sections, [key]: !sections[key] });
   }
@@ -127,15 +130,25 @@ export function CustomizationPanel({ sections, pdfColorTheme, pdfFont, format, a
         <>
           <section>
             <GroupLabel label="Color" />
-            <select
-              value={pdfColorTheme}
-              onChange={(e) => onColorThemeChange(e.target.value as PdfColorTheme)}
-              className="w-full text-sm rounded border border-edge bg-surface px-1.5 py-0.5"
-            >
-              {PDF_COLOR_THEMES.map(({ value, label }) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
+            <div className="flex gap-1">
+              <select
+                value={pdfColorTheme}
+                onChange={(e) => onColorThemeChange(e.target.value as PdfColorTheme)}
+                className="flex-1 min-w-0 text-sm rounded border border-edge bg-surface px-1.5 py-0.5"
+              >
+                {PDF_COLOR_THEMES.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <select
+                value={pdfDark ? "dark" : "light"}
+                onChange={(e) => onPdfDarkChange(e.target.value === "dark")}
+                className="text-sm rounded border border-edge bg-surface px-1.5 py-0.5"
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </div>
           </section>
           <section>
             <GroupLabel label="Font" />

@@ -21,26 +21,18 @@ function spoiler(title: string, content: string): string {
   return `[SPOILER=${title}]\n${content}\n[/SPOILER]\n`;
 }
 
-function sectionCostLabel(purchases: IRPurchase[], kind: "cost" | "gain"): string {
+function sectionCostLabel(
+  items: { cost: { raw: number; currencyAbbrev: string } | null }[],
+  kind: "cost" | "gain",
+): string {
   const totals = new Map<string, number>();
-  for (const p of purchases) {
+  for (const p of items) {
     if (!p.cost || p.cost.raw === 0) continue;
     totals.set(p.cost.currencyAbbrev, (totals.get(p.cost.currencyAbbrev) ?? 0) + p.cost.raw);
   }
   if (totals.size === 0) return "";
   const parts = Array.from(totals.entries()).map(([abbrev, total]) => `${total} ${abbrev}`);
   return ` (${kind}: ${parts.join(", ")})`;
-}
-
-function sectionCostLabelDrawbacks(drawbacks: IRDrawback[]): string {
-  const totals = new Map<string, number>();
-  for (const d of drawbacks) {
-    if (!d.cost || d.cost.raw === 0) continue;
-    totals.set(d.cost.currencyAbbrev, (totals.get(d.cost.currencyAbbrev) ?? 0) + d.cost.raw);
-  }
-  if (totals.size === 0) return "";
-  const parts = Array.from(totals.entries()).map(([abbrev, total]) => `${total} ${abbrev}`);
-  return ` (gain: ${parts.join(", ")})`;
 }
 
 function renderPurchase(p: IRPurchase, depth = 0): string {
@@ -61,6 +53,13 @@ function renderPurchase(p: IRPurchase, depth = 0): string {
   return out;
 }
 
+function renderPurchaseInline(p: IRPurchase): string {
+  const costStr = p.cost ? ` [${p.cost.display}]` : "";
+  const subs = p.subpurchases.length
+    ? ` (${p.subpurchases.map((s) => s.name).join(", ")})`
+    : "";
+  return `${p.name}${costStr}${subs}`;
+}
 
 function renderDrawback(d: IRDrawback): string {
   const costStr = d.cost ? ` [${d.cost.display}]` : "";
@@ -74,18 +73,22 @@ function renderDrawback(d: IRDrawback): string {
   return out;
 }
 
+function renderDrawbackInline(d: IRDrawback): string {
+  return `${d.name}${d.cost ? ` [${d.cost.display}]` : ""}`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Jump renderer
 // ─────────────────────────────────────────────────────────────────────────────
 
 function renderJump(jump: IRJump, sections: ExportOptions["sections"], isSingleJump: boolean): string {
+  const ultracompact = !sections.descriptions;
   const title = isSingleJump
     ? jump.jumpName
     : `Jump ${jump.jumpNumber} — ${jump.jumpName}`;
   const linkedTitle = jump.sourceUrl
     ? `[URL=${jump.sourceUrl}]${u(b(title))}[/URL]`
     : u(b(title));
-  let header = linkedTitle;
 
   let body = "";
 
@@ -104,43 +107,67 @@ function renderJump(jump: IRJump, sections: ExportOptions["sections"], isSingleJ
 
   // Origins
   if (sections.origins && jump.origins.length > 0) {
-    let originsInner = "";
-    for (const o of jump.origins) {
-      const costStr = o.cost ? ` [${o.cost.display}]` : "";
-      originsInner += `${b(o.categoryName + ":")} ${o.summary}${costStr}\n`;
-      if (o.description) originsInner += `${o.description}\n`;
+    if (ultracompact) {
+      const parts = jump.origins.map((o) => {
+        const costStr = o.cost ? ` [${o.cost.display}]` : "";
+        return `${b(o.categoryName + ":")} ${o.summary}${costStr}`;
+      });
+      body += parts.join(", ") + "\n";
+    } else {
+      let originsInner = "";
+      for (const o of jump.origins) {
+        const costStr = o.cost ? ` [${o.cost.display}]` : "";
+        originsInner += `${b(o.categoryName + ":")} ${o.summary}${costStr}\n`;
+        if (o.description) originsInner += `${o.description}\n`;
+      }
+      body += spoiler("Origins", originsInner);
     }
-    body += spoiler("Origins", originsInner);
   }
 
   // Perks
   if (jump.perkSections.length > 0) {
-    const allPerks = jump.perkSections.flatMap((s) => s.purchases);
-    let perksInner = "";
-    for (const s of jump.perkSections) {
-      if (s.heading && !isGenericSubtype(s.heading)) {
-        perksInner += `${b(s.heading)}${sectionCostLabel(s.purchases, "cost")}\n`;
+    if (ultracompact) {
+      for (const s of jump.perkSections) {
+        if (s.purchases.length === 0) continue;
+        const label = sectionCostLabel(s.purchases, "cost");
+        body += `${b(s.heading + label + ":")} ${s.purchases.map(renderPurchaseInline).join(", ")}\n`;
       }
-      perksInner += "[LIST]\n";
-      for (const p of s.purchases) perksInner += renderPurchase(p);
-      perksInner += "[/LIST]\n";
+    } else {
+      const allPerks = jump.perkSections.flatMap((s) => s.purchases);
+      let perksInner = "";
+      for (const s of jump.perkSections) {
+        if (s.heading && !isGenericSubtype(s.heading)) {
+          perksInner += `${b(s.heading)}${sectionCostLabel(s.purchases, "cost")}\n`;
+        }
+        perksInner += "[LIST]\n";
+        for (const p of s.purchases) perksInner += renderPurchase(p);
+        perksInner += "[/LIST]\n";
+      }
+      body += spoiler(`Perks${sectionCostLabel(allPerks, "cost")}`, perksInner);
     }
-    body += spoiler(`Perks${sectionCostLabel(allPerks, "cost")}`, perksInner);
   }
 
   // Items
   if (jump.itemSections.length > 0) {
-    const allItems = jump.itemSections.flatMap((s) => s.purchases);
-    let itemsInner = "";
-    for (const s of jump.itemSections) {
-      if (s.heading && !isGenericSubtype(s.heading)) {
-        itemsInner += `${b(s.heading)}${sectionCostLabel(s.purchases, "cost")}\n`;
+    if (ultracompact) {
+      for (const s of jump.itemSections) {
+        if (s.purchases.length === 0) continue;
+        const label = sectionCostLabel(s.purchases, "cost");
+        body += `${b(s.heading + label + ":")} ${s.purchases.map(renderPurchaseInline).join(", ")}\n`;
       }
-      itemsInner += "[LIST]\n";
-      for (const p of s.purchases) itemsInner += renderPurchase(p);
-      itemsInner += "[/LIST]\n";
+    } else {
+      const allItems = jump.itemSections.flatMap((s) => s.purchases);
+      let itemsInner = "";
+      for (const s of jump.itemSections) {
+        if (s.heading && !isGenericSubtype(s.heading)) {
+          itemsInner += `${b(s.heading)}${sectionCostLabel(s.purchases, "cost")}\n`;
+        }
+        itemsInner += "[LIST]\n";
+        for (const p of s.purchases) itemsInner += renderPurchase(p);
+        itemsInner += "[/LIST]\n";
+      }
+      body += spoiler(`Items${sectionCostLabel(allItems, "cost")}`, itemsInner);
     }
-    body += spoiler(`Items${sectionCostLabel(allItems, "cost")}`, itemsInner);
   }
 
   // Companion Imports
@@ -148,61 +175,97 @@ function renderJump(jump: IRJump, sections: ExportOptions["sections"], isSingleJ
     const companionTotal = jump.companions.reduce((sum, ci) => sum + (ci.cost?.raw ?? 0), 0);
     const companionAbbrev = jump.companions.find((ci) => ci.cost)?.cost?.currencyAbbrev ?? "";
     const companionLabel = companionTotal > 0 ? ` (cost: ${companionTotal} ${companionAbbrev})` : "";
-    let inner = "[LIST]\n";
-    for (const ci of jump.companions) {
-      const costStr = ci.cost ? ` [${ci.cost.display}]` : "";
-      const chars = ci.characterNames.length ? ` (${ci.characterNames.join(", ")})` : "";
-      inner += `[*]${b(ci.name)}${costStr}${chars}\n`;
+    if (ultracompact) {
+      const items = jump.companions
+        .map((ci) => {
+          const costStr = ci.cost ? ` [${ci.cost.display}]` : "";
+          const chars = ci.characterNames.length ? ` (${ci.characterNames.join(", ")})` : "";
+          return `${ci.name}${costStr}${chars}`;
+        })
+        .join(", ");
+      body += `${b("Companion Imports" + companionLabel + ":")} ${items}\n`;
+    } else {
+      let inner = "[LIST]\n";
+      for (const ci of jump.companions) {
+        const costStr = ci.cost ? ` [${ci.cost.display}]` : "";
+        const chars = ci.characterNames.length ? ` (${ci.characterNames.join(", ")})` : "";
+        inner += `[*]${b(ci.name)}${costStr}${chars}\n`;
+      }
+      inner += "[/LIST]";
+      body += spoiler(`Companion Imports${companionLabel}`, inner);
     }
-    inner += "[/LIST]";
-    body += spoiler(`Companion Imports${companionLabel}`, inner);
   }
 
   // Drawbacks
   if (sections.drawbacks && jump.drawbacks.length > 0) {
     const chain = jump.drawbacks.filter((d) => d.isChainDrawback);
     const regular = jump.drawbacks.filter((d) => !d.isChainDrawback);
-    let inner = "";
-    if (chain.length > 0) {
-      let chainInner = "[LIST]\n";
-      for (const d of chain) chainInner += renderDrawback(d);
-      chainInner += "[/LIST]";
-      inner += spoiler(`Chain Drawbacks${sectionCostLabelDrawbacks(chain)}`, chainInner);
+    if (ultracompact) {
+      if (chain.length > 0) {
+        const label = sectionCostLabel(chain, "gain");
+        body += `${b("Chain Drawbacks" + label + ":")} ${chain.map(renderDrawbackInline).join(", ")}\n`;
+      }
+      if (regular.length > 0) {
+        const label = sectionCostLabel(regular, "gain");
+        body += `${b("Drawbacks" + label + ":")} ${regular.map(renderDrawbackInline).join(", ")}\n`;
+      }
+    } else {
+      let inner = "";
+      if (chain.length > 0) {
+        let chainInner = "[LIST]\n";
+        for (const d of chain) chainInner += renderDrawback(d);
+        chainInner += "[/LIST]";
+        inner += spoiler(`Chain Drawbacks${sectionCostLabel(chain, "gain")}`, chainInner);
+      }
+      if (regular.length > 0) {
+        inner += "[LIST]\n";
+        for (const d of regular) inner += renderDrawback(d);
+        inner += "[/LIST]\n";
+      }
+      body += spoiler(`Drawbacks${sectionCostLabel(regular, "gain")}`, inner);
     }
-    if (regular.length > 0) {
-      inner += "[LIST]\n";
-      for (const d of regular) inner += renderDrawback(d);
-      inner += "[/LIST]\n";
-    }
-    body += spoiler(`Drawbacks${sectionCostLabelDrawbacks(regular)}`, inner);
   }
 
   // Scenarios
   if (sections.scenarios && jump.scenarios.length > 0) {
-    let inner = "[LIST]\n";
-    for (const sc of jump.scenarios) {
-      inner += `[*]${b(sc.name)}\n`;
-      if (sc.description) inner += `${sc.description}\n`;
-      if (sc.rewards.length > 0) inner += `[I]Rewards: ${sc.rewards.join(", ")}[/I]\n`;
+    if (ultracompact) {
+      body += `${b("Scenarios:")} ${jump.scenarios.map((sc) => sc.name).join(", ")}\n`;
+    } else {
+      let inner = "[LIST]\n";
+      for (const sc of jump.scenarios) {
+        inner += `[*]${b(sc.name)}\n`;
+        if (sc.description) inner += `${sc.description}\n`;
+        if (sc.rewards.length > 0) inner += `[I]Rewards: ${sc.rewards.join(", ")}[/I]\n`;
+      }
+      inner += "[/LIST]";
+      body += spoiler("Scenarios", inner);
     }
-    inner += "[/LIST]";
-    body += spoiler("Scenarios", inner);
   }
 
-  // Supplements — each as its own spoiler
+  // Supplements
   for (const supp of jump.supplements) {
-    let suppInner = "";
-    if (supp.prePurchaseBudget !== null)
-      suppInner += `${b("Budget:")} ${supp.prePurchaseBudget} ${supp.currencyName}\n`;
-    if (supp.investment !== null && supp.investmentCurrencyAbbrev)
-      suppInner += `${b("Investment:")} ${supp.investment} ${supp.investmentCurrencyAbbrev}\n`;
-    if (supp.perks.length + supp.items.length > 0) {
-      suppInner += "[LIST]\n";
-      for (const p of supp.perks) suppInner += renderPurchase(p);
-      for (const p of supp.items) suppInner += renderPurchase(p);
-      suppInner += "[/LIST]\n";
+    if (ultracompact) {
+      const budgetStr =
+        supp.prePurchaseBudget !== null
+          ? ` [Budget: ${supp.prePurchaseBudget} ${supp.currencyName}]`
+          : "";
+      const allPurchases = [...supp.perks, ...supp.items];
+      const items = allPurchases.map(renderPurchaseInline).join(", ");
+      body += `${b(supp.name + budgetStr + ":")} ${items}\n`;
+    } else {
+      let suppInner = "";
+      if (supp.prePurchaseBudget !== null)
+        suppInner += `${b("Budget:")} ${supp.prePurchaseBudget} ${supp.currencyName}\n`;
+      if (supp.investment !== null && supp.investmentCurrencyAbbrev)
+        suppInner += `${b("Investment:")} ${supp.investment} ${supp.investmentCurrencyAbbrev}\n`;
+      if (supp.perks.length + supp.items.length > 0) {
+        suppInner += "[LIST]\n";
+        for (const p of supp.perks) suppInner += renderPurchase(p);
+        for (const p of supp.items) suppInner += renderPurchase(p);
+        suppInner += "[/LIST]\n";
+      }
+      body += spoiler(supp.name, suppInner);
     }
-    body += spoiler(supp.name, suppInner);
   }
 
   // Alt Forms
@@ -249,7 +312,7 @@ function renderJump(jump: IRJump, sections: ExportOptions["sections"], isSingleJ
     body += spoiler("Budget", inner);
   }
 
-  return `${header}\n${body}\n`;
+  return `${linkedTitle}\n${body}\n`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
