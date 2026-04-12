@@ -9,6 +9,18 @@ import { nitro } from "nitro/vite";
 const config = defineConfig({
   build: {
     ssr: false,
+    minify: "esbuild",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom"],
+          "vendor-pdf": ["@react-pdf/renderer", "pdfjs-dist"],
+          "vendor-firebase": ["firebase"],
+          "vendor-tanstack": ["@tanstack/react-router", "@tanstack/react-start"],
+          "vendor-ui": ["primereact", "react-toastify", "sweetalert2", "sweetalert2-react-content"],
+        },
+      },
+    },
   },
   worker: {
     format: "es",
@@ -17,7 +29,18 @@ const config = defineConfig({
     devtools(),
     nitro({
       rollupConfig: {
-        external: ["firebase-admin", "firebase-admin/app", "firebase-admin/auth", "node-forge"],
+        external: [
+          "firebase-admin",
+          "firebase-admin/app",
+          "firebase-admin/auth",
+          "node-forge",
+          // Native / large server-side deps — do not bundle, require at runtime
+          "sharp",
+          "mongoose",
+          "@aws-sdk/client-s3",
+          "compress-pdf",
+          "adm-zip",
+        ],
       },
     }),
     // this is the plugin that enables path aliases

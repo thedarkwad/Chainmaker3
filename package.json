@@ -6,7 +6,7 @@
   "version": "3.0.2",
   "scripts": {
     "dev": "vite dev --port 3000",
-    "build": "NODE_OPTIONS=--max-old-space-size=2048 vite build",
+    "build": "NODE_OPTIONS=--max-old-space-size=2560 vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "electron:dev:main": "vite build -c vite.electron.main.config.ts --watch --mode development",
