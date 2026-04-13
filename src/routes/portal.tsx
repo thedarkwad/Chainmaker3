@@ -26,7 +26,13 @@ import {
   duplicateChain,
   type ChainSummary,
 } from "@/api/chains";
-import { listJumpDocs, createJumpDoc, importJumpDoc, deleteJumpDoc, JumpDocSummary } from "@/api/jumpdocs";
+import {
+  listJumpDocs,
+  createJumpDoc,
+  importJumpDoc,
+  deleteJumpDoc,
+  JumpDocSummary,
+} from "@/api/jumpdocs";
 import { uploadImage } from "@/api/images";
 import { convertChain } from "@/chain/conversion";
 import { unzipSync } from "fflate";
@@ -472,8 +478,20 @@ function ActionsCard({
 }) {
   return (
     <section className="flex w-full md:w-40 lg:w-52 shrink-0 flex-row md:flex-col items-center justify-evenly gap-5 rounded-xl border border-accent2/30 bg-linear-to-b from-tint to-accent2-tint px-5 py-8 shadow-sm md:justify-stretch">
-      <input ref={jsonInputRef} type="file" accept=".json,.chain" className="hidden" onChange={onImport} />
-      <input ref={pdfInputRef} type="file" accept=".pdf,.jumpdoc" className="hidden" onChange={onConvert} />
+      <input
+        ref={jsonInputRef}
+        type="file"
+        accept=".json,.chain"
+        className="hidden"
+        onChange={onImport}
+      />
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept=".pdf,.jumpdoc"
+        className="hidden"
+        onChange={onConvert}
+      />
 
       {/* New Chain */}
       <div className="flex flex-col items-center gap-3">
@@ -512,7 +530,8 @@ function ActionsCard({
         {importResult && (
           <div className="rounded border border-edge bg-surface p-2 text-xs text-muted">
             <p className="mb-1 font-medium text-ink">
-              {importResult.skippedImages.length} image{importResult.skippedImages.length !== 1 ? "s" : ""} skipped (storage full):
+              {importResult.skippedImages.length} image
+              {importResult.skippedImages.length !== 1 ? "s" : ""} skipped (storage full):
             </p>
             <ul className="mb-2 list-inside list-disc text-ghost">
               {importResult.skippedImages.map((name) => (
@@ -562,6 +581,9 @@ function PortalPage() {
 
   const [chains, setChains] = useState<Entry[]>([]);
   const [jumpDocs, setJumpDocs] = useState<Entry[]>([]);
+  const [docsNeedingImage, setDocsNeedingImage] = useState<{ publicUid: string; name: string }[]>(
+    [],
+  );
   const [showNewChainModal, setShowNewChainModal] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -569,7 +591,10 @@ function PortalPage() {
   const [convertError, setConvertError] = useState<string | null>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const [importResult, setImportResult] = useState<{ publicUid: string; skippedImages: string[] } | null>(null);
+  const [importResult, setImportResult] = useState<{
+    publicUid: string;
+    skippedImages: string[];
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   let [browseMode, setBrowseMode] = useState<"chain" | "jumpdoc">("chain");
@@ -596,6 +621,11 @@ function PortalPage() {
         if (cancelled) return;
         setChains(chainList.map(summaryToEntry));
         setJumpDocs(docList.map(summaryToEntry));
+        setDocsNeedingImage(
+          docList
+            .filter((d) => d.published && !d.imageUrl)
+            .map((d) => ({ publicUid: d.publicUid, name: d.name })),
+        );
         // Record whether this user has any jumpdocs, so the jumpdoc editor can
         // show a first-time guide banner when they create their very first one.
         localStorage.setItem("chainmaker_has_jumpdocs", docList.length > 0 ? "true" : "false");
@@ -632,7 +662,8 @@ function PortalPage() {
         const chain = isLegacy ? convertChain(raw as object) : raw;
         const chainCopy = JSON.parse(JSON.stringify(chain)) as Record<string, unknown>;
         const altforms =
-          (chainCopy.altforms as { O?: Record<string, Record<string, unknown>> } | undefined)?.O ?? {};
+          (chainCopy.altforms as { O?: Record<string, Record<string, unknown>> } | undefined)?.O ??
+          {};
 
         const imageFolder = isLegacy ? "user_images/" : "images/";
         const imageEntries = Object.entries(unzipped).filter(
@@ -735,7 +766,9 @@ function PortalPage() {
       if (file.name.endsWith(".jumpdoc")) {
         ({ publicUid } = await importJumpDoc({ data: { idToken, zipBase64: fileData } }));
       } else {
-        ({ publicUid } = await createJumpDoc({ data: { idToken, fileName: file.name, fileData, bytes } }));
+        ({ publicUid } = await createJumpDoc({
+          data: { idToken, fileName: file.name, fileData, bytes },
+        }));
       }
       // Navigation out of the portal into a new jumpdoc editor.
       // No UpdateStack exists yet so bare useNavigate is used intentionally.
@@ -812,6 +845,33 @@ function PortalPage() {
               </p>
             )}
 
+            {docsNeedingImage.length > 0 &&
+              (() => {
+                const deadline = new Date("2026-04-17T00:00:00Z");
+                const daysLeft = Math.ceil((deadline.getTime() - Date.now()) / 86400000);
+                return (
+                  <div className="rounded border border-accent bg-accent-tint px-4 py-2.5 text-sm text-accent">
+                    Consider adding a thumbnail image for your{" "}
+                    {docsNeedingImage.map((doc, i) => (
+                      <span key={doc.publicUid} className="text-muted">
+                        {i > 0 && (i === docsNeedingImage.length - 1 ? " and " : ", ")}"
+                        <Link
+                          to="/jumpdoc/$docId"
+                          params={{ docId: doc.publicUid }}
+                          className="font-semibold underline hover:opacity-80"
+                        >
+                          {doc.name}
+                        </Link>
+                        "
+                      </span>
+                    ))}{" "}
+                    {docsNeedingImage.length === 1 ? "jumpdoc" : "jumpdocs"}. If{" "}
+                    {docsNeedingImage.length === 1 ? "it goes" : "they go"} too long without one,
+                    one may be added for you by the site administrator.
+                  </div>
+                );
+              })()}
+
             <div className="flex flex-col gap-3 md:flex-row md:items-stretch">
               {/* Left: welcome banner + panel rows */}
               <div className="flex min-w-0 flex-1 flex-col gap-3">
@@ -878,24 +938,26 @@ function PortalPage() {
                         />
                       )}
                     </SectionPanel> */}
-                  {/* Anonymous recent chains */}
-                  {browseMode === "chain" && anonChains.length > 0 && (
-                    <section className="flex flex-col gap-1 rounded-xl border border-edge bg-surface p-3 shadow-sm shrink-0">
-                      <p className="text-xs font-semibold text-muted uppercase tracking-widest pb-1">Unclaimed Chains</p>
-                      <div className="flex flex-col gap-0.5">
-                        {anonChains.map((c) => (
-                          <Link
-                            key={c.publicUid}
-                            to="/chain/$chainId"
-                            params={{ chainId: c.publicUid }}
-                            className="truncate rounded px-2 py-1 text-sm text-ink hover:bg-tint transition-colors"
-                          >
-                            {c.name}
-                          </Link>
-                        ))}
-                      </div>
-                    </section>
-                  )}
+                    {/* Anonymous recent chains */}
+                    {browseMode === "chain" && anonChains.length > 0 && (
+                      <section className="flex flex-col gap-1 rounded-xl border border-edge bg-surface p-3 shadow-sm shrink-0">
+                        <p className="text-xs font-semibold text-muted uppercase tracking-widest pb-1">
+                          Unclaimed Chains
+                        </p>
+                        <div className="flex flex-col gap-0.5">
+                          {anonChains.map((c) => (
+                            <Link
+                              key={c.publicUid}
+                              to="/chain/$chainId"
+                              params={{ chainId: c.publicUid }}
+                              className="truncate rounded px-2 py-1 text-sm text-ink hover:bg-tint transition-colors"
+                            >
+                              {c.name}
+                            </Link>
+                          ))}
+                        </div>
+                      </section>
+                    )}
                   </div>
 
                   {/* Actions card */}
