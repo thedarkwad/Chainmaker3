@@ -141,6 +141,12 @@ export type CompanionTemplate = Omit<PurchaseTemplate<TID.Companion>, "allowMult
   origins?: Id<TID.Origin>[];
   /** How a qualifying origin affects this import: discounts it, makes it free, or restricts it to origin holders only. */
   originBenefit?: "discounted" | "free" | "access";
+
+  freebies?: (
+    | { type: "origin"; id: Id<TID.Origin> }
+    | { type: "purchase"; id: Id<TID.Purchase> }
+    | { type: "drawback"; id: Id<TID.Drawback> }
+  )[];
 };
 
 export type BasicPurchaseTemplate = PurchaseTemplate<TID.Purchase> & {

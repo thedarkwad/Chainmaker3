@@ -1,14 +1,3 @@
-/**
- * TemplateCard — shared chrome wrapper for all JumpDoc template cards.
- *
- * Provides:
- *  - Colored left-border header with collapse toggle, name input, bound count, and action buttons.
- *  - Expanded body that renders `children` (type-specific fields) then the PDF regions section.
- *
- * All type-specific fields (description, cost, origins, etc.) are rendered by
- * the caller via `children`.
- */
-
 import { memo, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Crosshair, Trash2, X } from "lucide-react";
 import { Tip } from "@/ui/Tip";

@@ -201,7 +201,7 @@ function AltCostRow({
 // PrereqChip — displays a single prerequisite with remove button
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PrereqChip({
+export function PrereqChip({
   prereq,
   onRemove,
 }: {
@@ -256,10 +256,12 @@ function ChipPill({
 // PrerequisitePickerModal
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PrerequisitePickerModal({
+export function PrerequisitePickerModal({
+  title = "Add Prerequisite",
   onSelect,
   onClose,
 }: {
+  title?: string;
   onSelect: (prereq: AlternativeCostPrerequisite) => void;
   onClose: () => void;
 }) {
@@ -303,7 +305,7 @@ function PrerequisitePickerModal({
 
   return (
     <PickerModal
-      title="Add Prerequisite"
+      title={title}
       filter={filter}
       onFilterChange={setFilter}
       onClose={onClose}

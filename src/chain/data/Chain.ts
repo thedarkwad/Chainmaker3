@@ -43,7 +43,7 @@ export type Chain = {
         startWithJumpZero: boolean;
 
         //todo cleanup
-        //todo: empty purchases in jumpdocs
+        //todo negative cost discounts
         //todo bank budget sync
         //todo retain template id with paste
         //todo: previous purchases duration in supplements

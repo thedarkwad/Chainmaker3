@@ -4,13 +4,15 @@
  * per-currency allowances, per-subtype stipend (with per-currency amounts).
  */
 
-import { memo, useRef } from "react";
+import { memo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { CollapsibleSection } from "@/ui/CollapsibleSection";
 import { TemplateCard } from "./TemplateCard";
 import { DescriptionArea, BlurNumberInput } from "./JumpDocFields";
 import { OriginBenefitSection } from "./OriginBenefitSection";
-import { AlternativeCostEditor } from "./AlternativeCostEditor";
+import { AlternativeCostEditor, PrerequisitePickerModal, PrereqChip } from "./AlternativeCostEditor";
+import { RareFieldsGroup } from "./RareFieldsGroup";
+import type { AlternativeCostPrerequisite } from "@/chain/data/JumpDoc";
 import { CostDropdown } from "@/ui/CostDropdown";
 import { CostModifier } from "@/chain/data/Purchase";
 import type { SectionSharedProps } from "./sectionTypes";
@@ -26,11 +28,53 @@ import {
   useJumpDocPurchaseSubtypeIdsSorted,
   useJumpDocPurchaseSubtype,
   useJumpDocDiscountOriginGroups,
+  useJumpDocFirstCurrencyId,
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
 import { SegmentedControl } from "@/ui/SegmentedControl";
 import { Tip } from "@/ui/Tip";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FreebiesEditor
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FreebiesEditor({
+  freebies,
+  onAdd,
+  onRemove,
+}: {
+  freebies: AlternativeCostPrerequisite[];
+  onAdd: (item: AlternativeCostPrerequisite) => void;
+  onRemove: (index: number) => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  return (
+    <div className="flex flex-col gap-1.5 pt-1.5 border-t border-line">
+      <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">Freebies</p>
+      <div className="flex items-center gap-1 flex-wrap">
+        {freebies.map((freebie, i) => (
+          <PrereqChip key={i} prereq={freebie} onRemove={() => onRemove(i)} />
+        ))}
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-dashed border-edge text-[10px] text-ghost hover:text-accent hover:border-accent/40 transition-colors"
+        >
+          <Plus size={9} /> add freebie
+        </button>
+      </div>
+      {pickerOpen && (
+        <PrerequisitePickerModal
+          title="Add Freebie"
+          onSelect={(item) => { onAdd(item); setPickerOpen(false); }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared sub-components
@@ -180,7 +224,9 @@ const CompanionCard = memo(function CompanionCard({
   const removeCompanion = useRemoveJumpDocCompanion();
   const removeBound = useRemoveBoundFromCompanion();
   const currencies = useJumpDocCurrenciesRegistry();
+  const firstCurrencyId = useJumpDocFirstCurrencyId();
   const currencyIds = useJumpDocCurrencyIds();
+  const [freebiePickerOpen, setFreebiePickerOpen] = useState(false);
   const subtypeIds = useJumpDocPurchaseSubtypeIdsSorted();
   const discountGroups = useJumpDocDiscountOriginGroups();
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -429,26 +475,96 @@ const CompanionCard = memo(function CompanionCard({
           })
         }
       />
-      <AlternativeCostEditor
-        alternativeCosts={companion.alternativeCosts}
-        // TODO: stacking discounts on companion alt costs
-        // showDiscountToggle
-        onAdd={(cost) =>
-          modify("Add Companion Alternative Cost", (t) => {
-            if (!t.alternativeCosts) t.alternativeCosts = [];
-            t.alternativeCosts.push(cost);
-          })
-        }
-        onRemove={(i) =>
-          modify("Remove Companion Alternative Cost", (t) => {
-            t.alternativeCosts?.splice(i, 1);
-          })
-        }
-        onModify={(i, updated) =>
-          modify("Modify Companion Alternative Cost", (t) => {
-            if (t.alternativeCosts) t.alternativeCosts[i] = updated;
-          })
-        }
+      <RareFieldsGroup
+        fields={[
+          {
+            key: "freebies",
+            isActive: !!(companion.freebies?.length),
+            dormant: () => (
+              <>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                  onClick={() => setFreebiePickerOpen(true)}
+                >
+                  <Plus size={8} /> add freebie
+                </button>
+                {freebiePickerOpen && (
+                  <PrerequisitePickerModal
+                    title="Add Freebie"
+                    onSelect={(item) => {
+                      modify("Add Companion Freebie", (t) => {
+                        if (!t.freebies) t.freebies = [];
+                        t.freebies.push(item);
+                      });
+                      setFreebiePickerOpen(false);
+                    }}
+                    onClose={() => setFreebiePickerOpen(false)}
+                  />
+                )}
+              </>
+            ),
+            active: () => (
+              <FreebiesEditor
+                freebies={companion.freebies ?? []}
+                onAdd={(item) =>
+                  modify("Add Companion Freebie", (t) => {
+                    if (!t.freebies) t.freebies = [];
+                    t.freebies.push(item);
+                  })
+                }
+                onRemove={(i) =>
+                  modify("Remove Companion Freebie", (t) => {
+                    t.freebies?.splice(i, 1);
+                  })
+                }
+              />
+            ),
+          },
+          {
+            key: "altCosts",
+            isActive: !!(companion.alternativeCosts?.length),
+            dormant: () => (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                onClick={() =>
+                  modify("Add Companion Alternative Cost", (t) => {
+                    if (!t.alternativeCosts) t.alternativeCosts = [];
+                    t.alternativeCosts.push({
+                      value: [{ amount: 0, currency: firstCurrencyId }],
+                      prerequisites: [],
+                      mandatory: false,
+                    });
+                  })
+                }
+              >
+                <Plus size={8} /> add alternative cost
+              </button>
+            ),
+            active: () => (
+              <AlternativeCostEditor
+                alternativeCosts={companion.alternativeCosts}
+                onAdd={(cost) =>
+                  modify("Add Companion Alternative Cost", (t) => {
+                    if (!t.alternativeCosts) t.alternativeCosts = [];
+                    t.alternativeCosts.push(cost);
+                  })
+                }
+                onRemove={(i) =>
+                  modify("Remove Companion Alternative Cost", (t) => {
+                    t.alternativeCosts?.splice(i, 1);
+                  })
+                }
+                onModify={(i, updated) =>
+                  modify("Modify Companion Alternative Cost", (t) => {
+                    if (t.alternativeCosts) t.alternativeCosts[i] = updated;
+                  })
+                }
+              />
+            ),
+          },
+        ]}
       />
     </TemplateCard>
   );
