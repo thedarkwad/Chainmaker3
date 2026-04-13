@@ -321,7 +321,7 @@ export const purchaseValue = (
       return typeof value == "object"
         ? value.map((val) => ({
             amount:
-              Math.floor(val.amount / 2),
+              Math.min(val.amount, Math.floor(val.amount / 2)),
             currency: val.currency,
           }))
         : value / 2;

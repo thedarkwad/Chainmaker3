@@ -49,12 +49,12 @@ export function formatCostDisplay<T extends TID.Currency | LID.Currency = LID.Cu
   if (typeof value === "number") {
     if (cost.modifier === CostModifier.Free || value == 0)
       return value !== 0 ? `Free (value of ${value})` : "Free";
-    if (cost.modifier === CostModifier.Full) return `${value}`;
-    if (cost.modifier === CostModifier.Reduced) return `${Math.floor(value / 2)} (discounted)`;
     if (cost.modifier === CostModifier.Custom) {
       const actual = typeof cost.modifiedTo === "number" ? cost.modifiedTo : 0;
       return `${actual} (modified from: ${value})`;
     }
+    if (cost.modifier === CostModifier.Full || value < 0) return `${value}`;
+    if (cost.modifier === CostModifier.Reduced) return `${Math.floor(value / 2)} (discounted)`;
     return `${value}`;
   }
 
@@ -67,7 +67,10 @@ export function formatCostDisplay<T extends TID.Currency | LID.Currency = LID.Cu
   }
   if (cost.modifier === CostModifier.Full) return listStr;
   if (cost.modifier === CostModifier.Reduced) {
-    const halfValue = value.map((sv) => ({ ...sv, amount: Math.floor(sv.amount / 2) }));
+    const halfValue = value.map((sv) => ({
+      ...sv,
+      amount: Math.min(sv.amount, Math.floor(sv.amount / 2)),
+    }));
     const halfStr = formatValueStr(halfValue, currencies);
     return `${halfStr} (discounted)`;
   }
@@ -89,7 +92,7 @@ export function formatCostShort<T extends TID.Currency | LID.Currency = LID.Curr
 ): string {
   if (typeof value === "number") {
     if (cost.modifier === CostModifier.Free || value == 0) return "Free";
-    if (cost.modifier === CostModifier.Reduced) return `${Math.floor(value / 2)}`;
+    if (cost.modifier === CostModifier.Reduced) return `${Math.min(value, Math.floor(value / 2))}`;
     if (cost.modifier === CostModifier.Custom)
       return `${typeof cost.modifiedTo === "number" ? cost.modifiedTo : 0}`;
     return `${value}`;
@@ -98,7 +101,7 @@ export function formatCostShort<T extends TID.Currency | LID.Currency = LID.Curr
   if (cost.modifier === CostModifier.Free) return "Free";
   if (cost.modifier === CostModifier.Reduced)
     return formatValueStr(
-      value.map((sv) => ({ ...sv, amount: Math.floor(sv.amount / 2) })),
+      value.map((sv) => ({ ...sv, amount: Math.min(sv.amount, Math.floor(sv.amount / 2)) })),
       currencies,
     );
   if (cost.modifier === CostModifier.Custom && Array.isArray(cost.modifiedTo))
@@ -119,7 +122,8 @@ function effectiveCostMap<T extends TID.Currency | LID.Currency = LID.Currency>(
     return map;
   }
   if (cost.modifier === CostModifier.Reduced) {
-    for (const sv of value) map[sv.currency as number] = Math.floor(sv.amount / 2);
+    for (const sv of value)
+      map[sv.currency as number] = Math.min(sv.amount, Math.floor(sv.amount / 2));
     return map;
   }
   if (cost.modifier === CostModifier.Custom && Array.isArray(cost.modifiedTo)) {

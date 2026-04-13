@@ -66,7 +66,7 @@ export function formatCostForExport(
   })();
 
   let display = parts.join(" + ");
-  if (cost.modifier === CostModifier.Reduced) display += " (reduced)";
+  if (cost.modifier === CostModifier.Reduced) display += " (discounted)";
 
   return { display, raw: totalRaw, currencyAbbrev: abbrev };
 }

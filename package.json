@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "main": "dist-electron/main.cjs",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "scripts": {
     "dev": "vite dev --port 3000",
-    "build": "NODE_OPTIONS=--max-old-space-size=2560 vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "electron:dev:main": "vite build -c vite.electron.main.config.ts --watch --mode development",
