@@ -70,6 +70,7 @@ export function adjustJumpAccess(
     for (const charId2 of chain.characterList) {
       if (!chain.jumps.O[jId]?.purchases?.[charId2]) continue;
       for (const pId of chain.jumps.O[jId].purchases[charId2]) {
+        if (!chain.purchases.O[pId]) continue;
         if (
           chain.purchases.O[pId].type == PurchaseType.Companion &&
           (chain.purchases.O[pId] as CompanionImport).importData.characters.includes(charId)

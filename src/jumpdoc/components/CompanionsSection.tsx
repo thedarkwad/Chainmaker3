@@ -10,7 +10,11 @@ import { CollapsibleSection } from "@/ui/CollapsibleSection";
 import { TemplateCard } from "./TemplateCard";
 import { DescriptionArea, BlurNumberInput } from "./JumpDocFields";
 import { OriginBenefitSection } from "./OriginBenefitSection";
-import { AlternativeCostEditor, PrerequisitePickerModal, PrereqChip } from "./AlternativeCostEditor";
+import {
+  AlternativeCostEditor,
+  PrerequisitePickerModal,
+  PrereqChip,
+} from "./AlternativeCostEditor";
 import { RareFieldsGroup } from "./RareFieldsGroup";
 import type { AlternativeCostPrerequisite } from "@/chain/data/JumpDoc";
 import { CostDropdown } from "@/ui/CostDropdown";
@@ -68,7 +72,10 @@ function FreebiesEditor({
       {pickerOpen && (
         <PrerequisitePickerModal
           title="Add Freebie"
-          onSelect={(item) => { onAdd(item); setPickerOpen(false); }}
+          onSelect={(item) => {
+            onAdd(item);
+            setPickerOpen(false);
+          }}
           onClose={() => setPickerOpen(false)}
         />
       )}
@@ -155,13 +162,18 @@ export function CompanionsSection({
   open,
   forceOpenNonce,
   singleId,
-}: SectionSharedProps<TID.Companion> & { open?: boolean; forceOpenNonce?: number; singleId?: number }) {
+}: SectionSharedProps<TID.Companion> & {
+  open?: boolean;
+  forceOpenNonce?: number;
+  singleId?: number;
+}) {
   const companionIds = useJumpDocCompanionIds();
   const addCompanion = useAddJumpDocCompanion();
 
-  const displayedIds = singleId !== undefined
-    ? companionIds.filter((id) => (id as number) === singleId)
-    : companionIds;
+  const displayedIds =
+    singleId !== undefined
+      ? companionIds.filter((id) => (id as number) === singleId)
+      : companionIds;
 
   return (
     <CollapsibleSection
@@ -308,56 +320,109 @@ const CompanionCard = memo(function CompanionCard({
         )
       }
     >
-      <div className="flex flex-col items-center xl:items-stretch xl:flex-row gap-2">
-        <DescriptionArea
-          value={companion.description}
-          onCommit={(v) =>
-            modify("Set Companion Description", (t) => {
-              t.description = v;
-            })
-          }
-          textareaRef={descriptionRef}
-        />
-        <div className="flex flex-col gap-2 max-w-100 overflow-x-auto w-max shrink-0">
+      <DescriptionArea
+        value={companion.description}
+        onCommit={(v) =>
+          modify("Set Companion Description", (t) => {
+            t.description = v;
+          })
+        }
+        textareaRef={descriptionRef}
+      />
+      <div className="flex flex-row justify-center gap-4 flex-wrap">
+        <div className="flex flex-col items-center gap-2">
+          <SectionLabel>Import Data</SectionLabel>
+          <div className="flex flex-row flex-wrap gap-2">
+            {currencyIds.length > 0 && (
+              <div className="flex flex-col gap-1.5 w-fit p-2 items-center">
+                <SectionLabel>Allowances</SectionLabel>
+                {currencyIds.map((cid) => (
+                  <CurrencyChip
+                    key={cid}
+                    abbrev={currencies?.O[cid]?.abbrev ?? "?"}
+                    value={getAllowance(cid)}
+                    onCommit={(v) => setAllowance(cid, v)}
+                  />
+                ))}
+              </div>
+            )}
+            {subtypeIds.length > 0 && currencyIds.length > 0 && (
+              <div className="flex flex-col gap-1.5 w-fit items-center bg-tint border border-edge rounded-sm p-2">
+                <SectionLabel>Stipends</SectionLabel>
+                <div
+                  className="grid gap-x-2 gap-y-1 items-center"
+                  style={{
+                    gridTemplateColumns: `1fr ${currencyIds.map(() => "auto").join(" ")}`,
+                  }}
+                >
+                  <div />
+                  {currencyIds.map((cid) => (
+                    <span
+                      key={cid}
+                      className="text-[10px] font-mono font-semibold text-accent2 text-center"
+                    >
+                      {currencies?.O[cid]?.abbrev ?? "?"}
+                    </span>
+                  ))}
+                  {subtypeIds.map((sid) => (
+                    <StipendGridRow
+                      key={sid}
+                      subtypeId={sid}
+                      currencyIds={currencyIds}
+                      getStipend={getStipend}
+                      setStipend={setStipend}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-2">
+          {/* Count pill */}
+          <div className="flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full text-xs border border-accent2/30 bg-accent2/5 text-accent2 select-none">
+            {companion.specificCharacter ? "Includes" : "Applies to"}
+            <BlurNumberInput
+              value={companion.count ?? 1}
+              step={1}
+              min={1}
+              onCommit={(v) =>
+                modify("Set Companion Count", (t) => {
+                  const newCount = companion.specificCharacter
+                    ? Math.min(Math.max(1, v), 10)
+                    : Math.max(1, v);
+                  t.characterInfo = makeLength(t.characterInfo, newCount, con);
+                  t.count = newCount;
+                })
+              }
+              className="w-8 text-xs text-center bg-transparent border-none rounded-none focus:outline-none px-0.5 py-0 text-accent2"
+            />
+            {companion.specificCharacter
+              ? `character${(companion.count ?? 1) > 1 ? "s" : ""}`
+              : "companions"}
+          </div>
+
+          {/* Specific / User Choice toggle */}
           <SegmentedControl
             value={companion.specificCharacter ? "specific" : "general"}
-            onChange={(v) => setSpecific(v == "specific")}
+            onChange={(v) => setSpecific(v === "specific")}
             options={[
               { value: "specific", label: "Specific Character" },
               { value: "general", label: "User Choice" },
             ]}
           />
-          {companion.specificCharacter ? (
-            <>
-              <div className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full text-xs border border-accent2/30 bg-accent2/5 text-accent2 select-none">
-                Includes
-                <BlurNumberInput
-                  value={companion.count ?? 1}
-                  onCommit={(v) =>
-                    modify("Set Companion Count", (t) => {
-                      let newCount = Math.min(Math.max(1, v), 10);
-                      t.characterInfo = makeLength(t.characterInfo, newCount, con);
-                      t.count = newCount;
-                    })
-                  }
-                  min={1}
-                  step={1}
-                  className="w-8 text-xs text-center bg-transparent border-none rounded-none focus:outline-none px-0.5 py-0 text-accent2"
-                />
-                character{companion.count > 1 ? "s" : ""}
-              </div>
 
-              <span className="text-sm text-muted max-w-55 text-center self-center">
-                {companion.count > 1
-                  ? "These are predesigned characters a user can add to their chain."
-                  : "This is a predesigned character a user can add to their chain."}
+          {/* Character info inputs — only when specificCharacter */}
+          {companion.specificCharacter && (
+            <div className="inline-grid grid-cols-[auto_auto] max-w-fit items-center gap-2 mt-1">
+              <span className="text-xs text-ghost col-span-full text-center">
+                Leave any inapplicable fields blank.
               </span>
-              <div className="inline-grid grid-cols-[auto_auto] max-w-fit items-center gap-2 ml-2">
-                <span className="text-xs text-ghost col-span-full text-center">
-                  Leave any inapplicable fields blank.
-                </span>
-                {[...Array(companion.count).keys()].map((i) =>
-                  (["name", "species", "gender"] as const).map((field) => (
+              {[...Array(companion.count ?? 1).keys()].map((i) => (
+                <>
+                  {i > 0 && <div className="my-1 border-b border-edge col-span-2" />}
+                  {(["name", "species", "gender"] as const).map((field) => (
                     <>
                       <span className="text-[10px] font-semibold text-ghost uppercase tracking-wider text-right">
                         {field[0].toUpperCase()}
@@ -373,83 +438,13 @@ const CompanionCard = memo(function CompanionCard({
                             t.characterInfo[i][field] = v.currentTarget.value.trim();
                           })
                         }
-                        className={`w-40 text-xs text-ink bg-canvas border border-edge rounded px-2 py-1.5 resize-none overflow-hidden focus:outline-none focus:border-accent-ring placeholder-ghost transition-colors`}
+                        className="w-40 text-xs text-ink bg-canvas border border-edge rounded px-2 py-1.5 focus:outline-none focus:border-accent-ring placeholder-ghost transition-colors"
                       />
                     </>
-                  )),
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <SectionLabel>Import Data:</SectionLabel>
-              {/* Count pill */}
-              <div className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full text-xs border border-accent2/30 bg-accent2/5 text-accent2 select-none">
-                Applies to
-                <BlurNumberInput
-                  value={companion.count ?? 1}
-                  step={1}
-                  onCommit={(v) =>
-                    modify("Set Companion Count", (t) => {
-                      t.count = Math.max(1, v);
-                    })
-                  }
-                  min={1}
-                  className="w-8 text-xs text-center bg-transparent border-none rounded-none focus:outline-none px-0.5 py-0 text-accent2"
-                />
-                companions
-              </div>
-              <div className="flex flex-row flex-wrap gap-2">
-                {/* Allowances */}
-                {currencyIds.length > 0 && (
-                  <div className="flex flex-col gap-1.5 w-fit p-2 items-center">
-                    <SectionLabel>Allowances</SectionLabel>
-                    {currencyIds.map((cid) => (
-                      <CurrencyChip
-                        key={cid}
-                        abbrev={currencies?.O[cid]?.abbrev ?? "?"}
-                        value={getAllowance(cid)}
-                        onCommit={(v) => setAllowance(cid, v)}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Stipend — grid: header row of abbrevs + one row per subtype */}
-                {subtypeIds.length > 0 && currencyIds.length > 0 && (
-                  <div className="flex flex-col gap-1.5 w-fit items-center bg-tint border border-edge rounded-sm p-2">
-                    <SectionLabel>Stipends</SectionLabel>
-                    <div
-                      className="grid gap-x-2 gap-y-1 items-center"
-                      style={{
-                        gridTemplateColumns: `1fr ${currencyIds.map(() => "auto").join(" ")}`,
-                      }}
-                    >
-                      {/* Header: empty label cell + abbrev per currency */}
-                      <div />
-                      {currencyIds.map((cid) => (
-                        <span
-                          key={cid}
-                          className="text-[10px] font-mono font-semibold text-accent2 text-center"
-                        >
-                          {currencies?.O[cid]?.abbrev ?? "?"}
-                        </span>
-                      ))}
-                      {/* One row per subtype */}
-                      {subtypeIds.map((sid) => (
-                        <StipendGridRow
-                          key={sid}
-                          subtypeId={sid}
-                          currencyIds={currencyIds}
-                          getStipend={getStipend}
-                          setStipend={setStipend}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
+                  ))}
+                </>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -479,7 +474,7 @@ const CompanionCard = memo(function CompanionCard({
         fields={[
           {
             key: "freebies",
-            isActive: !!(companion.freebies?.length),
+            isActive: !!companion.freebies?.length,
             dormant: () => (
               <>
                 <button
@@ -523,7 +518,7 @@ const CompanionCard = memo(function CompanionCard({
           },
           {
             key: "altCosts",
-            isActive: !!(companion.alternativeCosts?.length),
+            isActive: !!companion.alternativeCosts?.length,
             dormant: () => (
               <button
                 type="button"

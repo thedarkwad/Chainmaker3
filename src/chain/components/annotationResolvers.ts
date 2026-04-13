@@ -7,7 +7,7 @@ import { createId, registryAdd } from "@/chain/data/types";
 import type { GID, LID, TID, Id, Registry, PartialLookup } from "@/chain/data/types";
 import type { Currency, Origin, OriginCategory, PurchaseSubtype } from "@/chain/data/Jump";
 import type { Chain } from "@/chain/data/Chain";
-import { PurchaseType, CostModifier } from "@/chain/data/Purchase";
+import { PurchaseType, CostModifier, RewardType } from "@/chain/data/Purchase";
 import type {
   Drawback,
   ModifiedCost,
@@ -20,7 +20,17 @@ import type {
   ResolvedAltCost,
   ResolvedAltCostPrereq,
   ResolvedPrerequisite,
+  QueuedAnnotationBatch,
+  ViewerAnnotationAction,
 } from "@/chain/state/ViewerActionStore";
+import type {
+  JumpDoc,
+  OriginTemplate,
+  BasicPurchaseTemplate,
+  DrawbackTemplate,
+  CompanionTemplate,
+  ScenarioRewardTemplate,
+} from "@/chain/data/JumpDoc";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared types
@@ -483,4 +493,143 @@ export function originTemplateInfo(name: string) {
         : `${v} has an equal chance of being ${describeChoiceOptions(p.options)}`;
     }),
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Freebie queue builder
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Builds a list of queued annotation batches for the freebies on a companion template.
+ * Each resolvable freebie produces one batch (single action) per companion character,
+ * targeting that companion character so the interaction handler routes correctly.
+ *
+ * Call this after a companion import is added; pass the result to `enqueueActions`.
+ */
+export function buildFreebieActions(
+  freebies: NonNullable<CompanionTemplate["freebies"]>,
+  doc: JumpDoc,
+  docId: string,
+  companionCharIds: Id<GID.Character>[],
+): QueuedAnnotationBatch[] {
+  const batches: QueuedAnnotationBatch[] = [];
+
+  for (const companionCharId of companionCharIds) {
+    for (const freebie of freebies) {
+      let action: ViewerAnnotationAction | null = null;
+
+      if (freebie.type === "origin") {
+        const t = doc.origins.O[freebie.id] as OriginTemplate | undefined;
+        if (!t) continue;
+        const { bounds: _bounds, ...template } = t as OriginTemplate;
+        const category = doc.originCategories.O[t.type];
+        const docCurrencyAbbrev = doc.currencies.O[t.cost.currency]?.abbrev ?? "";
+        action = {
+          docId,
+          itemId: freebie.id as number,
+          name: t.name,
+          typeName: category?.name ?? "",
+          costStr: "0 (freebie)",
+          collection: "origin",
+          categoryId: t.type,
+          docCategoryMax: category?.max,
+          template: { ...template, cost: { ...t.cost, amount: 0 } },
+          docCurrencyAbbrev,
+          discountedPurchaseTemplateIds: [],
+          resolvedOriginStipend: [],
+          synergyOriginNames: [],
+          synergyBenefit: undefined,
+        };
+      } else if (freebie.type === "purchase") {
+        const t = doc.availablePurchases.O[freebie.id] as BasicPurchaseTemplate | undefined;
+        if (!t) continue;
+        const { bounds: _bounds, ...template } = t as BasicPurchaseTemplate & { bounds?: unknown };
+        const primaryCurrencyAbbrev = doc.currencies.O[t.cost[0]?.currency as any]?.abbrev ?? "";
+        const subtypeName = doc.purchaseSubtypes.O[t.subtype as any]?.name ?? "";
+        action = {
+          docId,
+          itemId: freebie.id as number,
+          name: t.name,
+          typeName: subtypeName,
+          costStr: "0 (freebie)",
+          collection: "purchase",
+          docTemplateId: freebie.id,
+          docCategoryMax: undefined,
+          template,
+          cost: [{ amount: 0, currencyAbbrev: primaryCurrencyAbbrev }],
+          subtypeName,
+          originNames: [],
+          originBenefit: undefined,
+          isBoosterFor: [],
+          alternativeCosts: [],
+          prerequisites: [],
+        };
+      } else if (freebie.type === "drawback") {
+        const t = doc.availableDrawbacks.O[freebie.id] as DrawbackTemplate | undefined;
+        if (!t) continue;
+        const { bounds: _bounds, ...template } = t as DrawbackTemplate & { bounds?: unknown };
+        const primaryCurrencyAbbrev = doc.currencies.O[t.cost[0]?.currency as any]?.abbrev ?? "";
+        action = {
+          docId,
+          itemId: freebie.id as number,
+          name: t.name,
+          typeName: "",
+          costStr: "0 (automatic)",
+          collection: "drawback",
+          docTemplateId: freebie.id,
+          template,
+          cost: [{ amount: 0, currencyAbbrev: primaryCurrencyAbbrev }],
+          alternativeCosts: [],
+          prerequisites: [],
+          isBoosterFor: [],
+        };
+      }
+
+      if (action) {
+        batches.push({ actions: [action], targetCharId: companionCharId });
+      }
+    }
+  }
+
+  return batches;
+}
+
+/**
+ * Builds a queue batch for each Item/Perk scenario reward template.
+ * Call this after a scenario is added; pass the result to `enqueueActions`.
+ * Each reward fires as a normal purchase interaction targeting the active character.
+ */
+export function buildScenarioRewardActions(
+  rewards: Extract<ScenarioRewardTemplate, { type: RewardType.Item | RewardType.Perk }>[],
+  doc: JumpDoc,
+  docId: string,
+): QueuedAnnotationBatch[] {
+  const batches: QueuedAnnotationBatch[] = [];
+  for (const reward of rewards) {
+    const t = doc.availablePurchases.O[reward.id] as BasicPurchaseTemplate | undefined;
+    if (!t) continue;
+    const { bounds: _bounds, ...template } = t as BasicPurchaseTemplate & { bounds?: unknown };
+    const primaryCurrencyAbbrev = doc.currencies.O[t.cost[0]?.currency as any]?.abbrev ?? "";
+    const subtypeName = doc.purchaseSubtypes.O[t.subtype as any]?.name ?? "";
+    const action: ViewerAnnotationAction = {
+      docId,
+      itemId: reward.id as number,
+      name: t.name,
+      typeName: subtypeName,
+      costStr: "0 (reward)",
+      collection: "purchase",
+      docTemplateId: reward.id,
+      docCategoryMax: undefined,
+      template,
+      cost: [{ amount: 0, currencyAbbrev: primaryCurrencyAbbrev }],
+      subtypeName,
+      originNames: [],
+      originBenefit: undefined,
+      isBoosterFor: [],
+      alternativeCosts: [],
+      prerequisites: [],
+    };
+    batches.push({ actions: [action] });
+  }
+  return batches;
 }

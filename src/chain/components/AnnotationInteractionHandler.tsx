@@ -81,6 +81,8 @@ import {
   originDiscountCostStr,
   parseTemplatePlaceholders,
   originTemplateInfo,
+  buildFreebieActions,
+  buildScenarioRewardActions,
 } from "./annotationResolvers";
 
 const MySwal = withReactContent(Swal);
@@ -622,6 +624,19 @@ function CompanionInteractionPreview({
                 }
               : undefined,
         });
+        // For non-follower companion imports: enqueue any freebies from the template.
+        if (!isFollower) {
+          const doc = useJumpDocStore.getState().doc;
+          const freebies = action.template.freebies;
+          if (doc && freebies?.length) {
+            const companionImport = useChainStore.getState().chain?.purchases.O[newId] as CompanionImport | undefined;
+            const companionCharIds = companionImport?.importData.characters ?? [];
+            if (companionCharIds.length > 0) {
+              const batches = buildFreebieActions(freebies, doc, action.docId, companionCharIds);
+              if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
+            }
+          }
+        }
         navigateTo(isFollower)(String(newId));
       }
       onClose();
@@ -652,10 +667,10 @@ function CompanionInteractionPreview({
   if (confirmDelete) {
     actions = [
       { label: "Confirm Delete", variant: "danger", onConfirm: () => confirmAndRemove(follower) },
-      { label: "Cancel", variant: "warn", onConfirm: () => setConfirmDelete(null) },
+      { label: "Cancel", variant: "warn", noAutoClose: true, onConfirm: () => setConfirmDelete(null) },
     ];
   } else if (existingId !== undefined) {
-    actions = [{ label: "Remove", variant: "danger", onConfirm: () => doRemove(false) }];
+    actions = [{ label: "Remove", variant: "danger", noAutoClose: true, onConfirm: () => doRemove(false) }];
   } else if (isSpecific) {
     actions = [
       {
@@ -690,7 +705,7 @@ function CompanionInteractionPreview({
         description={
           confirmDelete ? confirmDelete.message : action.template.description || undefined
         }
-        errorMessage={confirmDelete ? "This action cannot be undone easily." : undefined}
+        errorMessage={undefined}
         actions={actions}
         onClose={onClose}
       >
@@ -2419,6 +2434,18 @@ function ScenarioInteractionPreview({
         rewardGroup: group,
         storedPrerequisites: storedPrereqs.length ? storedPrereqs : undefined,
       });
+      // Enqueue Item/Perk rewards as annotation interactions.
+      const purchaseRewards = (group?.rewards ?? []).filter(
+        (r): r is Extract<typeof r, { type: RewardType.Item | RewardType.Perk }> =>
+          r.type === RewardType.Item || r.type === RewardType.Perk,
+      );
+      if (purchaseRewards.length > 0) {
+        const doc = useJumpDocStore.getState().doc;
+        if (doc) {
+          const batches = buildScenarioRewardActions(purchaseRewards, doc, action.docId);
+          if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
+        }
+      }
       navigateTo(String(newId));
     }
     onClose();
@@ -3028,15 +3055,20 @@ export function AnnotationInteractionHandler({
   routeParams,
 }: AnnotationInteractionHandlerProps) {
   const pendingAction = useViewerActionStore((s) => s.pendingAction);
-  const storeForcePreview = useViewerActionStore((s) => s.forcePreview);
   const forceRemove = useViewerActionStore((s) => s.forceRemove);
   const setPendingAction = useViewerActionStore((s) => s.setPendingAction);
   const pendingNewCompanion = useViewerActionStore((s) => s.pendingNewCompanion);
   const setPendingNewCompanion = useViewerActionStore((s) => s.setPendingNewCompanion);
-  const { origins, setOrigins } = useJumpOrigins(jumpId, charId);
+  const activeTargetCharId = useViewerActionStore((s) => s.activeTargetCharId);
+  const dequeueNext = useViewerActionStore((s) => s.dequeueNext);
+
+  // When a freebie batch is active, route all annotation actions to the companion character.
+  const effectiveCharId = activeTargetCharId ?? charId;
+
+  const { origins, setOrigins } = useJumpOrigins(jumpId, effectiveCharId);
   const originCategories = useJumpOriginCategories(jumpId);
   const currencies = useJumpCurrencies(jumpId);
-  const budget = useBudget(charId, jumpId);
+  const budget = useBudget(effectiveCharId, jumpId);
   const purchaseSubtypes = usePurchaseSubtypes(jumpId);
   const {
     addFromTemplate,
@@ -3045,18 +3077,19 @@ export function AnnotationInteractionHandler({
     countByTemplate,
     getModifiersUpdater,
     findReverseIncompatibilities,
-  } = useJumpDocPurchaseActions(jumpId, charId);
+  } = useJumpDocPurchaseActions(jumpId, effectiveCharId);
   const {
     addFromTemplate: addDrawback,
     remove: removeDrawback,
     findByTemplate: findDrawback,
     countByTemplate: countDrawbackByTemplate,
-  } = useJumpDocDrawbackActions(jumpId, charId);
+  } = useJumpDocDrawbackActions(jumpId, effectiveCharId);
   const {
     addFromTemplate: addScenario,
     remove: removeScenario,
     findByTemplate: findScenario,
-  } = useJumpDocScenarioActions(jumpId, charId);
+  } = useJumpDocScenarioActions(jumpId, effectiveCharId);
+  // Companion imports always attach to the player character, even when processing freebies.
   const {
     addFromTemplate: addCompanion,
     remove: removeCompanion,
@@ -3122,6 +3155,10 @@ export function AnnotationInteractionHandler({
   routeParamsRef.current = routeParams;
   const forceRemoveRef = useRef(forceRemove);
   forceRemoveRef.current = forceRemove;
+  const effectiveCharIdRef = useRef(effectiveCharId);
+  effectiveCharIdRef.current = effectiveCharId;
+  const dequeueNextRef = useRef(dequeueNext);
+  dequeueNextRef.current = dequeueNext;
 
   useEffect(() => {
     if (!pendingAction?.length) return;
@@ -3158,7 +3195,7 @@ export function AnnotationInteractionHandler({
       currencies,
       purchaseSubtypesRef.current,
       jumpId,
-      charId,
+      effectiveCharIdRef.current,
       setOriginsRef.current,
       getModifiersUpdaterRef.current,
       navigateRef.current,
@@ -3378,9 +3415,10 @@ export function AnnotationInteractionHandler({
         ? nonErrorInteractions
         : interactions;
 
-    // Single action with no required preview: execute immediately.
+    // Single action with no required preview: execute immediately, then advance the queue.
     if (visibleInteractions.length === 1 && !visibleInteractions[0]!.forcePreview) {
       visibleInteractions[0]!.executeDefault();
+      dequeueNextRef.current();
       return;
     }
 
@@ -3395,6 +3433,7 @@ export function AnnotationInteractionHandler({
       padding: 0,
       background: "transparent",
       backdrop: true,
+      didClose: () => dequeueNextRef.current(),
       customClass: {
         popup: "!bg-transparent !shadow-none !border-0 !p-0 !overflow-visible !w-auto !max-w-none",
         htmlContainer: "!m-0 !p-0 !overflow-visible",

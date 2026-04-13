@@ -180,6 +180,18 @@ export type ViewerAnnotationAction =
       tamount: number;
     });
 
+/**
+ * A batch of annotation actions to process in sequence.
+ * Used by the freebie queue (and any future queued-event flows).
+ */
+export type QueuedAnnotationBatch = {
+  actions: ViewerAnnotationAction[];
+  /** When set, the handler routes this batch to the companion character instead of the player. */
+  targetCharId?: Id<GID.Character>;
+  /** When true, the handler should remove rather than add the matched item. */
+  forceRemove?: boolean;
+};
+
 type ViewerActionState = {
   /** All annotations under the cursor at the time of the last click. */
   pendingAction: ViewerAnnotationAction[] | null;
@@ -192,6 +204,20 @@ type ViewerActionState = {
   /** When true, always show the preview dialog even for single-action interactions. */
   forcePreview: boolean;
   setPendingAction: (action: ViewerAnnotationAction[] | null, forceRemove?: boolean, forcePreview?: boolean) => void;
+  /** Queued batches waiting to be processed after the current pendingAction resolves. */
+  actionQueue: QueuedAnnotationBatch[];
+  /** The companion character currently being targeted by a queued freebie batch. Null when processing normal player actions. */
+  activeTargetCharId: Id<GID.Character> | null;
+  /**
+   * Appends batches to the queue. If nothing is currently processing (pendingAction is null),
+   * immediately dequeues and activates the first batch.
+   */
+  enqueueActions: (batches: QueuedAnnotationBatch[]) => void;
+  /**
+   * Advances to the next queued batch, or clears pendingAction if the queue is empty.
+   * Called after each interaction resolves (immediate execute or dialog close).
+   */
+  dequeueNext: () => void;
   /**
    * Set by CompanionInteractionPreview (inside Swal's isolated React root) when the
    * user clicks "New Companion". AnnotationInteractionHandler (in the real React tree,
@@ -219,4 +245,33 @@ export const useViewerActionStore = create<ViewerActionState>((set) => ({
   setPendingNewCompanion: (pendingNewCompanion) => set({ pendingNewCompanion }),
   popOutViewer: null,
   setPopOutViewer: (popOutViewer) => set({ popOutViewer }),
+  actionQueue: [],
+  activeTargetCharId: null,
+  enqueueActions: (batches) =>
+    set((s) => {
+      const newQueue = [...s.actionQueue, ...batches];
+      if (s.pendingAction !== null || newQueue.length === 0) {
+        return { actionQueue: newQueue };
+      }
+      const [first, ...rest] = newQueue;
+      return {
+        actionQueue: rest,
+        pendingAction: first!.actions,
+        forceRemove: first!.forceRemove ?? false,
+        activeTargetCharId: first!.targetCharId ?? null,
+      };
+    }),
+  dequeueNext: () =>
+    set((s) => {
+      if (s.actionQueue.length === 0) {
+        return { pendingAction: null, forceRemove: false, activeTargetCharId: null };
+      }
+      const [first, ...rest] = s.actionQueue;
+      return {
+        actionQueue: rest,
+        pendingAction: first!.actions,
+        forceRemove: first!.forceRemove ?? false,
+        activeTargetCharId: first!.targetCharId ?? null,
+      };
+    }),
 }));

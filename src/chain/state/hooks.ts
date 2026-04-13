@@ -11,7 +11,7 @@ import type {
   PurchaseSubtype,
 } from "@/chain/data/Jump";
 import { DEFAULT_CURRENCY_ID, JumpSourceType } from "@/chain/data/Jump";
-import type { DrawbackTemplate, JumpDoc, ScenarioRewardTemplate } from "@/chain/data/JumpDoc";
+import type { CompanionTemplate, DrawbackTemplate, JumpDoc, OriginTemplate, ScenarioRewardTemplate } from "@/chain/data/JumpDoc";
 import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
 import {
   CostModifier,
@@ -1724,14 +1724,19 @@ function applyPurchasePrereqCascadeInDraft(
         const name = (c.purchases.O[id] as { name?: string } | undefined)?.name ?? "Scenario";
         queueNotification("prerequisiteLost", name);
         const sc = c.purchases.O[id] as Scenario | undefined;
-        // Remove any reward purchases created for this scenario.
+        // Remove any reward purchases that were granted for this scenario.
         if (sc?.type === PurchaseType.Scenario) {
+          const docId = sc.template?.jumpdoc;
+          const pl = jump.purchases[charId] as Id<GID.Purchase>[] | undefined;
           for (const reward of sc.rewards) {
-            if (reward.type === RewardType.Item || reward.type === RewardType.Perk) {
-              delete c.purchases.O[reward.id];
-              const pl = jump.purchases[charId] as Id<GID.Purchase>[] | undefined;
-              if (pl) {
-                const idx = pl.indexOf(reward.id);
+            if ((reward.type === RewardType.Item || reward.type === RewardType.Perk) && docId && pl) {
+              const toRemove = pl.filter((pid) => {
+                const p = c.purchases.O[pid] as { template?: { jumpdoc: string; id: unknown } } | undefined;
+                return p?.template?.jumpdoc === docId && p?.template?.id === reward.id;
+              });
+              for (const pid of toRemove) {
+                delete c.purchases.O[pid];
+                const idx = pl.indexOf(pid);
                 if (idx !== -1) pl.splice(idx, 1);
               }
             }
@@ -2272,34 +2277,9 @@ export function useJumpDocScenarioActions(jumpId: Id<GID.Jump>, charId: Id<GID.C
                 subtype: subtypeId,
               });
             } else {
-              // Perk or Item — create a new BasicPurchase (cost = 0) via shared helper.
-              const tmpl = doc?.availablePurchases.O[r.id];
-              if (!tmpl) continue;
-              const subtypeName = doc?.purchaseSubtypes.O[tmpl.subtype]?.name;
-              let subtypeId = createId<LID.PurchaseSubtype>(0);
-              if (subtypeName) {
-                for (const [idStr, s] of Object.entries(jump.purchaseSubtypes?.O ?? {})) {
-                  if (s?.name === subtypeName) {
-                    subtypeId = createId<LID.PurchaseSubtype>(+idStr);
-                    break;
-                  }
-                }
-              }
-              const purchaseType =
-                r.type === RewardType.Perk ? PurchaseType.Perk : PurchaseType.Item;
-              const purchaseId = createBasicPurchaseInDraft(c, {
-                jumpId,
-                charId,
-                name: tmpl.name,
-                description: tmpl.description,
-                value: [],
-                templateId: r.id,
-                docId: data.docId,
-                subtype: subtypeId,
-                type: purchaseType,
-                cost: { modifier: CostModifier.Custom, modifiedTo: [] },
-              });
-              rewards.push({ type: r.type, id: purchaseId });
+              // Perk or Item — stored as a template reference; created via the annotation queue.
+              if (!doc?.availablePurchases.O[r.id]) continue;
+              rewards.push({ type: r.type, id: r.id });
             }
           }
         }
@@ -2341,12 +2321,17 @@ export function useJumpDocScenarioActions(jumpId: Id<GID.Jump>, charId: Id<GID.C
         // Remove any perk/item purchases that were created as scenario rewards.
         if (scenario?.type === PurchaseType.Scenario) {
           const jump = c.jumps.O[jumpId];
+          const docId = scenario.template?.jumpdoc;
+          const pl = jump?.purchases[charId] as Id<GID.Purchase>[] | undefined;
           for (const reward of scenario.rewards) {
-            if (reward.type === RewardType.Item || reward.type === RewardType.Perk) {
-              delete c.purchases.O[reward.id];
-              const pl = jump?.purchases[charId];
-              if (pl) {
-                const idx = pl.indexOf(reward.id);
+            if ((reward.type === RewardType.Item || reward.type === RewardType.Perk) && docId && pl) {
+              const toRemove = pl.filter((pid) => {
+                const p = c.purchases.O[pid] as { template?: { jumpdoc: string; id: unknown } } | undefined;
+                return p?.template?.jumpdoc === docId && p?.template?.id === reward.id;
+              });
+              for (const pid of toRemove) {
+                delete c.purchases.O[pid];
+                const idx = pl.indexOf(pid);
                 if (idx !== -1) pl.splice(idx, 1);
               }
             }
@@ -2564,6 +2549,16 @@ export function useJumpDocCompanionActions(jumpId: Id<GID.Jump>, charId: Id<GID.
 
   const remove = useCallback(
     (id: Id<GID.Purchase>) => {
+      // Read freebie info before entering the immer mutation.
+      const chain = useChainStore.getState().chain;
+      const doc = useJumpDocStore.getState().doc;
+      const companionImport = chain?.purchases.O[id] as CompanionImport | undefined;
+      const companionCharIds = companionImport?.importData.characters ?? [];
+      const freebies =
+        doc && companionImport?.template
+          ? (doc.availableCompanions.O[companionImport.template.id] as CompanionTemplate | undefined)?.freebies
+          : undefined;
+
       setTracked("Remove companion import", (c) => {
         c.budgetFlag += 1;
         delete c.purchases.O[id];
@@ -2571,6 +2566,59 @@ export function useJumpDocCompanionActions(jumpId: Id<GID.Jump>, charId: Id<GID.
         if (list) {
           const idx = (list as Id<GID.Purchase>[]).indexOf(id);
           if (idx !== -1) (list as Id<GID.Purchase>[]).splice(idx, 1);
+        }
+
+        // Remove freebies that were applied to companion characters.
+        if (freebies?.length && companionCharIds.length && doc && companionImport?.template) {
+          const docId = companionImport.template.jumpdoc;
+          for (const companionCharId of companionCharIds) {
+            for (const freebie of freebies) {
+              if (freebie.type === "purchase") {
+                const purchaseList = c.jumps.O[jumpId]?.purchases[companionCharId];
+                if (!purchaseList) continue;
+                const toRemove = (purchaseList as Id<GID.Purchase>[]).filter((pid) => {
+                  const p = c.purchases.O[pid] as { template?: { jumpdoc: string; id: unknown } } | undefined;
+                  return p?.template?.jumpdoc === docId && p?.template?.id === (freebie.id as never);
+                });
+                for (const pid of toRemove) {
+                  delete c.purchases.O[pid];
+                  const idx = (purchaseList as Id<GID.Purchase>[]).indexOf(pid);
+                  if (idx !== -1) (purchaseList as Id<GID.Purchase>[]).splice(idx, 1);
+                }
+              } else if (freebie.type === "drawback") {
+                const drawbackList = c.jumps.O[jumpId]?.drawbacks[companionCharId];
+                if (!drawbackList) continue;
+                const toRemove = (drawbackList as Id<GID.Purchase>[]).filter((pid) => {
+                  const p = c.purchases.O[pid] as { template?: { jumpdoc: string; id: unknown } } | undefined;
+                  return p?.template?.jumpdoc === docId && p?.template?.id === (freebie.id as never);
+                });
+                for (const pid of toRemove) {
+                  delete c.purchases.O[pid];
+                  const idx = (drawbackList as Id<GID.Purchase>[]).indexOf(pid);
+                  if (idx !== -1) (drawbackList as Id<GID.Purchase>[]).splice(idx, 1);
+                }
+              } else if (freebie.type === "origin") {
+                const originTemplate = doc.origins.O[freebie.id] as OriginTemplate | undefined;
+                if (!originTemplate) continue;
+                const originName = originTemplate.name;
+                const categoryName = doc.originCategories.O[originTemplate.type]?.name ?? "";
+                // Resolve category LID by name (can't import from components/ into state/).
+                let categoryLid: number | undefined;
+                for (const [idStr, cat] of Object.entries(c.jumps.O[jumpId]?.originCategories?.O ?? {})) {
+                  if (cat?.name === categoryName) { categoryLid = +idStr; break; }
+                }
+                if (categoryLid === undefined) continue;
+                const charOrigins = c.jumps.O[jumpId]?.origins[companionCharId];
+                if (!charOrigins) continue;
+                const catId = categoryLid as unknown as Id<LID.OriginCategory>;
+                const before = charOrigins[catId];
+                if (!before) continue;
+                charOrigins[catId] = before.filter(
+                  (o) => o.summary !== originName && o.templateName !== originName,
+                );
+              }
+            }
+          }
         }
       });
     },

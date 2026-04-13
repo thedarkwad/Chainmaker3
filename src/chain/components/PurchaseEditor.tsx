@@ -39,12 +39,12 @@ import {
   usePurchaseGroupActions,
   usePurchaseGroupName,
   usePurchaseGroupsEnabled,
-  usePurchaseName,
   usePurchaseSubtypes,
   useSubpurchaseCostStrings,
   useBudget,
 } from "@/chain/state/hooks";
 import { useChainStore } from "@/chain/state/Store";
+import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
 import { useClipboard } from "@/chain/state/clipboard";
 import { buildPurchaseSnapshot } from "@/chain/state/hooks";
 import { toast } from "react-toastify";
@@ -1273,7 +1273,7 @@ function PerkItemRewardChip({
 }: {
   reward: Extract<ScenarioReward, { type: RewardType.Perk | RewardType.Item }>;
 }) {
-  const name = usePurchaseName(reward.id);
+  const name = useJumpDocStore((s) => s.doc?.availablePurchases.O[reward.id]?.name);
   const typeLabel = reward.type === RewardType.Perk ? "Perk" : "Item";
   return (
     <span className="text-xs px-2 py-0.5 rounded-full bg-accent-tint2 text-accent2 border border-accent2-ring">
