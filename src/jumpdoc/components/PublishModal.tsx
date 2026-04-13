@@ -116,7 +116,7 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
   }
 
   const JUMP_NAME_RE = /\bjump(chain|doc)?\b/i;
-  const VERSION_IN_NAME_RE = /\bv\.?\s*\d+(\.\d+)*\b|\bversion\s+\d+/i;
+  const VERSION_IN_NAME_RE = /(?:v\s*\d+(?:\.\d+)*|version\s+\d+(?:\.\d+)*|\d+\.\d+(?:\.\d+)*)/i;
   const FILETYPE_RE = /\.(pdf|docx?|rtf)$/i;
 
   const WARNING_MESSAGES: Record<string, string> = {
@@ -139,6 +139,10 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
   }
 
   function handlePublishClick() {
+    if (!isElectron && !draftImageId) {
+      setError("A cover image is required to publish.");
+      return;
+    }
     if (!isEditMode && doc) {
       const q = buildWarningQueue(doc.name);
       if (q.length > 0) {
@@ -215,7 +219,9 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
   return createPortal(
     <div
       className="absolute inset-0 z-50 flex items-center justify-center bg-canvas/60 backdrop-blur-sm"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div className="flex flex-col bg-canvas border border-edge rounded-lg shadow-xl w-80 max-h-[85%]">
         {/* Header */}
@@ -437,7 +443,10 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
           src={cropSrc}
           fileName={cropFileName}
           onConfirm={(f) => void handleElectronCropConfirm(f)}
-          onCancel={() => { URL.revokeObjectURL(cropSrc); setCropSrc(null); }}
+          onCancel={() => {
+            URL.revokeObjectURL(cropSrc);
+            setCropSrc(null);
+          }}
         />
       )}
     </div>,
