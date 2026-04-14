@@ -28,6 +28,7 @@ import {
   RewardType,
   type CompanionImport,
   type ModifiedCost,
+  type Scenario,
   type StoredAlternativeCost,
   type StoredPurchasePrerequisite,
   type Value,
@@ -89,6 +90,7 @@ import {
   originTemplateInfo,
   buildFreebieActions,
   buildScenarioRewardActions,
+  buildScenarioCompanionRewardActions,
 } from "./annotationResolvers";
 
 const MySwal = withReactContent(Swal);
@@ -159,7 +161,7 @@ function TagFieldsSection({
       {tags.map((tag) => (
         <label key={tag.name} className="contents">
           <div
-            className={`text-xs font-semibold text-muted text-right min-w-min max-w-max w-30 justify-self-end ${tag.multiline ? "self-stretch items-center flex" : ""}`}
+            className={`text-xs font-semibold text-muted text-right min-w-min max-w-max w-30 justify-self-end ${!tag.multiline ? "self-stretch items-center flex" : ""}`}
           >
             {tag.name
               .split(" ")
@@ -2395,9 +2397,17 @@ function RewardLine({
       </span>
     );
   }
+  if (reward.type === RewardType.Companion) {
+    const companion = doc?.availableCompanions.O[reward.id];
+    return (
+      <span className="text-xs text-ink">
+        Companion import: {companion?.name}
+      </span>
+    );
+  }
   // Perk or Item
   const purchase = doc?.availablePurchases.O[reward.id];
-  return <span className="text-xs text-ink">{purchase?.name ?? `#${reward.id}`}</span>;
+  return <span className="text-xs text-ink">{purchase?.name}</span>;
 }
 
 /** Pill-based outcome selector with context + reward list for the selected group. */
@@ -2493,6 +2503,20 @@ function ScenarioInteractionPreview({
 
   function doExecute() {
     if (existingId !== undefined) {
+      // Enqueue forceRemove companion batches for each companion reward — routes through
+      // the full companion removal flow (including the activity-check dialog).
+      const chain = useChainStore.getState().chain;
+      const doc = useJumpDocStore.getState().doc;
+      const scenario = chain?.purchases.O[existingId] as Scenario | undefined;
+      if (scenario?.type === PurchaseType.Scenario && doc && scenario.template?.jumpdoc) {
+        const companionRewards = scenario.rewards.filter(
+          (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
+            r.type === RewardType.Companion,
+        );
+        const batches = buildScenarioCompanionRewardActions(companionRewards, doc, scenario.template.jumpdoc)
+          .map((b) => ({ ...b, forceRemove: true as const }));
+        if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
+      }
       remove(existingId);
       navigateTo();
     } else {
@@ -2506,17 +2530,22 @@ function ScenarioInteractionPreview({
         rewardGroup: group,
         storedPrerequisites: storedPrereqs.length ? storedPrereqs : undefined,
       });
-      // Enqueue Item/Perk rewards as annotation interactions.
-      const purchaseRewards = (group?.rewards ?? []).filter(
-        (r): r is Extract<typeof r, { type: RewardType.Item | RewardType.Perk }> =>
-          r.type === RewardType.Item || r.type === RewardType.Perk,
-      );
-      if (purchaseRewards.length > 0) {
-        const doc = useJumpDocStore.getState().doc;
-        if (doc) {
-          const batches = buildScenarioRewardActions(purchaseRewards, doc, action.docId);
-          if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
-        }
+      // Enqueue Item/Perk and Companion rewards as annotation interactions.
+      const doc = useJumpDocStore.getState().doc;
+      if (doc) {
+        const purchaseRewards = (group?.rewards ?? []).filter(
+          (r): r is Extract<typeof r, { type: RewardType.Item | RewardType.Perk }> =>
+            r.type === RewardType.Item || r.type === RewardType.Perk,
+        );
+        const companionRewards = (group?.rewards ?? []).filter(
+          (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
+            r.type === RewardType.Companion,
+        );
+        const batches = [
+          ...buildScenarioRewardActions(purchaseRewards, doc, action.docId),
+          ...buildScenarioCompanionRewardActions(companionRewards, doc, action.docId),
+        ];
+        if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
       }
       navigateTo(String(newId));
     }
@@ -2615,6 +2644,20 @@ function buildScenarioInteraction(
 
   const doExecute = (name: string, description: string) => {
     if (existingId !== undefined) {
+      // Enqueue forceRemove companion batches for each companion reward — routes through
+      // the full companion removal flow (including the activity-check dialog).
+      const chain = useChainStore.getState().chain;
+      const doc = useJumpDocStore.getState().doc;
+      const scenario = chain?.purchases.O[existingId] as Scenario | undefined;
+      if (scenario?.type === PurchaseType.Scenario && doc && scenario.template?.jumpdoc) {
+        const companionRewards = scenario.rewards.filter(
+          (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
+            r.type === RewardType.Companion,
+        );
+        const batches = buildScenarioCompanionRewardActions(companionRewards, doc, scenario.template.jumpdoc)
+          .map((b) => ({ ...b, forceRemove: true as const }));
+        if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
+      }
       remove(existingId);
       navigateTo();
     } else {
@@ -2629,6 +2672,23 @@ function buildScenarioInteraction(
         rewardGroup: group,
         storedPrerequisites: storedPrereqs.length ? storedPrereqs : undefined,
       });
+      // Enqueue Item/Perk and Companion rewards as annotation interactions.
+      const doc = useJumpDocStore.getState().doc;
+      if (doc) {
+        const purchaseRewards = (group?.rewards ?? []).filter(
+          (r): r is Extract<typeof r, { type: RewardType.Item | RewardType.Perk }> =>
+            r.type === RewardType.Item || r.type === RewardType.Perk,
+        );
+        const companionRewards = (group?.rewards ?? []).filter(
+          (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
+            r.type === RewardType.Companion,
+        );
+        const batches = [
+          ...buildScenarioRewardActions(purchaseRewards, doc, action.docId),
+          ...buildScenarioCompanionRewardActions(companionRewards, doc, action.docId),
+        ];
+        if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
+      }
       navigateTo(String(newId));
     }
   };

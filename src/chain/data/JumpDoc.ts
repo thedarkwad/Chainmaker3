@@ -167,6 +167,7 @@ export type DrawbackTemplate = PurchaseTemplate<TID.Drawback> & {
 export type ScenarioRewardTemplate =
   | { type: RewardType.Currency; value: number; currency: Id<TID.Currency> }
   | { type: RewardType.Item | RewardType.Perk; id: Id<TID.Purchase> }
+  | { type: RewardType.Companion; id: Id<TID.Companion> }
   | {
       type: RewardType.Stipend;
       value: number;

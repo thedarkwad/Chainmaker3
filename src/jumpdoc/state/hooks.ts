@@ -1299,6 +1299,50 @@ export function useJumpDocDiscountOriginGroups(): OriginGroup[] {
   }, [doc]);
 }
 
+// ── Companion reward picker helpers ───────────────────────────────────────────
+
+/** Returns all companion templates as lightweight picker entries. */
+export function useJumpDocCompanionsForPicker(): { id: Id<TID.Companion>; name: string }[] {
+  const doc = useJumpDoc();
+  return useMemo(() => {
+    if (!doc) return [];
+    return Object.entries(doc.availableCompanions.O)
+      .filter(([, t]) => t != null)
+      .map(([idStr, t]) => ({ id: +idStr as Id<TID.Companion>, name: t!.name }));
+  }, [doc]);
+}
+
+/**
+ * Creates a specific-character companion import template (count=1, specificCharacter=true)
+ * for use as a scenario reward, and returns its new ID.
+ */
+export function useAddJumpDocCompanionForReward() {
+  return (
+    name: string,
+    description: string,
+    charName: string,
+    gender: string,
+    species: string,
+  ): Id<TID.Companion> => {
+    let newId!: Id<TID.Companion>;
+    useJumpDocStore.setState(
+      createJumpDocTrackedAction("Add Companion Import", (d) => {
+        newId = registryAdd(d.availableCompanions, {
+          name,
+          description,
+          cost: [{ amount: 0, currency: createId<TID.Currency>(0) }],
+          count: 1,
+          specificCharacter: true,
+          characterInfo: [{ name: charName, gender, species }],
+          allowances: {},
+          stipend: {},
+        });
+      }),
+    );
+    return newId;
+  };
+}
+
 // ── Scenario reward picker helpers ────────────────────────────────────────────
 
 export type PurchaseWithType = {

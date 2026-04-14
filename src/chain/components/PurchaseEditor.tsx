@@ -1341,6 +1341,8 @@ export function ScenarioEditor({
       }
       case RewardType.Note:
         return r.note;
+      case RewardType.Companion:
+        return `Companion: ${r.name}`;
       default:
         return "";
     }

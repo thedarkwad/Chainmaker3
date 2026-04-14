@@ -84,11 +84,13 @@ export const enum RewardType {
   Perk,
   Stipend,
   Note,
+  Companion,
 }
 
 type BaseScenarioReward =
   | { type: RewardType.Item | RewardType.Perk; id: Id<TID.Purchase> }
-  | { type: RewardType.Note; note: string };
+  | { type: RewardType.Note; note: string }
+  | { type: RewardType.Companion; id: Id<TID.Companion>; name: string };
 
 export type ScenarioReward =
   | BaseScenarioReward

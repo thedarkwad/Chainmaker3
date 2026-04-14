@@ -59,10 +59,18 @@ export const saveJumpDoc = createServerFn({ method: "POST" })
     const updatedDocVersion = updatedContents.version?.trim() ?? "";
     await Models.JumpDoc.findByIdAndUpdate(
       data.docMongoId,
-      { $set: { contents: updated, name: updatedName, author: updatedAuthor, docVersion: updatedDocVersion }, $inc: { edits: 1 } },
+      {
+        $set: {
+          contents: updated,
+          name: updatedName,
+          author: updatedAuthor,
+          docVersion: updatedDocVersion,
+        },
+        $inc: { edits: 1 },
+      },
       { strict: false },
     );
-    await syncJumpDocPurchases(doc.publicUid, updatedName, doc.published, (doc as { nsfw?: boolean }).nsfw ?? false, updated as never);
+    await syncJumpDocPurchases(doc.publicUid, updatedName, doc.published, doc.nsfw, updated as never);
 
     return { status: "ok", edits: doc.edits + 1 };
   });
@@ -131,12 +139,23 @@ export const forceReplaceJumpDoc = createServerFn({ method: "POST" })
     await Models.JumpDoc.findByIdAndUpdate(
       data.docMongoId,
       {
-        $set: { contents: data.contents, name: updatedName, author: updatedAuthor, docVersion: updatedDocVersion },
+        $set: {
+          contents: data.contents,
+          name: updatedName,
+          author: updatedAuthor,
+          docVersion: updatedDocVersion,
+        },
         $inc: { edits: 1 },
       },
       { strict: false },
     );
-    await syncJumpDocPurchases(doc.publicUid, updatedName, doc.published, (doc as { nsfw?: boolean }).nsfw ?? false, data.contents as never);
+    await syncJumpDocPurchases(
+      doc.publicUid,
+      updatedName,
+      doc.published,
+      doc.nsfw,
+      data.contents as any,
+    );
     return { status: "ok", edits: doc.edits + 1 };
   });
 
@@ -529,11 +548,11 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
             imageId: newImageId,
           },
         }),
-        ...((doc.published !== data.published || (doc as { nsfw?: boolean }).nsfw !== data.nsfw)
+        ...(doc.published !== data.published
           ? [
               Models.Purchase.updateMany(
                 { docId: doc.publicUid },
-                { $set: { published: data.published, nsfw: data.nsfw } },
+                { $set: { published: data.published } },
               ),
             ]
           : []),

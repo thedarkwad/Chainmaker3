@@ -594,11 +594,51 @@ export function buildFreebieActions(
   return batches;
 }
 
-/**
- * Builds a queue batch for each Item/Perk scenario reward template.
- * Call this after a scenario is added; pass the result to `enqueueActions`.
- * Each reward fires as a normal purchase interaction targeting the active character.
- */
+export function buildScenarioCompanionRewardActions(
+  rewards: Extract<ScenarioRewardTemplate, { type: RewardType.Companion }>[],
+  doc: JumpDoc,
+  docId: string,
+): QueuedAnnotationBatch[] {
+  const batches: QueuedAnnotationBatch[] = [];
+  for (const reward of rewards) {
+    const t = doc.availableCompanions.O[reward.id] as CompanionTemplate | undefined;
+    if (!t) continue;
+    const { bounds: _bounds, ...template } = t;
+    const allowances = Object.entries(t.allowances ?? {}).flatMap(([tidStr, amount]) => {
+      const abbrev = doc.currencies.O[+tidStr as any]?.abbrev;
+      return abbrev && amount ? [{ currencyAbbrev: abbrev, amount }] : [];
+    });
+    const stipend = Object.entries(t.stipend ?? {}).flatMap(([currTidStr, subtypeMap]) => {
+      const currAbbrev = doc.currencies.O[+currTidStr as any]?.abbrev;
+      if (!currAbbrev) return [];
+      return Object.entries(subtypeMap ?? {}).flatMap(([stTidStr, amount]) => {
+        const subtypeName = doc.purchaseSubtypes.O[+stTidStr as any]?.name;
+        return currAbbrev && subtypeName && amount
+          ? [{ currencyAbbrev: currAbbrev, subtypeName, amount }]
+          : [];
+      });
+    });
+    const action: ViewerAnnotationAction = {
+      docId,
+      itemId: reward.id as number,
+      name: t.name,
+      typeName: "Companion Import",
+      costStr: "0 (reward)",
+      collection: "companion",
+      docTemplateId: reward.id,
+      template,
+      cost: [{ amount: 0, currencyAbbrev: "" }],
+      allowances,
+      stipend,
+      originNames: [],
+      originBenefit: undefined,
+      alternativeCosts: [],
+    };
+    batches.push({ actions: [action] });
+  }
+  return batches;
+}
+
 export function buildScenarioRewardActions(
   rewards: Extract<ScenarioRewardTemplate, { type: RewardType.Item | RewardType.Perk }>[],
   doc: JumpDoc,

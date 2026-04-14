@@ -1,4 +1,4 @@
-import { FileText, Pencil, X, Download } from "lucide-react";
+import { FileText, Pencil, X, Download, ExternalLink } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { type JumpDocSummary, getJumpDocPdfUrl, buildJumpDocZip } from "@/api/jumpdocs";
@@ -84,7 +84,9 @@ export function JumpDocSidebar({
         <div className="flex min-w-0 flex-col gap-0.5">
           <h2 className="text-sm font-semibold text-ink leading-snug">
             {doc.name}
-            {doc.version && <span className="ml-1.5 text-xs font-normal text-ghost">v{doc.version}</span>}
+            {doc.version && (
+              <span className="ml-1.5 text-xs font-normal text-ghost">v{doc.version}</span>
+            )}
           </h2>
           {doc.author.length > 0 && (
             <div className="flex flex-wrap gap-x-1 gap-y-0.5">
@@ -233,6 +235,16 @@ export function JumpDocSidebar({
               Edit JumpDoc
             </Link>
           )}
+
+          <Link
+            to="/pdf/$docId"
+            target="_blank"
+            params={{ docId: doc.publicUid }}
+            className="pointer flex w-full bg-surface items-center justify-center gap-1.5 rounded border border-edge px-3 py-2 text-xs font-medium text-muted transition-colors hover:border-accent/50 hover:text-ink"
+          >
+            <ExternalLink size={11} />
+            Open PDF
+          </Link>
         </div>
       )}
     </div>

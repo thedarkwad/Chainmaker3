@@ -2276,6 +2276,10 @@ export function useJumpDocScenarioActions(jumpId: Id<GID.Jump>, charId: Id<GID.C
                 currency: currencyId,
                 subtype: subtypeId,
               });
+            } else if (r.type === RewardType.Companion) {
+              const ct = doc?.availableCompanions.O[r.id];
+              if (!ct) continue;
+              rewards.push({ type: RewardType.Companion, id: r.id, name: ct.name });
             } else {
               // Perk or Item — stored as a template reference; created via the annotation queue.
               if (!doc?.availablePurchases.O[r.id]) continue;

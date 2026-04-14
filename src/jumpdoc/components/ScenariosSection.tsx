@@ -35,6 +35,9 @@ import {
   useJumpDocPurchase,
   useAddJumpDocPrereq,
   useRemoveJumpDocPrereq,
+  useJumpDocCompanionsForPicker,
+  useAddJumpDocCompanionForReward,
+  useJumpDocCompanion,
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
@@ -291,6 +294,7 @@ function OutcomeEditor({
   const firstPerkSubtypeId = useJumpDocFirstSubtypeIdByType(PurchaseType.Perk);
   const firstItemSubtypeId = useJumpDocFirstSubtypeIdByType(PurchaseType.Item);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [companionPickerOpen, setCompanionPickerOpen] = useState(false);
 
   function addCurrencyReward() {
     onModify("Add Currency Reward", groupIndex, (g) => {
@@ -318,6 +322,13 @@ function OutcomeEditor({
       g.rewards.push({ type: rewardType, id: purchaseId });
     });
     setPickerOpen(false);
+  }
+
+  function handleCompanionSelected(companionId: Id<TID.Companion>) {
+    onModify("Add Companion Reward", groupIndex, (g) => {
+      g.rewards.push({ type: RewardType.Companion, id: companionId });
+    });
+    setCompanionPickerOpen(false);
   }
 
   function removeReward(rewardIndex: number) {
@@ -392,6 +403,13 @@ function OutcomeEditor({
         >
           <Plus size={10} /> Purchase
         </button>
+        <button
+          type="button"
+          onClick={() => setCompanionPickerOpen(true)}
+          className="flex items-center gap-0.5 px-2 py-0.5 rounded text-xs border border-edge text-ghost hover:text-accent hover:border-accent/60 transition-colors"
+        >
+          <Plus size={10} /> Companion
+        </button>
       </div>
 
       {/* Rewards list */}
@@ -412,6 +430,8 @@ function OutcomeEditor({
                 onChange={(r) => updateReward(i, r)}
                 onRemove={() => removeReward(i)}
               />
+            ) : reward.type === RewardType.Companion ? (
+              <CompanionRewardRow key={i} reward={reward} onRemove={() => removeReward(i)} />
             ) : (
               <PurchaseRewardRow key={i} reward={reward} onRemove={() => removeReward(i)} />
             ),
@@ -423,6 +443,12 @@ function OutcomeEditor({
         <PurchasePickerModal
           onSelect={handlePurchaseSelected}
           onClose={() => setPickerOpen(false)}
+        />
+      )}
+      {companionPickerOpen && (
+        <CompanionPickerModal
+          onSelect={handleCompanionSelected}
+          onClose={() => setCompanionPickerOpen(false)}
         />
       )}
     </div>
@@ -518,6 +544,25 @@ function PurchaseRewardRow({ reward, onRemove }: { reward: PurchaseReward; onRem
     <div className="flex items-center gap-1 bg-accent2-tint border border-accent2/40 px-1 py-2 rounded-sm w-fit">
       <span className="text-xs text-accent2 shrink-0 font-medium">{typeLabel}</span>
       <span className="text-xs flex-1 truncate">{purchase?.name || `#${reward.id}`}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-ghost hover:text-danger transition-colors p-0.5 ml-auto"
+      >
+        <X size={11} />
+      </button>
+    </div>
+  );
+}
+
+type CompanionReward = { type: RewardType.Companion; id: Id<TID.Companion> };
+
+function CompanionRewardRow({ reward, onRemove }: { reward: CompanionReward; onRemove: () => void }) {
+  const companion = useJumpDocCompanion(reward.id);
+  return (
+    <div className="flex items-center gap-1 bg-accent2-tint border border-accent2/40 px-1 py-2 rounded-sm w-fit">
+      <span className="text-xs text-accent2 shrink-0 font-medium">Companion Import:</span>
+      <span className="text-xs flex-1 truncate">{companion?.name || `#${reward.id}`}</span>
       <button
         type="button"
         onClick={onRemove}
@@ -648,6 +693,116 @@ function PurchasePickerModal({
         </PickerGroup>
       )}
       {filtered.length === 0 && purchases.length > 0 && (
+        <p className="text-xs text-ghost px-1">No matches.</p>
+      )}
+    </PickerModal>
+  );
+}
+
+function CompanionPickerModal({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: Id<TID.Companion>) => void;
+  onClose: () => void;
+}) {
+  const companions = useJumpDocCompanionsForPicker();
+  const addCompanion = useAddJumpDocCompanionForReward();
+
+  const [newName, setNewName] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newCharName, setNewCharName] = useState("");
+  const [newGender, setNewGender] = useState("");
+  const [newSpecies, setNewSpecies] = useState("");
+  const [filter, setFilter] = useState("");
+
+  const filtered = companions.filter((c) => c.name.toLowerCase().includes(filter.toLowerCase()));
+
+  function handleCreate() {
+    const newId = addCompanion(
+      newName.trim(),
+      newDescription,
+      newCharName.trim(),
+      newGender.trim(),
+      newSpecies.trim(),
+    );
+    onSelect(newId);
+  }
+
+  const createNewFooter = (
+    <div className="px-3 py-3 flex flex-col gap-2">
+      <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">Create new</p>
+      <input
+        type="text"
+        placeholder="Import name…"
+        value={newName}
+        onChange={(e) => setNewName(e.target.value)}
+        className="bg-surface border border-edge rounded px-2 py-1 text-sm text-ink focus:outline-none focus:border-accent-ring transition-colors"
+      />
+      <DescriptionArea
+        value={newDescription}
+        onCommit={(v) => setNewDescription(v)}
+        className="bg-surface"
+        maxHeight="20rem"
+        placeholder="Description (optional)"
+      />
+      <input
+        type="text"
+        placeholder="Character name..."
+        value={newCharName}
+        onChange={(e) => setNewCharName(e.target.value)}
+        className="bg-surface border border-edge rounded px-2 py-1 text-sm text-ink focus:outline-none focus:border-accent-ring transition-colors"
+      />
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder="Gender (if known/applicable)"
+          value={newGender}
+          onChange={(e) => setNewGender(e.target.value)}
+          className="flex-1 bg-surface border border-edge rounded px-2 py-1 text-sm text-ink focus:outline-none focus:border-accent-ring transition-colors"
+        />
+        <input
+          type="text"
+          placeholder="Species..."
+          value={newSpecies}
+          onChange={(e) => setNewSpecies(e.target.value)}
+          className="flex-1 bg-surface border border-edge rounded px-2 py-1 text-sm text-ink focus:outline-none focus:border-accent-ring transition-colors"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={handleCreate}
+        disabled={!newName.trim()}
+        className="px-3 py-1.5 rounded text-sm bg-accent2-tint text-accent2 border border-accent2/40 hover:bg-accent2/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        Create &amp; Add
+      </button>
+    </div>
+  );
+
+  return (
+    <PickerModal
+      title="Add Companion Import Reward"
+      filter={filter}
+      onFilterChange={setFilter}
+      onClose={onClose}
+      footer={createNewFooter}
+    >
+      {companions.length === 0 && (
+        <p className="text-xs text-ghost px-1 py-1">No companion imports defined yet.</p>
+      )}
+      {filtered.length > 0 && (
+        <PickerGroup label="Companion Imports">
+          {filtered.map((c) => (
+            <PickerItem
+              key={c.id as number}
+              name={c.name}
+              onClick={() => onSelect(c.id)}
+            />
+          ))}
+        </PickerGroup>
+      )}
+      {filtered.length === 0 && companions.length > 0 && (
         <p className="text-xs text-ghost px-1">No matches.</p>
       )}
     </PickerModal>
