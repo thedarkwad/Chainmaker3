@@ -206,7 +206,6 @@ function PurchasesPage() {
     fetchSummary();
   }, [selectedId]);
 
-  // Debounce text search
   useEffect(() => {
     const timer = setTimeout(() => {
       setPage(1);
@@ -215,7 +214,6 @@ function PurchasesPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Fetch on committed search, cost filters, or page change
   useEffect(() => {
     let cancelled = false;
     setLoading(true);

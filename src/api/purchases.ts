@@ -67,13 +67,16 @@ function buildPurchaseFilter(
 
   if (purchaseType) andClauses.push({ purchaseType });
 
-  // Cost range: applies to "cp" purchases only. "custom" always passes through.
+  // Cost range: applies to "cp" purchases only. "custom" are treated as 0.
   if (minCost !== undefined || maxCost !== undefined) {
     const amountFilter: Record<string, number> = {};
     if (minCost !== undefined) amountFilter.$gte = minCost;
     if (maxCost !== undefined) amountFilter.$lte = maxCost;
     andClauses.push({
-      $or: [{ "cost.kind": "custom" }, { "cost.kind": "cp", "cost.amount": amountFilter }],
+      $or: [
+        ...((minCost ?? 0 <= 0) ? [{ "cost.kind": "custom" }] : []),
+        { "cost.kind": "cp", "cost.amount": amountFilter },
+      ],
     });
   }
 
@@ -85,7 +88,13 @@ export const searchPurchases = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<PurchaseSearchPage> => {
     await connectToDatabase();
 
-    const filter = buildPurchaseFilter(data.search, data.minCost, data.maxCost, data.purchaseType, data.showNsfw ?? false);
+    const filter = buildPurchaseFilter(
+      data.search,
+      data.minCost,
+      data.maxCost,
+      data.purchaseType,
+      data.showNsfw ?? false,
+    );
     const skip = (data.page - 1) * data.pageSize;
 
     const [rawResults, total] = await Promise.all([
