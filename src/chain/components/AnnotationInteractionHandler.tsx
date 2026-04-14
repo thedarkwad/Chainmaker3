@@ -14,7 +14,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import { createId, type GID, type Id, type LID, type TID, type Registry } from "@/chain/data/types";
-import type { Currency, CurrencyExchange, Origin, OriginCategory, PurchaseSubtype } from "@/chain/data/Jump";
+import type {
+  Currency,
+  CurrencyExchange,
+  Origin,
+  OriginCategory,
+  PurchaseSubtype,
+} from "@/chain/data/Jump";
 import type { Budget } from "@/chain/data/CalculatedData";
 import {
   CostModifier,
@@ -87,7 +93,6 @@ import {
 
 const MySwal = withReactContent(Swal);
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Public type
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,10 +156,18 @@ function TagFieldsSection({
 }) {
   return (
     <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 p-2 rounded-md border-edge bg-tint border">
-      {tags.map((tag) =>
-        tag.multiline ? (
-          <label key={tag.name} className="contents">
-            <div className="text-xs font-semibold text-muted text-right">{tag.name}:</div>
+      {tags.map((tag) => (
+        <label key={tag.name} className="contents">
+          <div
+            className={`text-xs font-semibold text-muted text-right min-w-min max-w-max w-30 justify-self-end ${tag.multiline ? "self-stretch items-center flex" : ""}`}
+          >
+            {tag.name
+              .split(" ")
+              .map((w) => w[0].toUpperCase() + w.slice(1))
+              .join(" ")}
+            :
+          </div>
+          {tag.multiline ? (
             <textarea
               className="bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
               rows={3}
@@ -172,21 +185,16 @@ function TagFieldsSection({
                 onChangeTag(tag.name, e.target.value);
               }}
             />
-          </label>
-        ) : (
-          <label key={tag.name} className="contents">
-            <div className="text-xs font-semibold text-muted flex items-center justify-end">
-              {tag.name}:
-            </div>
+          ) : (
             <input
               type="text"
-              className="bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
+              className="h-min bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
               value={tagValues[tag.name] ?? ""}
               onChange={(e) => onChangeTag(tag.name, e.target.value)}
             />
-          </label>
-        ),
-      )}
+          )}
+        </label>
+      ))}
       <div />
       {choiceContext && (
         <div className="text-xs text-ghost flex flex-col gap-1.5 max-w-sm">
@@ -438,7 +446,9 @@ function CompanionInteractionPreview({
   currencies: Registry<LID.Currency, Currency> | undefined;
   hasOriginDiscount: boolean;
   originBenefit: "discounted" | "free" | "access" | undefined;
-  qualifyingMandatoryAltCost: { value: { amount: number; currencyAbbrev: string }[]; beforeDiscounts?: boolean } | undefined;
+  qualifyingMandatoryAltCost:
+    | { value: { amount: number; currencyAbbrev: string }[]; beforeDiscounts?: boolean }
+    | undefined;
   qualifyingOptionalAltCosts: ResolvedAltCost[];
   storedAltCosts: StoredAlternativeCost[];
   addFromTemplate: ReturnType<typeof useJumpDocCompanionActions>["addFromTemplate"];
@@ -503,9 +513,20 @@ function CompanionInteractionPreview({
         }),
       );
       if (hasOriginDiscount) {
-        const altMod = originDiscountModifier(qualifyingMandatoryAltCost.value, currencies, originBenefit, true);
+        const altMod = originDiscountModifier(
+          qualifyingMandatoryAltCost.value,
+          currencies,
+          originBenefit,
+          true,
+        );
         if (altMod.modifier === CostModifier.Free) return { modifier: CostModifier.Free };
-        return { modifier: CostModifier.Custom, modifiedTo: altResolved.map((v) => ({ amount: Math.floor(v.amount / 2), currency: v.currency })) };
+        return {
+          modifier: CostModifier.Custom,
+          modifiedTo: altResolved.map((v) => ({
+            amount: Math.floor(v.amount / 2),
+            currency: v.currency,
+          })),
+        };
       }
       return { modifier: CostModifier.Custom, modifiedTo: altResolved };
     }
@@ -629,7 +650,9 @@ function CompanionInteractionPreview({
           const doc = useJumpDocStore.getState().doc;
           const freebies = action.template.freebies;
           if (doc && freebies?.length) {
-            const companionImport = useChainStore.getState().chain?.purchases.O[newId] as CompanionImport | undefined;
+            const companionImport = useChainStore.getState().chain?.purchases.O[newId] as
+              | CompanionImport
+              | undefined;
             const companionCharIds = companionImport?.importData.characters ?? [];
             if (companionCharIds.length > 0) {
               const batches = buildFreebieActions(freebies, doc, action.docId, companionCharIds);
@@ -667,10 +690,17 @@ function CompanionInteractionPreview({
   if (confirmDelete) {
     actions = [
       { label: "Confirm Delete", variant: "danger", onConfirm: () => confirmAndRemove(follower) },
-      { label: "Cancel", variant: "warn", noAutoClose: true, onConfirm: () => setConfirmDelete(null) },
+      {
+        label: "Cancel",
+        variant: "warn",
+        noAutoClose: true,
+        onConfirm: () => setConfirmDelete(null),
+      },
     ];
   } else if (existingId !== undefined) {
-    actions = [{ label: "Remove", variant: "danger", noAutoClose: true, onConfirm: () => doRemove(false) }];
+    actions = [
+      { label: "Remove", variant: "danger", noAutoClose: true, onConfirm: () => doRemove(false) },
+    ];
   } else if (isSpecific) {
     actions = [
       {
@@ -1024,7 +1054,6 @@ function buildOriginInteraction(
   };
 }
 
-
 function buildOriginRandomizerInteraction(
   action: Extract<ViewerAnnotationAction, { collection: "origin-randomizer" }>,
   origins: Record<number, Origin[]> | null,
@@ -1272,7 +1301,9 @@ function buildOriginOptionInteraction(
           <div className="px-2 pb-2 flex flex-col gap-1">
             <p className="text-xs text-ghost">{templateInfo.main}</p>
             {templateInfo.aux?.map((s, i) => (
-              <p key={i} className="text-xs text-ghost">{s}</p>
+              <p key={i} className="text-xs text-ghost">
+                {s}
+              </p>
             ))}
           </div>
         )}
@@ -1437,45 +1468,47 @@ function OriginOptionSelector({
           value={freeformText}
           onChange={(e) => onFreeformChange(e.target.value)}
         />
-      ) : group.options.map((opt, i) => {
-        let { main, aux } = originTemplateInfo(opt.rawName ?? "");
+      ) : (
+        group.options.map((opt, i) => {
+          let { main, aux } = originTemplateInfo(opt.rawName ?? "");
 
-        return (
-          <>
-            <button
-              key={i}
-              type="button"
-              onClick={() => onSelect(i)}
-              className={`text-left px-3 py-2 rounded border transition-colors ${
-                i === selectedIdx
-                  ? "border-accent2-ring bg-accent2-tint text-ink"
-                  : "border-edge text-muted hover:border-trim hover:text-ink"
-              }`}
-            >
-              <span className="text-sm font-medium">
-                {opt?.isFreeform ? opt.displayName : main}
-              </span>
-              {opt.costStr && <span className="text-xs text-ghost ml-2">[{opt.costStr}]</span>}
-              {aux && aux.length && (
-                <div className="text-xs text-ghost flex flex-col gap-0.5">
-                  {aux.map((s) => (
-                    <p>{s}</p>
-                  ))}
-                </div>
+          return (
+            <>
+              <button
+                key={i}
+                type="button"
+                onClick={() => onSelect(i)}
+                className={`text-left px-3 py-2 rounded border transition-colors ${
+                  i === selectedIdx
+                    ? "border-accent2-ring bg-accent2-tint text-ink"
+                    : "border-edge text-muted hover:border-trim hover:text-ink"
+                }`}
+              >
+                <span className="text-sm font-medium">
+                  {opt?.isFreeform ? opt.displayName : main}
+                </span>
+                {opt.costStr && <span className="text-xs text-ghost ml-2">[{opt.costStr}]</span>}
+                {aux && aux.length && (
+                  <div className="text-xs text-ghost flex flex-col gap-0.5">
+                    {aux.map((s) => (
+                      <p>{s}</p>
+                    ))}
+                  </div>
+                )}
+              </button>
+              {selectedOpt?.isFreeform && selectedIdx == i && (
+                <input
+                  type="text"
+                  className="bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
+                  placeholder="Enter value…"
+                  value={freeformText}
+                  onChange={(e) => onFreeformChange(e.target.value)}
+                />
               )}
-            </button>
-            {selectedOpt?.isFreeform && selectedIdx == i && (
-              <input
-                type="text"
-                className="bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
-                placeholder="Enter value…"
-                value={freeformText}
-                onChange={(e) => onFreeformChange(e.target.value)}
-              />
-            )}
-          </>
-        );
-      })}
+            </>
+          );
+        })
+      )}
     </div>
   );
 }
@@ -1812,7 +1845,6 @@ function buildCombinedOriginWithOptionsInteraction(
   };
 }
 
-
 /**
  * Returns an AnnotationInteraction that shows a read-only explanation when an
  * "access"-type template is clicked but the user doesn't hold a qualifying origin.
@@ -2003,7 +2035,17 @@ function buildPurchaseInteraction(
 
   const qualifyingOptionalAltCosts = action.alternativeCosts.filter((ac) => {
     if (ac.mandatory) return false;
-    if (!checkResolvedAltCostPrereqs(ac.prerequisites, action.docId, origins, originCategories, findByTemplate, findDrawback)) return false;
+    if (
+      !checkResolvedAltCostPrereqs(
+        ac.prerequisites,
+        action.docId,
+        origins,
+        originCategories,
+        findByTemplate,
+        findDrawback,
+      )
+    )
+      return false;
     // Exclude alt costs that spend a hidden currency the user has no balance or stipend of.
     if (currencies && budget) {
       for (const v of ac.value) {
@@ -2038,7 +2080,12 @@ function buildPurchaseInteraction(
   // For origin-based floating discount subtypes, origin discounts are not auto-applied.
   const effectiveCostStr = (() => {
     if (existingId !== undefined) return undefined;
-    if (qualifyingMandatoryAltCost?.beforeDiscounts && hasOriginDiscount && !isAccessOnly && !floatingDiscountOriginRelevant) {
+    if (
+      qualifyingMandatoryAltCost?.beforeDiscounts &&
+      hasOriginDiscount &&
+      !isAccessOnly &&
+      !floatingDiscountOriginRelevant
+    ) {
       return `${originDiscountCostStr(qualifyingMandatoryAltCost.value, currencies, action.originBenefit, isFirstCopy)} ; altered`;
     }
     if (qualifyingMandatoryAltCost?.beforeDiscounts)
@@ -2087,19 +2134,21 @@ function buildPurchaseInteraction(
       // Resolve booster purchases already held that boost this item so that deleting them
       // later can strip the booster text via stripBoostsFromPurchases.
       const reverseBoosts: { boosterPurchaseId: Id<GID.Purchase>; description: string }[] =
-        action.template.boosted.flatMap(({ booster: boosterTid, boosterKind, description: boostDesc }) => {
-          // Default to "purchase" for old data without boosterKind.
-          if (boosterKind === "drawback") {
-            const boosterId = findDrawback(action.docId, boosterTid as Id<TID.Drawback>);
+        action.template.boosted.flatMap(
+          ({ booster: boosterTid, boosterKind, description: boostDesc }) => {
+            // Default to "purchase" for old data without boosterKind.
+            if (boosterKind === "drawback") {
+              const boosterId = findDrawback(action.docId, boosterTid as Id<TID.Drawback>);
+              return boosterId !== undefined
+                ? [{ boosterPurchaseId: boosterId, description: boostDesc }]
+                : [];
+            }
+            const boosterId = findByTemplate(action.docId, boosterTid as Id<TID.Purchase>);
             return boosterId !== undefined
               ? [{ boosterPurchaseId: boosterId, description: boostDesc }]
               : [];
-          }
-          const boosterId = findByTemplate(action.docId, boosterTid as Id<TID.Purchase>);
-          return boosterId !== undefined
-            ? [{ boosterPurchaseId: boosterId, description: boostDesc }]
-            : [];
-        });
+          },
+        );
       const value: Value = action.cost.map(({ amount, currencyAbbrev }) => ({
         amount,
         currency: resolveJumpCurrency(currencyAbbrev, currencies),
@@ -2118,11 +2167,22 @@ function buildPurchaseInteraction(
             }),
           );
           if (hasOriginDiscount && !isAccessOnly && !floatingDiscountOriginRelevant) {
-            const altMod = originDiscountModifier(qualifyingMandatoryAltCost.value, currencies, action.originBenefit, isFirstCopy);
+            const altMod = originDiscountModifier(
+              qualifyingMandatoryAltCost.value,
+              currencies,
+              action.originBenefit,
+              isFirstCopy,
+            );
             if (altMod.modifier === CostModifier.Free) {
               initialCost = { modifier: CostModifier.Free };
             } else {
-              initialCost = { modifier: CostModifier.Custom, modifiedTo: altResolved.map((v) => ({ amount: Math.floor(v.amount / 2), currency: v.currency })) };
+              initialCost = {
+                modifier: CostModifier.Custom,
+                modifiedTo: altResolved.map((v) => ({
+                  amount: Math.floor(v.amount / 2),
+                  currency: v.currency,
+                })),
+              };
             }
           } else {
             initialCost = { modifier: CostModifier.Custom, modifiedTo: altResolved };
@@ -2188,16 +2248,28 @@ function buildPurchaseInteraction(
     }));
     if (ac.beforeDiscounts) {
       // Alt cost stacks with origin discounts — compute effective cost and label accordingly.
-      const hasApplicableDiscount = hasOriginDiscount && !isAccessOnly && !floatingDiscountOriginRelevant;
+      const hasApplicableDiscount =
+        hasOriginDiscount && !isAccessOnly && !floatingDiscountOriginRelevant;
       let label: string;
       let overrideInitialCost: ModifiedCost;
       if (hasApplicableDiscount) {
         label = `Add (${originDiscountCostStr(ac.value, currencies, action.originBenefit, isFirstCopy)}) ; altered`;
-        const altMod = originDiscountModifier(ac.value, currencies, action.originBenefit, isFirstCopy);
+        const altMod = originDiscountModifier(
+          ac.value,
+          currencies,
+          action.originBenefit,
+          isFirstCopy,
+        );
         if (altMod.modifier === CostModifier.Free) {
           overrideInitialCost = { modifier: CostModifier.Free };
         } else {
-          overrideInitialCost = { modifier: CostModifier.Custom, modifiedTo: resolvedValue.map((v) => ({ amount: Math.floor(v.amount / 2), currency: v.currency })) };
+          overrideInitialCost = {
+            modifier: CostModifier.Custom,
+            modifiedTo: resolvedValue.map((v) => ({
+              amount: Math.floor(v.amount / 2),
+              currency: v.currency,
+            })),
+          };
         }
       } else {
         label = `Add (${altCostValueStr(ac.value)}) ; altered`;
@@ -2832,7 +2904,17 @@ function buildCompanionInteraction(
 
   const qualifyingOptionalAltCosts = action.alternativeCosts.filter((ac) => {
     if (ac.mandatory) return false;
-    if (!checkResolvedAltCostPrereqs(ac.prerequisites, action.docId, origins as Record<number, Origin[]> | null, originCategories, findPurchase, findDrawback)) return false;
+    if (
+      !checkResolvedAltCostPrereqs(
+        ac.prerequisites,
+        action.docId,
+        origins as Record<number, Origin[]> | null,
+        originCategories,
+        findPurchase,
+        findDrawback,
+      )
+    )
+      return false;
     if (currencies && budget) {
       for (const v of ac.value) {
         if (v.amount === 0) continue;

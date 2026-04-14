@@ -108,6 +108,7 @@ const parseText: (text: string, currencies: Registry<TID.Currency, Currency>) =>
       colonSplit < 0 || newLineSplit < 0
         ? Math.max(colonSplit, newLineSplit)
         : Math.min(colonSplit, newLineSplit);
+
     if (split < 0 || split > 90) split = text.slice(0, 90).lastIndexOf("- ");
     if (split < 0)
       return {
@@ -123,6 +124,16 @@ const parseText: (text: string, currencies: Registry<TID.Currency, Currency>) =>
       .replace(/ +-|-[ ]+/g, " – ")
       .trim();
     let currency = createId<TID.Currency>(0);
+
+    // Return early if text looks like list item
+    if (match && !match[2] && +match[1] < 50 && /^\d+[\.\)]/.test(text)) {
+      return {
+        title: title.replace(/^\d+[\.\)]/, "").trim(),
+        desc,
+        currency: currency,
+        amount: 0,
+      };
+    }
 
     match = pattern.exec(title);
     if (match) {
@@ -201,7 +212,10 @@ function JumpDocPage() {
   const [activeSectionKey, setActiveSectionKey] = useState<string | null>(null);
   const [activeSectionNonce, setActiveSectionNonce] = useState(0);
   const [mobilePanel, setMobilePanel] = useState<"cards" | "pdf">("cards");
-  const [mobileNewCardModal, setMobileNewCardModal] = useState<{ type: ToolType; id: number } | null>(null);
+  const [mobileNewCardModal, setMobileNewCardModal] = useState<{
+    type: ToolType;
+    id: number;
+  } | null>(null);
   const [isTouch, setIsTouch] = useState(false);
   useEffect(() => {
     setIsTouch(window.matchMedia("(pointer: coarse) and (max-width: 1023px)").matches);
@@ -330,7 +344,14 @@ function JumpDocPage() {
     setMobileNewCardModal(null);
     setActiveScrollKey(null);
     setActiveSectionKey(null);
-  }, [mobileNewCardModal, removeOrigin, removePurchase, removeCompanion, removeDrawback, removeScenario]);
+  }, [
+    mobileNewCardModal,
+    removeOrigin,
+    removePurchase,
+    removeCompanion,
+    removeDrawback,
+    removeScenario,
+  ]);
 
   const handleDoneNewCard = useCallback(() => {
     setMobileNewCardModal(null);
@@ -438,7 +459,9 @@ function JumpDocPage() {
                 >
                   Cancel
                 </button>
-                <span className="flex-1 text-sm font-medium text-center text-ink">New annotation</span>
+                <span className="flex-1 text-sm font-medium text-center text-ink">
+                  New annotation
+                </span>
                 <button
                   type="button"
                   onClick={handleDoneNewCard}

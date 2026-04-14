@@ -372,13 +372,21 @@ export const PdfViewer = memo(
       const length = Math.max(...lines.map((l) => l.at(-1)!.right - l[0].left));
       const hThreshold = length * 0.05;
 
+      let indentsAllowed = Math.min(2, Math.floor(lines.length / 5) + 1);
+
+      const medianLines = lines
+        .map((l) => l[0].left)
+        .sort()
+        .slice(Math.max(1, -indentsAllowed - 1));
+      const leftAligned = Math.max(...medianLines) - Math.min(...medianLines) < 5;
+
       return lines
         .map((line, i) => {
           const text = line.map((item) => item.str).join(" ");
           if (i === 0) return text;
           const vgap = line[0].top - lines[i - 1][0].top;
-          const hgap = line[0].left - lines[i - 1][0].left;
-          return (vgap > vThreshold || hgap > hThreshold ? "\n\n" : " ") + text;
+          const lgap = line[0].left - lines[i - 1][0].left;
+          return (vgap > vThreshold || (leftAligned && lgap > hThreshold) ? "\n\n" : " ") + text;
         })
         .join("")
         .trim();
