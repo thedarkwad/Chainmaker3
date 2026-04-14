@@ -21,7 +21,7 @@ import {
 } from "react";
 import "pdfjs-dist/web/pdf_viewer.css";
 
-import { MousePointer2, Plus } from "lucide-react";
+import { ChevronDown, MousePointer2, Plus } from "lucide-react";
 import type { ToolDefinition } from "@/jumpdoc/state/hooks";
 import type { ToolType } from "./toolTypes";
 import type { PageRect } from "@/chain/data/JumpDoc";
@@ -255,6 +255,7 @@ export const PdfViewer = memo(
 
     const [ctrlHeld, setCtrlHeld] = useState(false);
     const [drawing, setDrawing] = useState<DrawState | null>(null);
+    const [openGroup, setOpenGroup] = useState<string | null>(null);
     const isDrawingMode = activeTool !== null || addBoundsTarget !== null;
 
     // ── Ctrl/⌘ to hide overlays and enable text selection ───────────────────
@@ -501,83 +502,147 @@ export const PdfViewer = memo(
     const toolButtons: {
       tool: ToolType | null;
       label: string;
+      group: string;
       color?: string;
       icon?: React.ReactNode;
     }[] = [
-      { tool: null, label: "Pointer", icon: <MousePointer2 size={13} /> },
-      ...tools.map(({ key, label, color }) => ({
+      {
+        tool: null,
+        label: "Pointer",
+        group: "pointer",
+        color: "#555",
+        icon: <MousePointer2 size={13} />,
+      },
+      ...tools.map(({ key, label, color, group }) => ({
         tool: key,
         label,
+        group,
         color,
         icon: <Plus size={11} />,
       })),
     ];
 
+    const toolGroups: { group: string; buttons: typeof toolButtons }[] = [];
+    for (const btn of toolButtons) {
+      const existing = toolGroups.find((g) => g.group === btn.group);
+      if (existing) existing.buttons.push(btn);
+      else toolGroups.push({ group: btn.group, buttons: [btn] });
+    }
+
     return (
       <div className="flex-1 flex flex-col overflow-hidden bg-tint">
         {/* ── Toolbar ── */}
-        <div className="shrink-0 flex flex-wrap items-center gap-x-1 gap-y-0.5 px-2 py-1 bg-surface border-b border-edge">
-          {onShowCards && (
-            <button
-              type="button"
-              onClick={onShowCards}
-              className="md:hidden flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-muted hover:text-ink transition-colors shrink-0"
-            >
-              ← Cards
-            </button>
-          )}
-          {toolButtons.map(({ tool, label, color, icon }) => {
-            const active = activeTool === tool;
-            return (
+        <div className="shrink-0 flex flex-col items-stretch justify-center gap-x-0.5 gap-y-1 px-2 py-2 bg-surface border-b border-edge min-h-12 flex-wrap">
+          <div className="grid grid-cols-[1fr_auto_1fr]">
+            {onShowCards && (
+              <div className="flex flex-wrap justify-self-start items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={onShowCards}
+                  className="md:hidden flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-muted hover:text-ink transition-colors shrink-0"
+                >
+                  ← Cards
+                </button>
+              </div>
+            )}
+            <div className="flex justify-self-center items-center shrink-0">
               <button
-                key={label}
-                title={tool ? `Draw new ${label}` : "Pointer (cancel tool)"}
-                onClick={() => onToolChange(tool)}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors shrink-0 ${
-                  active ? "text-surface" : "text-muted hover:text-ink bg-transparent hover:bg-tint"
-                }`}
-                style={active && color ? { backgroundColor: color } : undefined}
+                onClick={() => changeZoom((z) => z - ZOOM_STEP)}
+                disabled={zoom <= MIN_ZOOM}
+                className="px-1.5 py-1 rounded text-xs text-muted hover:text-ink hover:bg-tint disabled:opacity-40"
               >
-                {icon}
-                {label}
+                −
               </button>
-            );
-          })}
+              <span className="text-xs text-muted w-9 text-center">{Math.round(zoom * 100)}%</span>
+              <button
+                onClick={() => changeZoom((z) => z + ZOOM_STEP)}
+                disabled={zoom >= MAX_ZOOM}
+                className="px-1.5 py-1 rounded text-xs text-muted hover:text-ink hover:bg-tint disabled:opacity-40"
+              >
+                +
+              </button>
+            </div>
 
-          <div className="w-px h-5 bg-edge mx-1 shrink-0" />
-
-          <div className="flex items-center shrink-0">
-            <button
-              onClick={() => changeZoom((z) => z - ZOOM_STEP)}
-              disabled={zoom <= MIN_ZOOM}
-              className="px-1.5 py-1 rounded text-xs text-muted hover:text-ink hover:bg-tint disabled:opacity-40"
-            >
-              −
-            </button>
-            <span className="text-xs text-muted w-9 text-center">{Math.round(zoom * 100)}%</span>
-            <button
-              onClick={() => changeZoom((z) => z + ZOOM_STEP)}
-              disabled={zoom >= MAX_ZOOM}
-              className="px-1.5 py-1 rounded text-xs text-muted hover:text-ink hover:bg-tint disabled:opacity-40"
-            >
-              +
-            </button>
-          </div>
-
-          <div className="w-px h-5 bg-edge mx-1 shrink-0" />
-          <span className="text-xs text-ghost shrink-0">Ctrl/⌘ to select text</span>
-
-          {addBoundsTarget && (
-            <>
-              <div className="w-px h-5 bg-edge mx-1 shrink-0" />
+            {addBoundsTarget ? (
               <span
-                className="text-xs font-semibold shrink-0"
+                className="text-xs font-semibold shrink-0 justify-self-end"
                 style={{ color: toolColors[addBoundsTarget.type] ?? "#888" }}
               >
                 Draw a rect to add a bound
               </span>
-            </>
-          )}
+            ) : (
+              <span className="text-xs text-ghost min-w-max justify-self-end">
+                Ctrl/⌘ to select text
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center justify-center flex-wrap">
+            {toolGroups.map(({ group, buttons }, gi) => {
+              const groupLabel = group.charAt(0).toUpperCase() + group.slice(1);
+              const activeBtn = buttons.find((b) => b.tool === activeTool);
+              const isOpen = openGroup === group;
+              const isSingle = buttons.length === 1;
+
+              const renderButton = (
+                { tool, label, color, icon }: (typeof buttons)[number],
+                extraOnClick?: () => void,
+              ) => {
+                const active = activeTool === tool;
+                return (
+                  <button
+                    key={label}
+                    title={tool ? `Draw new ${label}` : "Pointer (cancel tool)"}
+                    onClick={() => {
+                      onToolChange(tool);
+                      extraOnClick?.();
+                    }}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors shrink-0 ${
+                      active
+                        ? "text-surface"
+                        : "text-muted hover:text-ink bg-transparent hover:bg-tint"
+                    }`}
+                    style={active && color ? { backgroundColor: color } : undefined}
+                  >
+                    {icon}
+                    {label}
+                  </button>
+                );
+              };
+
+              return (
+                <div key={group} className="flex items-center">
+                  {gi > 0 && <div className="w-px self-stretch bg-edge mx-1.5 shrink-0" />}
+                  {isSingle ? (
+                    renderButton(buttons[0])
+                  ) : (
+                    <div className="relative">
+                      <button
+                        onClick={() => setOpenGroup(isOpen ? null : group)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors shrink-0 ${
+                          activeBtn
+                            ? "text-surface"
+                            : "text-muted hover:text-ink bg-transparent hover:bg-tint"
+                        }`}
+                        style={activeBtn?.color ? { backgroundColor: activeBtn.color } : undefined}
+                      >
+                        {activeBtn ? `${groupLabel} (${activeBtn.label})` : groupLabel}
+                        <ChevronDown size={10} />
+                      </button>
+                      {isOpen && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setOpenGroup(null)} />
+                          <div className="absolute top-full left-0 z-50 mt-1 bg-surface border border-edge rounded shadow-lg p-1 flex flex-col gap-0.5 min-w-max">
+                            {buttons.map((btn) => renderButton(btn, () => setOpenGroup(null)))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* ── PDF pages ── */}

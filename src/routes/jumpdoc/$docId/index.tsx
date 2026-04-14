@@ -24,6 +24,8 @@ import {
   useRemoveJumpDocDrawback,
   useRemoveJumpDocScenario,
   useRemoveJumpDocCompanion,
+  useModifyJumpDocFreeFormOptions,
+  useAddJumpDocFreeFormOption,
 } from "@/jumpdoc/state/hooks";
 import { PdfViewer, type PdfViewerHandle } from "@/jumpdoc/components/PdfViewer";
 import { useJumpDocMeta } from "@/jumpdoc/state/JumpDocMetaStore";
@@ -255,6 +257,7 @@ function JumpDocPage() {
 
   // Creation hooks
   const addOrigin = useAddJumpDocOrigin();
+  const addFreeFormOption = useAddJumpDocFreeFormOption();
   const addPurchase = useAddJumpDocPurchase();
   const addCompanion = useAddJumpDocCompanion();
   const addDrawback = useAddJumpDocDrawback();
@@ -297,6 +300,12 @@ function JumpDocPage() {
         const catId = Number(activeTool.slice(7)) as Id<TID.OriginCategory>;
         newId = addOrigin(rects, catId, parsed);
         setActiveScrollKey(`origin-${newId}`);
+        setActiveSectionKey(activeTool);
+        setActiveSectionNonce((n) => n + 1);
+      } else if (activeTool.startsWith("freeform-")) {
+        const catId = Number(activeTool.slice(9)) as Id<TID.OriginCategory>;
+        newId = addFreeFormOption(rects, catId);
+        setActiveScrollKey(`basics`);
         setActiveSectionKey(activeTool);
         setActiveSectionNonce((n) => n + 1);
       } else if (activeTool.startsWith("purchase-")) {

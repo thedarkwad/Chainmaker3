@@ -10,7 +10,7 @@
  *     publish button bar    — fixed below the scroll, never scrolls
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Globe, Lock, EyeOff } from "lucide-react";
 import { BasicsSection } from "./BasicsSection";
 import { OriginCategorySection } from "./OriginsSection";
@@ -68,6 +68,20 @@ export function JumpDocEditor({
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [unpublishing, setUnpublishing] = useState(false);
 
+  const basicsSection = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (activeScrollKey == "basics")
+        basicsSection.current &&
+          basicsSection.current.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            container: "nearest",
+          } as ScrollIntoViewOptions);
+    });
+  }, [activeSectionNonce, activeScrollKey]);
+
   async function handleUnpublish() {
     if (unpublishing || !firebaseUser) return;
     setUnpublishing(true);
@@ -86,11 +100,15 @@ export function JumpDocEditor({
 
   // When activeSectionKey is set, force the matching section open and all others closed.
   const sectionOpen = (key: string) =>
-    activeSectionKey !== null ? activeSectionKey === key : false;
+    activeSectionKey !== null
+      ? activeSectionKey === key || (activeSectionKey.startsWith("freeform-") && key == "basics")
+      : false;
 
   // Per-section nonce: only the matching section sees the changing counter.
   const sectionNonce = (key: string): number | undefined =>
-    activeSectionKey === key ? activeSectionNonce : undefined;
+    activeSectionKey === key || (activeSectionKey?.startsWith("freeform-") && key == "basics")
+      ? activeSectionNonce
+      : undefined;
 
   return (
     <div
@@ -109,16 +127,19 @@ export function JumpDocEditor({
         </div>
       )}
       {/* Scrollable content */}
-      <div
-        id="jumpdoc-editor-panel"
-        className="relative flex-1 flex flex-col overflow-y-auto"
-      >
+      <div id="jumpdoc-editor-panel" className="relative flex-1 flex flex-col overflow-y-auto">
         <div className="flex flex-col gap-2 p-2">
-          <BasicsSection
-            open={activeSectionKey !== null ? false : undefined}
-            onAddBoundsRequest={onAddBoundsRequest}
-            addBoundsTarget={addBoundsTarget}
-          />
+          <div ref={basicsSection}>
+            <BasicsSection
+              open={sectionOpen(`basics`)}
+              forceOpenNonce={sectionNonce(`basics`)}
+              originCat={
+                activeSectionKey === null ? undefined : (+activeSectionKey.slice(9) as any)
+              }
+              onAddBoundsRequest={onAddBoundsRequest}
+              addBoundsTarget={addBoundsTarget}
+            />
+          </div>
 
           {originCatIds.length > 0 && (
             <p className="text-sm font-semibold text-muted uppercase tracking-widest text-center">

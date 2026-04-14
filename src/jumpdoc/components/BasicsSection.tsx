@@ -1015,10 +1015,14 @@ export function BasicsSection({
   open,
   onAddBoundsRequest,
   addBoundsTarget,
+  forceOpenNonce,
+  originCat,
 }: {
   open?: boolean;
   onAddBoundsRequest?: (type: string, id: Id<TID>) => void;
   addBoundsTarget?: AddBoundsTarget | null;
+  forceOpenNonce?: number;
+  originCat?: Id<TID.OriginCategory>;
 }) {
   const doc = useJumpDoc();
   const modifyDoc = useModifyJumpDoc();
@@ -1046,11 +1050,22 @@ export function BasicsSection({
   const removeBoundFromExchange = useRemoveBoundFromExchange();
   const currencies = useJumpDocCurrenciesRegistry();
 
+  useEffect(() => {
+    if (originCat === undefined) return;
+    setActiveOriginCatId(originCat);
+  }, [originCat]);
+
   if (!doc) return null;
 
   return (
     <>
-      <CollapsibleSection title="Basics" defaultOpen open={open} styled>
+      <CollapsibleSection
+        title="Basics"
+        defaultOpen
+        open={open}
+        styled
+        forceOpenNonce={forceOpenNonce}
+      >
         <div className="flex flex-col gap-0 p-1">
           {/* ── Metadata ── */}
           <div className="flex flex-col gap-2 pb-4">

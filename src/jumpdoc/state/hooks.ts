@@ -364,6 +364,24 @@ export function useAddJumpDocOrigin() {
   };
 }
 
+export function useAddJumpDocFreeFormOption() {
+  return (bounds?: PageRect[], categoryId?: Id<TID.OriginCategory>): number => {
+    let newId!: number;
+    useJumpDocStore.setState(
+      createJumpDocTrackedAction("Add Free-Form Option", (d) => {
+        (d.originCategories.O[categoryId!] as CatWithOptions).options.push({
+          name: "",
+          type: "freeform",
+          cost: { amount: 0, currency: 0 as any },
+          bounds: bounds,
+        });
+        newId = (d.originCategories.O[categoryId!] as CatWithOptions).options.length;
+      }),
+    );
+    return newId;
+  };
+}
+
 /** Removes an origin and cleans up all references to it across the document. */
 function removeOriginFromDoc(d: JumpDoc, id: Id<TID.Origin>) {
   delete d.origins.O[id];
@@ -511,7 +529,9 @@ export function useAddJumpDocPrereq(sourceType: PrereqSourceType, sourceId: numb
           const tgtPrereqs = getDocPrereqs(d, prereq.type, prereq.id as number);
           if (
             tgtPrereqs &&
-            !tgtPrereqs.some((p) => p.type === reversePrereq.type && p.id === reversePrereq.id && !p.positive)
+            !tgtPrereqs.some(
+              (p) => p.type === reversePrereq.type && p.id === reversePrereq.id && !p.positive,
+            )
           ) {
             tgtPrereqs.push(reversePrereq);
           }
@@ -616,9 +636,7 @@ export function useJumpDocDrawbackIds(): Id<TID.Drawback>[] {
   );
 }
 
-export function useJumpDocDrawback(
-  id: Id<TID.Drawback>,
-): DrawbackTemplate | undefined {
+export function useJumpDocDrawback(id: Id<TID.Drawback>): DrawbackTemplate | undefined {
   return useJumpDocStore((s) => s.doc?.availableDrawbacks.O[id]);
 }
 
@@ -933,7 +951,16 @@ export function useAllBoundedTemplates(): BoundedTemplate[] {
       }
     });
     return out;
-  }, [doc?.originCategories, doc?.origins, doc?.availablePurchases, doc?.availableDrawbacks, doc?.availableScenarios, doc?.availableCompanions, doc?.availableCurrencyExchanges, doc?.currencies]);
+  }, [
+    doc?.originCategories,
+    doc?.origins,
+    doc?.availablePurchases,
+    doc?.availableDrawbacks,
+    doc?.availableScenarios,
+    doc?.availableCompanions,
+    doc?.availableCurrencyExchanges,
+    doc?.currencies,
+  ]);
 }
 
 // ── Origins grouped by category ──────────────────────────────────────────────
@@ -1232,6 +1259,7 @@ export function useAddAltCostToSubtypePurchases() {
 export type ToolDefinition = {
   /** Unique key: "origin-{catId}", "purchase-{subtypeId}", "drawback", "scenario" */
   key: string;
+  group: "origin" | "purchase" | "drawback" | "scenario";
   label: string;
   color: string;
 };
@@ -1248,8 +1276,12 @@ export function useJumpDocToolDefinitions(): ToolDefinition[] {
     const tools: ToolDefinition[] = [];
 
     for (const [idStr, cat] of Object.entries(doc.originCategories.O)) {
-      if (!cat || cat.singleLine) continue;
-      tools.push({ key: `origin-${idStr}`, label: cat.name, color: "#22c55e" });
+      tools.push({
+        key: cat.singleLine ? `freeform-${idStr}` : `origin-${idStr}`,
+        label: cat.name,
+        color: "#22c55e",
+        group: "origin",
+      });
     }
 
     const subtypeEntries = (
@@ -1265,12 +1297,13 @@ export function useJumpDocToolDefinitions(): ToolDefinition[] {
         key: `purchase-${idStr}`,
         label: s?.name ?? "",
         color: s?.type === PurchaseType.Perk ? "#38bdf8" : "#f59e0b",
+        group: "purchase",
       });
     }
 
-    tools.push({ key: "companion", label: "Companion", color: "#06b6d4" });
-    tools.push({ key: "drawback", label: "Drawback", color: "#ef4444" });
-    tools.push({ key: "scenario", label: "Scenario", color: "#a855f7" });
+    tools.push({ key: "companion", label: "Companion", color: "#06b6d4", group: "purchase" });
+    tools.push({ key: "drawback", label: "Drawback", color: "#ef4444", group: "drawback" });
+    tools.push({ key: "scenario", label: "Scenario", color: "#a855f7", group: "scenario" });
     return tools;
   }, [doc?.originCategories, doc?.purchaseSubtypes]);
 }
@@ -1402,9 +1435,19 @@ export function useJumpDocFirstCurrencyId(): Id<TID.Currency> {
 // ── Alternative cost prerequisites ────────────────────────────────────────────
 
 export type PrerequisiteItems = {
-  origins: { id: Id<TID.Origin>; name: string; categoryId: Id<TID.OriginCategory>; categoryName: string }[];
+  origins: {
+    id: Id<TID.Origin>;
+    name: string;
+    categoryId: Id<TID.OriginCategory>;
+    categoryName: string;
+  }[];
   drawbacks: { id: Id<TID.Drawback>; name: string }[];
-  purchases: { id: Id<TID.Purchase>; name: string; subtypeId: Id<TID.PurchaseSubtype>; subtypeName: string }[];
+  purchases: {
+    id: Id<TID.Purchase>;
+    name: string;
+    subtypeId: Id<TID.PurchaseSubtype>;
+    subtypeName: string;
+  }[];
   scenarios: { id: Id<TID.Scenario>; name: string }[];
 };
 
@@ -1436,7 +1479,12 @@ export function useJumpDocPrerequisiteItems(): PrerequisiteItems {
       .map(([idStr, t]) => {
         const subtypeId = t!.subtype;
         const subtype = doc.purchaseSubtypes.O[subtypeId];
-        return { id: +idStr as Id<TID.Purchase>, name: t!.name, subtypeId, subtypeName: subtype?.name ?? "" };
+        return {
+          id: +idStr as Id<TID.Purchase>,
+          name: t!.name,
+          subtypeId,
+          subtypeName: subtype?.name ?? "",
+        };
       });
     const scenarios = Object.entries(doc.availableScenarios.O)
       .filter(([, t]) => t)
