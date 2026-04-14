@@ -11,6 +11,7 @@ export async function syncJumpDocPurchases(
   docPublicUid: string,
   docName: string,
   published: boolean,
+  nsfw: boolean,
   contents: JumpDoc,
 ): Promise<void> {
   // Collect IDs of purchases that appear as rewards in any scenario.
@@ -55,6 +56,7 @@ export async function syncJumpDocPurchases(
       isScenarioReward: scenarioRewardIds.has(templateId),
       docName,
       published,
+      nsfw,
     });
   }
 

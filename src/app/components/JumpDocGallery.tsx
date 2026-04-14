@@ -10,8 +10,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useSnappedGridColumns } from "@/ui/useSnappedGridColumns";
+import { useNsfwToggle, NsfwToggleButton } from "@/ui/NsfwToggleButton";
 
 import { Link } from "@tanstack/react-router";
 import { ChevronDown, ChevronUp, FileText, Loader2, SlidersHorizontal, X } from "lucide-react";
@@ -55,7 +55,6 @@ export type JumpDocGalleryProps = {
 
 const DEFAULT_PAGE_SIZE = 24;
 const SEARCH_DEBOUNCE_MS = 350;
-const NSFW_STORAGE_KEY = "cm:showNsfwGallery";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Search token helpers
@@ -188,7 +187,7 @@ function AdvancedSearch({
   search: string;
   onSearchChange: (s: string) => void;
   showNsfw: boolean;
-  onToggleNsfw: () => void;
+  onToggleNsfw: (v: boolean) => void;
 }) {
   const tokens = parseJumpDocQuery(search);
   const activeFieldTokens = tokens.filter((t) => t.field !== "any" && t.field !== "name");
@@ -239,18 +238,7 @@ function AdvancedSearch({
 
       {/* NSFW toggle */}
       <div className="border-t border-surface/20 pt-2">
-        <button
-          key={"lewd"}
-          type="button"
-          onClick={onToggleNsfw}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition-colors ${
-            showNsfw
-              ? "bg-surface/25 text-surface border-surface/50 font-medium"
-              : "text-surface/60 border-surface/20 hover:bg-surface/10 hover:text-surface hover:border-surface/30"
-          }`}
-        >
-          Show NSFW content
-        </button>
+        <NsfwToggleButton showNsfw={showNsfw} onToggle={onToggleNsfw} />
       </div>
     </div>
   );
@@ -354,14 +342,7 @@ export function JumpDocGallery({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [search, setSearch] = useState(searchQuery ?? "");
   const [committedSearch, setCommittedSearch] = useState(searchQuery ?? "");
-  const [showNsfw, setShowNsfw] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(NSFW_STORAGE_KEY) === "true";
-    } catch {
-      return false;
-    }
-  });
-  const [pendingNsfwConfirm, setPendingNsfwConfirm] = useState(false);
+  const [showNsfw, setShowNsfw] = useNsfwToggle();
 
   // Sync when searchQuery prop changes externally (e.g. sidebar attribute tag click).
   const lastExternalSearch = useRef(searchQuery ?? "");
@@ -433,30 +414,9 @@ export function JumpDocGallery({
     setPage(1);
   }
 
-  function handleToggleNsfw() {
-    if (showNsfw) {
-      setShowNsfw(false);
-      setPendingNsfwConfirm(false);
-      try {
-        localStorage.setItem(NSFW_STORAGE_KEY, "false");
-      } catch {}
-      setPage(1);
-    } else {
-      setPendingNsfwConfirm(true);
-    }
-  }
-
-  function handleConfirmNsfw() {
-    setShowNsfw(true);
-    setPendingNsfwConfirm(false);
-    try {
-      localStorage.setItem(NSFW_STORAGE_KEY, "true");
-    } catch {}
+  function handleToggleNsfw(v: boolean) {
+    setShowNsfw(v);
     setPage(1);
-  }
-
-  function handleCancelNsfw() {
-    setPendingNsfwConfirm(false);
   }
 
   const { gridRef, gridStyle } = useSnappedGridColumns({ pageSize, minCardWidth, columns });
@@ -503,6 +463,7 @@ export function JumpDocGallery({
             showNsfw={showNsfw}
             onToggleNsfw={handleToggleNsfw}
           />
+
         )}
       </div>
 
@@ -540,43 +501,6 @@ export function JumpDocGallery({
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
-      {/* Age confirmation modal */}
-      {pendingNsfwConfirm &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/60 backdrop-blur-sm"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) handleCancelNsfw();
-            }}
-          >
-            <div className="flex flex-col gap-4 bg-canvas border border-red-500/40 rounded-lg shadow-xl w-80 p-5">
-              <div className="flex flex-col gap-1.5">
-                <p className="text-sm font-semibold text-ink">Age confirmation required</p>
-                <p className="text-xs text-muted leading-relaxed">
-                  This will show jumpdocs marked as adult content. Please confirm you are 18 or
-                  older.
-                </p>
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={handleCancelNsfw}
-                  className="px-3 py-1.5 text-sm text-muted hover:text-ink border border-edge rounded hover:border-trim transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmNsfw}
-                  className="px-4 py-1.5 text-sm rounded bg-red-500/15 text-red-400 border border-red-500/40 hover:bg-red-500/25 transition-colors font-medium"
-                >
-                  I am 18+
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
     </div>
   );
 }

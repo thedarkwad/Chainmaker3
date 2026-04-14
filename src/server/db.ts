@@ -192,6 +192,7 @@ const purchaseSchema = new Schema(
     isScenarioReward: { type: Boolean, required: true },
     docName: { type: String, required: true },
     published: { type: Boolean, required: true, index: true },
+    nsfw: { type: Boolean, required: true, index: true },
   },
   {
     minimize: false,

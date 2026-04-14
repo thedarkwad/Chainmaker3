@@ -23,6 +23,7 @@ export type PurchaseSearchParams = {
   minCost?: number;
   maxCost?: number;
   purchaseType?: "perk" | "item";
+  showNsfw?: boolean;
 };
 
 export type PurchaseSearchPage = {
@@ -35,8 +36,10 @@ function buildPurchaseFilter(
   minCost: number | undefined,
   maxCost: number | undefined,
   purchaseType: "perk" | "item" | undefined,
+  showNsfw: boolean,
 ): object {
   const andClauses: object[] = [{ published: true }];
+  if (!showNsfw) andClauses.push({ nsfw: { $ne: true } });
 
   if (search.trim()) {
     const tokens = parseSearchQuery(search);
@@ -82,7 +85,7 @@ export const searchPurchases = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<PurchaseSearchPage> => {
     await connectToDatabase();
 
-    const filter = buildPurchaseFilter(data.search, data.minCost, data.maxCost, data.purchaseType);
+    const filter = buildPurchaseFilter(data.search, data.minCost, data.maxCost, data.purchaseType, data.showNsfw ?? false);
     const skip = (data.page - 1) * data.pageSize;
 
     const [rawResults, total] = await Promise.all([

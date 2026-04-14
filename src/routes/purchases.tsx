@@ -9,6 +9,7 @@ import { JumpDocSidebar } from "@/app/components/JumpDocSidebar";
 import { JumpDocPickerModal } from "@/app/components/JumpDocPickerModal";
 import { SearchBar } from "@/ui/SearchBar";
 import { Pagination } from "@/ui/Pagination";
+import { useNsfwToggle, NsfwToggleButton } from "@/ui/NsfwToggleButton";
 import {
   searchPurchases,
   type PurchaseSearchResult,
@@ -177,6 +178,7 @@ function PurchasesPage() {
   const [minCost, setMinCost] = useState<number | undefined>(undefined);
   const [maxCost, setMaxCost] = useState<number | undefined>(undefined);
   const [purchaseType, setPurchaseType] = useState<"perk" | "item">("perk");
+  const [showNsfw, setShowNsfw] = useNsfwToggle();
   const [page, setPage] = useState(1);
   const [data, setData] = useState<PurchaseSearchPage | null>(null);
   const [loading, setLoading] = useState(false);
@@ -218,7 +220,7 @@ function PurchasesPage() {
     let cancelled = false;
     setLoading(true);
     searchPurchases({
-      data: { search: committedSearch, page, pageSize: PAGE_SIZE, minCost, maxCost, purchaseType },
+      data: { search: committedSearch, page, pageSize: PAGE_SIZE, minCost, maxCost, purchaseType, showNsfw },
     })
       .then((result) => {
         if (!cancelled) setData(result);
@@ -230,7 +232,7 @@ function PurchasesPage() {
     return () => {
       cancelled = true;
     };
-  }, [committedSearch, page, minCost, maxCost, purchaseType]);
+  }, [committedSearch, page, minCost, maxCost, purchaseType, showNsfw]);
 
   const handleMinCost = (v: string) => {
     setMinCost(v === "" ? undefined : Number(v));
@@ -282,6 +284,7 @@ function PurchasesPage() {
                     </button>
                   ))}
                 </div>
+                <NsfwToggleButton showNsfw={showNsfw} onToggle={(v) => { setShowNsfw(v); setPage(1); }} />
                 <div className="flex gap-2 items-center">
                   <span className="text-xs text-surface/60 shrink-0">Cost:</span>
                   <input

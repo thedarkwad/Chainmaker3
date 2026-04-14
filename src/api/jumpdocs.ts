@@ -62,7 +62,7 @@ export const saveJumpDoc = createServerFn({ method: "POST" })
       { $set: { contents: updated, name: updatedName, author: updatedAuthor, docVersion: updatedDocVersion }, $inc: { edits: 1 } },
       { strict: false },
     );
-    await syncJumpDocPurchases(doc.publicUid, updatedName, doc.published, updated as never);
+    await syncJumpDocPurchases(doc.publicUid, updatedName, doc.published, (doc as { nsfw?: boolean }).nsfw ?? false, updated as never);
 
     return { status: "ok", edits: doc.edits + 1 };
   });
@@ -136,7 +136,7 @@ export const forceReplaceJumpDoc = createServerFn({ method: "POST" })
       },
       { strict: false },
     );
-    await syncJumpDocPurchases(doc.publicUid, updatedName, doc.published, data.contents as never);
+    await syncJumpDocPurchases(doc.publicUid, updatedName, doc.published, (doc as { nsfw?: boolean }).nsfw ?? false, data.contents as never);
     return { status: "ok", edits: doc.edits + 1 };
   });
 
@@ -529,11 +529,11 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
             imageId: newImageId,
           },
         }),
-        ...(doc.published !== data.published
+        ...((doc.published !== data.published || (doc as { nsfw?: boolean }).nsfw !== data.nsfw)
           ? [
               Models.Purchase.updateMany(
                 { docId: doc.publicUid },
-                { $set: { published: data.published } },
+                { $set: { published: data.published, nsfw: data.nsfw } },
               ),
             ]
           : []),
