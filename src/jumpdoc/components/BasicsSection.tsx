@@ -234,7 +234,7 @@ function FreeFormOptionRow({
 }
 
 /** "Randomize for Reader" toggle + cost + bound for non-singleLine categories. */
-function RandomToggle({
+export function RandomToggle({
   catId,
   random,
   firstCurrId,

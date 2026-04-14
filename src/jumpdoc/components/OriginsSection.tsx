@@ -11,7 +11,7 @@ import { TemplateCard } from "./TemplateCard";
 import { DescriptionArea, BlurNumberInput, ChoiceContextEditor } from "./JumpDocFields";
 import { CostDropdown } from "@/ui/CostDropdown";
 import { CostModifier } from "@/chain/data/Purchase";
-import type { SectionSharedProps } from "./sectionTypes";
+import type { AddBoundsTarget, SectionSharedProps } from "./sectionTypes";
 import {
   useJumpDocOriginCategory,
   useJumpDocOriginIdsByCategory,
@@ -25,11 +25,15 @@ import {
   useJumpDocPurchaseSubtypeIdsSorted,
   useJumpDocPurchaseSubtype,
   useJumpDocOriginsGrouped,
+  useModifyJumpDocOriginCategory,
+  useJumpDocOriginRandom,
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
-import type { OriginStipendEntry } from "@/chain/data/JumpDoc";
+import type { DocOriginCategory, OriginStipendEntry } from "@/chain/data/JumpDoc";
 import { OriginBenefitSection } from "./OriginBenefitSection";
+import { RandomToggle } from "./BasicsSection";
+import { DEFAULT_CURRENCY_ID } from "@/chain/data/Jump";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Stipend pills
@@ -153,16 +157,20 @@ export function OriginCategorySection({
   open?: boolean;
   forceOpenNonce?: number;
   singleId?: number;
+  onAddRandomizationBoundsRequest?: AddBoundsTarget;
 } & SectionSharedProps<TID.Origin>) {
   const cat = useJumpDocOriginCategory(catId);
   const originIds = useJumpDocOriginIdsByCategory(catId);
   const addOrigin = useAddJumpDocOrigin();
 
+  const modify = useModifyJumpDocOriginCategory(catId);
+  const random = useJumpDocOriginRandom(catId);
+  const currencies = useJumpDocCurrenciesRegistry();
+
   if (!cat) return null;
 
-  const displayedIds = singleId !== undefined
-    ? originIds.filter((id) => (id as number) === singleId)
-    : originIds;
+  const displayedIds =
+    singleId !== undefined ? originIds.filter((id) => (id as number) === singleId) : originIds;
 
   return (
     <CollapsibleSection
@@ -185,6 +193,17 @@ export function OriginCategorySection({
         ) : undefined
       }
     >
+      <div className="self-center pb-2.5">
+        <RandomToggle
+          catId={catId}
+          random={random}
+          firstCurrId={DEFAULT_CURRENCY_ID as any}
+          currencies={currencies}
+          addBoundsTarget={addBoundsTarget as any}
+          onAddBoundsRequest={onAddBoundsRequest as any}
+          onModify={modify}
+        />
+      </div>
       {displayedIds.length === 0 && (
         <p className="text-xs text-ghost italic px-1 py-1">No origins yet.</p>
       )}
@@ -231,13 +250,12 @@ const OriginCard = memo(function OriginCard({
   const currencyIds = useJumpDocCurrencyIds();
   const subtypeIds = useJumpDocPurchaseSubtypeIdsSorted();
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
-  const [showSynergySection, setShowSynergySection] = useState(!!(origin?.synergies?.length));
+  const [showSynergySection, setShowSynergySection] = useState(!!origin?.synergies?.length);
   if (!origin) return null;
 
   const key = `origin-${id}`;
   const fullCost = { modifier: CostModifier.Full } as const;
   const costAsValue = origin.cost.amount !== 0 ? [origin.cost] : [];
-
 
   return (
     <TemplateCard<TID.Origin>
@@ -298,7 +316,7 @@ const OriginCard = memo(function OriginCard({
         fields={[
           {
             key: "stipend",
-            isActive: !!(origin.originStipend?.length),
+            isActive: !!origin.originStipend?.length,
             dormant: () => (
               <button
                 type="button"
