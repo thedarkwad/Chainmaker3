@@ -4985,7 +4985,6 @@ export function useExportSnapshot() {
  * Builds a snapshot of a purchase tree (root + all subpurchases) for clipboard storage.
  * Used so cross-chain paste can reconstruct purchases whose IDs don't exist in the target chain.
  */
-//TODO: use GID as index for snapshot.
 export function buildPurchaseSnapshot(c: Chain, rootId: Id<GID.Purchase>): Record<number, unknown> {
   const snapshot: Record<number, unknown> = {};
   function collect(id: Id<GID.Purchase>) {
@@ -5023,7 +5022,6 @@ function deepCopyPurchase(
 
   // Shallow-clone, then fix up fields below
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  // TODO: fix bad typescript
   const copy: any = { ...src, id: newId, charId, jumpId };
 
   // Cross-jump paste: collapse the source value into a single DEFAULT_CURRENCY amount

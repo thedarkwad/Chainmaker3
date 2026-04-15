@@ -42,17 +42,6 @@ export type Chain = {
         altForms: boolean;
         startWithJumpZero: boolean;
 
-        //todo cleanup
-        //todo: use publish date instead of created date
-        //todo: "player can randomizer" switches to tool
-        //todo: origin change doesn't disable alt-costs when requirements are lost
-        //todo user choice duration mods
-        //todo negative cost freebies
-        //todo bank budget sync
-        //todo retain template id with paste
-        //todo: previous purchases duration in supplements
-        // "Used-in" taking a long time to load in images. shouldn't be fetching separetly
-        //todo: origin prereqs, multiple alt-cost prereq AND vs OR
         allowItemGroups: boolean;
         allowPerkGroups: boolean;
 

@@ -8,8 +8,6 @@ export type DocOriginCategory = OriginCategory & { max?: number } & (
     | { singleLine: false; random?: { cost: SimpleValue<TID.Currency>; bounds?: PageRect[] } }
   );
 
-// TODO: test companion imports in supplements
-
 export type AnnotationType = {
   "origin-category": { id: Id<TID.OriginCategory> };
   origin: { id: Id<TID.Origin> };

@@ -167,7 +167,7 @@ export type ViewerAnnotationAction =
       originNames: { categoryName: string; originName: string }[];
       /** How a qualifying origin affects this import. */
       originBenefit: "discounted" | "free" | "access" | undefined;
-      /** Pre-resolved alternative costs (mandatory only applied; optional TODO). */
+      /** Pre-resolved alternative costs (mandatory only applied). */
       alternativeCosts: ResolvedAltCost[];
     })
   | (BaseAction & {

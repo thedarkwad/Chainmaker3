@@ -3073,8 +3073,6 @@ function CurrencyExchangePreview({
       for (let i = 0; i < -delta; i++) {
         removeDocExchange({
           templateIndex: action.docExchangeIndex,
-          oCurrency,
-          tCurrency,
           oamount: action.oamount,
           tamount: action.tamount,
         });
