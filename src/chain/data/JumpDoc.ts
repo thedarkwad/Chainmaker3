@@ -90,7 +90,8 @@ export type AlternativeCost = {
 export type PurchasePrerequisite =
   | { type: "purchase"; id: Id<TID.Purchase>; positive: boolean }
   | { type: "drawback"; id: Id<TID.Drawback>; positive: boolean }
-  | { type: "scenario"; id: Id<TID.Scenario>; positive: boolean };
+  | { type: "scenario"; id: Id<TID.Scenario>; positive: boolean }
+  | { type: "origin"; id: Id<TID.Origin>; positive: boolean };
 
 export type PurchaseTemplate<T extends TID> = {
   name: string;

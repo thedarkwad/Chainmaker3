@@ -28,7 +28,8 @@ export type ResolvedAltCostPrereq =
 export type ResolvedPrerequisite =
   | { type: "purchase"; templateId: Id<TID.Purchase>; positive: boolean; name: string }
   | { type: "drawback"; templateId: Id<TID.Drawback>; positive: boolean; name: string }
-  | { type: "scenario"; templateId: Id<TID.Scenario>; positive: boolean; name: string };
+  | { type: "scenario"; templateId: Id<TID.Scenario>; positive: boolean; name: string }
+  | { type: "origin"; templateId: Id<TID.Origin>; positive: boolean; name: string };
 
 export type ResolvedAltCost = {
   value: { amount: number; currencyAbbrev: string }[];
@@ -203,7 +204,11 @@ type ViewerActionState = {
   forceRemove: boolean;
   /** When true, always show the preview dialog even for single-action interactions. */
   forcePreview: boolean;
-  setPendingAction: (action: ViewerAnnotationAction[] | null, forceRemove?: boolean, forcePreview?: boolean) => void;
+  setPendingAction: (
+    action: ViewerAnnotationAction[] | null,
+    forceRemove?: boolean,
+    forcePreview?: boolean,
+  ) => void;
   /** Queued batches waiting to be processed after the current pendingAction resolves. */
   actionQueue: QueuedAnnotationBatch[];
   /** The companion character currently being targeted by a queued freebie batch. Null when processing normal player actions. */
@@ -226,7 +231,9 @@ type ViewerActionState = {
    * onCancel is called when the modal is dismissed without creating a companion.
    */
   pendingNewCompanion: { onDone: (charId: Id<GID.Character>) => void; onCancel: () => void } | null;
-  setPendingNewCompanion: (data: { onDone: (charId: Id<GID.Character>) => void; onCancel: () => void } | null) => void;
+  setPendingNewCompanion: (
+    data: { onDone: (charId: Id<GID.Character>) => void; onCancel: () => void } | null,
+  ) => void;
   /**
    * Registered by the jump layout when a JumpDoc is active.
    * Calling it pops the JumpDocViewer into a new window (or brings it back to the panel).
@@ -240,7 +247,8 @@ export const useViewerActionStore = create<ViewerActionState>((set) => ({
   pendingAction: null,
   forceRemove: false,
   forcePreview: false,
-  setPendingAction: (pendingAction, forceRemove = false, forcePreview = false) => set({ pendingAction, forceRemove, forcePreview }),
+  setPendingAction: (pendingAction, forceRemove = false, forcePreview = false) =>
+    set({ pendingAction, forceRemove, forcePreview }),
   pendingNewCompanion: null,
   setPendingNewCompanion: (pendingNewCompanion) => set({ pendingNewCompanion }),
   popOutViewer: null,

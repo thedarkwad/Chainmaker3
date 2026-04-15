@@ -1896,6 +1896,8 @@ function buildPurchaseInteraction(
   findByTemplate: ReturnType<typeof useJumpDocPurchaseActions>["findByTemplate"],
   countByTemplate: ReturnType<typeof useJumpDocPurchaseActions>["countByTemplate"],
   findDrawback: ReturnType<typeof useJumpDocDrawbackActions>["findByTemplate"],
+  findScenario: ReturnType<typeof useJumpDocScenarioActions>["findByTemplate"],
+  findOrigin: (docId: string, id: Id<TID.Origin>) => boolean,
   navigate: ReturnType<typeof useNavigate>,
   routeParams: RouteParams,
   forceRemove: boolean,
@@ -1981,7 +1983,14 @@ function buildPurchaseInteraction(
   if (!existingId) {
     const unmet =
       action.prerequisites.length > 0
-        ? getUnmetPrereqs(action.prerequisites, action.docId, findByTemplate, findDrawback)
+        ? getUnmetPrereqs(
+            action.prerequisites,
+            action.docId,
+            findByTemplate,
+            findDrawback,
+            findScenario,
+            findOrigin,
+          )
         : [];
     const reverseBlocked = findReverseIncompatibilities(action.docId, action.docTemplateId);
     if (unmet.length > 0 || reverseBlocked.length > 0) {
@@ -2593,8 +2602,9 @@ function buildScenarioInteraction(
   findByTemplate: ReturnType<typeof useJumpDocScenarioActions>["findByTemplate"],
   navigateTo: (scrollTo?: string) => void,
   forceRemove: boolean,
-  findPurchase?: (docId: string, id: Id<TID.Purchase>) => Id<GID.Purchase> | undefined,
-  findDrawback?: (docId: string, id: Id<TID.Drawback>) => Id<GID.Purchase> | undefined,
+  findPurchase: (docId: string, id: Id<TID.Purchase>) => Id<GID.Purchase> | undefined,
+  findDrawback: (docId: string, id: Id<TID.Drawback>) => Id<GID.Purchase> | undefined,
+  findOrigin: (docId: string, id: Id<TID.Origin>) => boolean,
 ): AnnotationInteraction | null {
   const existingId = findByTemplate(action.docId, action.docTemplateId);
   if (forceRemove && existingId === undefined) return null;
@@ -2608,9 +2618,10 @@ function buildScenarioInteraction(
     const unmet = getUnmetPrereqs(
       action.prerequisites,
       action.docId,
-      findPurchase ?? (() => undefined),
-      findDrawback ?? (() => undefined),
-      findByTemplate as (docId: string, id: Id<TID.Scenario>) => Id<GID.Purchase> | undefined,
+      findPurchase,
+      findDrawback,
+      findByTemplate,
+      findOrigin,
     );
     if (unmet.length > 0) {
       const missing = unmet.filter((p) => p.positive).map((p) => p.name);
@@ -2739,10 +2750,12 @@ function buildDocItemInteraction(
   countByTemplate: (docId: string, templateId: never) => number,
   navigateTo: (scrollTo?: string) => void,
   forceRemove: boolean,
-  origins?: Record<number, Origin[]> | null,
-  originCategories?: Registry<LID.OriginCategory, OriginCategory> | undefined,
-  findPurchase?: (docId: string, id: Id<TID.Purchase>) => Id<GID.Purchase> | undefined,
-  findDrawbackForPrereq?: (docId: string, id: Id<TID.Drawback>) => Id<GID.Purchase> | undefined,
+  origins: Record<number, Origin[]> | null,
+  originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
+  findPurchase: (docId: string, id: Id<TID.Purchase>) => Id<GID.Purchase> | undefined,
+  findDrawbackForPrereq: (docId: string, id: Id<TID.Drawback>) => Id<GID.Purchase> | undefined,
+  findScenario: ReturnType<typeof useJumpDocScenarioActions>["findByTemplate"],
+  findOrigin: (docId: string, id: Id<TID.Origin>) => boolean,
 ): AnnotationInteraction | null {
   const existingId =
     forceRemove || !action.template.allowMultiple
@@ -2795,6 +2808,8 @@ function buildDocItemInteraction(
       action.docId,
       findPurchase ?? (() => undefined),
       findDrawbackForPrereq ?? (() => undefined),
+      findScenario,
+      findOrigin,
     );
     if (unmet.length > 0) {
       const missing = unmet.filter((p) => p.positive).map((p) => p.name);
@@ -2923,6 +2938,7 @@ function buildCompanionInteraction(
   findByTemplate: ReturnType<typeof useJumpDocCompanionActions>["findByTemplate"],
   findPurchase: ReturnType<typeof useJumpDocPurchaseActions>["findByTemplate"],
   findDrawback: ReturnType<typeof useJumpDocDrawbackActions>["findByTemplate"],
+  findScenario: ReturnType<typeof useJumpDocScenarioActions>["findByTemplate"],
   navigateTo: (follower: boolean) => (scrollTo?: string) => void,
   forceRemove: boolean,
 ): AnnotationInteraction | null {
@@ -3471,6 +3487,8 @@ export function AnnotationInteractionHandler({
           findByTemplateRef.current,
           countByTemplateRef.current,
           findDrawbackRef.current,
+          findScenarioRef.current,
+          () => true, // TODO
           navigateRef.current,
           routeParamsRef.current,
           fr,
@@ -3496,6 +3514,8 @@ export function AnnotationInteractionHandler({
           categoriesRef.current,
           findByTemplateRef.current,
           findDrawbackRef.current,
+          findScenarioRef.current,
+          () => true, // TODO
         );
       } else if (action.collection === "scenario") {
         const rp = routeParamsRef.current;
@@ -3513,6 +3533,7 @@ export function AnnotationInteractionHandler({
           fr,
           findByTemplateRef.current,
           findDrawbackRef.current,
+          () => true, // TODO
         );
       } else if (action.collection === "currency-exchange") {
         result = buildCurrencyExchangeInteraction(
@@ -3537,6 +3558,7 @@ export function AnnotationInteractionHandler({
           findCompanionRef.current,
           findByTemplateRef.current,
           findDrawbackRef.current,
+          findScenarioRef.current,
           (follower) => (scrollTo) =>
             navigateRef.current({
               to: follower

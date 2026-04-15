@@ -34,6 +34,7 @@ import {
   useAddJumpDocPrereq,
   useRemoveJumpDocPrereq,
   type OriginGroup,
+  useJumpDocOrigin,
 } from "@/jumpdoc/state/hooks";
 import type { PurchasePrerequisite } from "@/chain/data/JumpDoc";
 import { PickerModal, PickerGroup } from "./PickerModal";
@@ -509,7 +510,11 @@ function PurchasePrereqChip({
     return <PurchasePrereqChipInner id={prereq.id} positive={prereq.positive} label="purchase" onRemove={onRemove} />;
   if (prereq.type === "scenario")
     return <ScenarioPrereqChipInner id={prereq.id} positive={prereq.positive} label="scenario" onRemove={onRemove} />;
-  return <DrawbackPrereqChipInner id={prereq.id} positive={prereq.positive} label="drawback" onRemove={onRemove} />;
+  if (prereq.type === "drawback")
+    return <DrawbackPrereqChipInner id={prereq.id} positive={prereq.positive} label="drawback" onRemove={onRemove} />;
+  else
+    return <OriginPrereqChipInner id={prereq.id} positive={prereq.positive} label="origin" onRemove={onRemove} />;
+
 }
 
 function PurchasePrereqChipInner({
@@ -525,6 +530,14 @@ function DrawbackPrereqChipInner({
   const item = useJumpDocDrawback(id);
   return <PrereqChipPill name={item?.name ?? "(deleted)"} label={label} positive={positive} onRemove={onRemove} />;
 }
+
+function OriginPrereqChipInner({
+  id, positive, label, onRemove,
+}: { id: Id<TID.Origin>; positive: boolean; label: string; onRemove: () => void }) {
+  const item = useJumpDocOrigin(id);
+  return <PrereqChipPill name={item?.name ?? "(deleted)"} label={label} positive={positive} onRemove={onRemove} />;
+}
+
 
 function ScenarioPrereqChipInner({
   id, positive, label, onRemove,
@@ -558,6 +571,7 @@ function PrereqChipPill({
   );
 }
 
+//todo: add origin
 export function PurchasePrerequisitePickerModal({
   onSelect,
   onClose,

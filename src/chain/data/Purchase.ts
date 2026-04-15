@@ -10,7 +10,8 @@ export type StoredAltCostPrerequisite =
 export type StoredPurchasePrerequisite =
   | { type: "purchase"; docId: string; templateId: Id<TID.Purchase>; positive: boolean }
   | { type: "drawback"; docId: string; templateId: Id<TID.Drawback>; positive: boolean }
-  | { type: "scenario"; docId: string; templateId: Id<TID.Scenario>; positive: boolean };
+  | { type: "scenario"; docId: string; templateId: Id<TID.Scenario>; positive: boolean }
+  | { type: "origin"; docId: string; templateId: Id<TID.Origin>; positive: boolean };
 
 export type StoredAlternativeCost = {
   /** Resolved to LID currencies at add-time. */

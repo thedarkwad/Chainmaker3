@@ -15,7 +15,6 @@ import type {
   JumpDoc,
   DocCurrencyExchange,
   OriginTemplate,
-  PurchaseTemplate,
   DrawbackTemplate,
   ScenarioTemplate,
   PageRect,
@@ -28,7 +27,7 @@ import type {
 } from "@/chain/data/JumpDoc";
 import type { SimpleValue } from "@/chain/data/Purchase";
 import type { Currency, PurchaseSubtype } from "@/chain/data/Jump";
-import { TID, LID, type Id, type Registry, registryAdd, createId } from "@/chain/data/types";
+import { TID, type Id, type Registry, registryAdd, createId } from "@/chain/data/types";
 import { PurchaseType, RewardType } from "@/chain/data/Purchase";
 import type { ScenarioRewardTemplate } from "@/chain/data/JumpDoc";
 import { ParsedEntry } from "@/routes/jumpdoc/$docId/index";
@@ -519,7 +518,7 @@ export function useAddJumpDocPrereq(sourceType: PrereqSourceType, sourceId: numb
         const srcPrereqs = getDocPrereqs(d, sourceType, sourceId);
         if (srcPrereqs) srcPrereqs.push(prereq);
 
-        if (!prereq.positive) {
+        if (!prereq.positive && prereq.type != "origin") {
           const reversePrereq: PurchasePrerequisite =
             sourceType === "purchase"
               ? { type: "purchase", id: sourceId as Id<TID.Purchase>, positive: false }
@@ -556,7 +555,7 @@ export function useRemoveJumpDocPrereq(sourceType: PrereqSourceType, sourceId: n
         if (!prereq) return;
         srcPrereqs.splice(index, 1);
 
-        if (!prereq.positive) {
+        if (!prereq.positive && prereq.type != "origin") {
           const tgtPrereqs = getDocPrereqs(d, prereq.type, prereq.id as number);
           if (tgtPrereqs) {
             const reverseIdx = tgtPrereqs.findIndex(

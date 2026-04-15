@@ -367,7 +367,8 @@ export function getUnmetPrereqs(
   docId: string,
   findPurchase: (docId: string, id: Id<TID.Purchase>) => Id<GID.Purchase> | undefined,
   findDrawback: (docId: string, id: Id<TID.Drawback>) => Id<GID.Purchase> | undefined,
-  findScenario?: (docId: string, id: Id<TID.Scenario>) => Id<GID.Purchase> | undefined,
+  findScenario: (docId: string, id: Id<TID.Scenario>) => Id<GID.Purchase> | undefined,
+  findOrigin: (docId: string, id: Id<TID.Origin>) => boolean,
 ): ResolvedPrerequisite[] {
   return prereqs.filter((prereq) => {
     const held =
@@ -375,7 +376,9 @@ export function getUnmetPrereqs(
         ? findPurchase(docId, prereq.templateId) !== undefined
         : prereq.type === "drawback"
           ? findDrawback(docId, prereq.templateId) !== undefined
-          : (findScenario?.(docId, prereq.templateId) !== undefined);
+          : prereq.type === "scenario"
+            ? findScenario?.(docId, prereq.templateId) !== undefined
+            : findOrigin?.(docId, prereq.templateId);
     return prereq.positive ? !held : held;
   });
 }

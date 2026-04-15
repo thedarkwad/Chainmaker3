@@ -1672,12 +1672,14 @@ function applyPurchasePrereqCascadeInDraft(
     });
 
   // Helper: resolve which list to check for a given prereq type.
-  const prereqList = (prereq: StoredPurchasePrerequisite): Id<GID.Purchase>[] =>
+  const prereqList = (prereq: StoredPurchasePrerequisite): Id<GID.Purchase>[] | undefined =>
     prereq.type === "purchase"
       ? (jump.purchases[charId] ?? [])
       : prereq.type === "drawback"
         ? (jump.drawbacks[charId] ?? [])
-        : (jump.scenarios[charId] ?? []);
+        : prereq.type === "scenario"
+          ? (jump.scenarios[charId] ?? [])
+          : undefined;
 
   let changed = true;
   while (changed) {
@@ -1691,7 +1693,8 @@ function applyPurchasePrereqCascadeInDraft(
       if (!p?.storedPrerequisites?.length) continue;
       for (const prereq of p.storedPrerequisites) {
         if (!prereq.positive) continue;
-        if (!templateHeld(prereqList(prereq), prereq.docId, prereq.templateId, id)) {
+        if (!prereqList(prereq)) continue;
+        if (!templateHeld(prereqList(prereq)!, prereq.docId, prereq.templateId, id)) {
           purchasesToRemove.push(id);
           break;
         }
@@ -1704,7 +1707,8 @@ function applyPurchasePrereqCascadeInDraft(
       if (!db.storedPrerequisites?.length) continue;
       for (const prereq of db.storedPrerequisites) {
         if (!prereq.positive) continue;
-        if (!templateHeld(prereqList(prereq), prereq.docId, prereq.templateId, id)) {
+        if (!prereqList(prereq)) continue;
+        if (!templateHeld(prereqList(prereq)!, prereq.docId, prereq.templateId, id)) {
           drawbacksToRemove.push(id);
           break;
         }
@@ -1716,7 +1720,8 @@ function applyPurchasePrereqCascadeInDraft(
       if (!sc?.storedPrerequisites?.length) continue;
       for (const prereq of sc.storedPrerequisites) {
         if (!prereq.positive) continue;
-        if (!templateHeld(prereqList(prereq), prereq.docId, prereq.templateId, id)) {
+        if (!prereqList(prereq)) continue;
+        if (!templateHeld(prereqList(prereq)!, prereq.docId, prereq.templateId, id)) {
           scenariosToRemove.push(id);
           break;
         }
