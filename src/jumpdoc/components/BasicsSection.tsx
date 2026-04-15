@@ -369,7 +369,7 @@ function CurrencyExchangeRow({
   const selectClass =
     "text-xs bg-canvas border border-edge rounded px-1 py-0.5 text-ink focus:outline-none focus:border-accent-ring transition-colors";
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-tint border border-edge/60">
+    <div className="flex flex-wrap items-center gap-1.5 px-2 py-1 rounded-md bg-tint border border-edge/60">
       <span className="text-xs text-muted shrink-0">Trade</span>
       <InlineTextInput
         type="number"
@@ -422,6 +422,26 @@ function CurrencyExchangeRow({
           </option>
         ))}
       </select>
+
+      <SegmentedControl
+        compact
+        value={exchange.sidebar ? "sidebar" : "annotation"}
+        onChange={(e) =>
+          onModify("Adding currency exchange to sidebar", (exs) => {
+            exs[idx].sidebar = e == "sidebar";
+          })
+        }
+        options={[
+          {
+            value: "sidebar",
+            label: "Show in sidebar",
+          },
+          {
+            value: "annotation",
+            label: "Annotation only",
+          },
+        ]}
+      />
 
       {/* Bound count badge */}
       {(exchange.bounds?.length ?? 0) > 0 && (

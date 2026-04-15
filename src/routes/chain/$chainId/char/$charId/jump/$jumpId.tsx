@@ -623,6 +623,7 @@ function JumpLayoutInner({
                     />
                   ) : undefined
                 }
+                currencyExchanges={jump?.currencyExchanges?.[charGid]}
               />
             </NewWindowPortal>
           )}
@@ -654,6 +655,7 @@ function JumpLayoutInner({
                   />
                 ) : undefined
               }
+              currencyExchanges={jump?.currencyExchanges?.[charGid]}
             />
           </div>
         </>

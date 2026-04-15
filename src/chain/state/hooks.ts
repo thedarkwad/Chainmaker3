@@ -9,9 +9,16 @@ import type {
   OriginCategory,
   Origin,
   PurchaseSubtype,
+  JumpSource,
 } from "@/chain/data/Jump";
 import { DEFAULT_CURRENCY_ID, JumpSourceType } from "@/chain/data/Jump";
-import type { CompanionTemplate, DrawbackTemplate, JumpDoc, OriginTemplate, ScenarioRewardTemplate } from "@/chain/data/JumpDoc";
+import type {
+  CompanionTemplate,
+  DrawbackTemplate,
+  JumpDoc,
+  OriginTemplate,
+  ScenarioRewardTemplate,
+} from "@/chain/data/JumpDoc";
 import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
 import {
   CostModifier,
@@ -416,15 +423,25 @@ export function useCurrencyExchanges(jumpId: Id<GID.Jump>, charId: Id<GID.Charac
       setTracked("Add currency exchange", (c) => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
-        const newEx: CurrencyExchange = {
-          oCurrency: opts.oCurrency,
-          tCurrency: opts.tCurrency,
-          oamount: opts.oamount,
-          tamount: opts.tamount,
-          templateIndex: opts.templateIndex,
-        };
-        if (!jump.currencyExchanges[charId]) jump.currencyExchanges[charId] = [];
-        jump.currencyExchanges[charId]!.push(newEx);
+        let existingExchange = jump.currencyExchanges[charId]?.find?.(
+          (ex) => ex.templateIndex == opts.templateIndex,
+        );
+
+        if (existingExchange) {
+          existingExchange.oamount += opts.oamount;
+          existingExchange.tamount += opts.tamount;
+        } else {
+          const newEx: CurrencyExchange = {
+            oCurrency: opts.oCurrency,
+            tCurrency: opts.tCurrency,
+            oamount: opts.oamount,
+            tamount: opts.tamount,
+            templateIndex: opts.templateIndex,
+          };
+          if (!jump.currencyExchanges[charId]) jump.currencyExchanges[charId] = [];
+          jump.currencyExchanges[charId]!.push(newEx);
+        }
+
         c.budgetFlag += 1;
       });
     },
@@ -432,12 +449,16 @@ export function useCurrencyExchanges(jumpId: Id<GID.Jump>, charId: Id<GID.Charac
   );
 
   const removeDocExchange = useCallback(
-    (templateIndex: number) => {
+    (opts: { templateIndex: number; oamount: number; tamount: number }) => {
       setTracked("Remove currency exchange", (c) => {
         const list = c.jumps.O[jumpId]?.currencyExchanges[charId];
         if (!list) return;
-        const idx = list.findIndex((e) => e.templateIndex === templateIndex);
-        if (idx !== -1) list.splice(idx, 1);
+        const idx = list.findIndex((e) => e.templateIndex === opts.templateIndex);
+        if (idx !== -1) {
+          list[idx].oamount -= opts.oamount;
+          list[idx].tamount -= opts.tamount;
+          if (list[idx].oamount <= 0) list.splice(idx, 1);
+        }
         c.budgetFlag += 1;
       });
     },
@@ -572,7 +593,14 @@ export function usePurchase<T extends AbstractPurchase | Drawback>(id: Id<GID.Pu
 
   return {
     purchase,
-    actions: { modify, addSubpurchase, removeSubpurchase, reorderSubpurchases, clearSubpurchases, setSubpurchaseStipend },
+    actions: {
+      modify,
+      addSubpurchase,
+      removeSubpurchase,
+      reorderSubpurchases,
+      clearSubpurchases,
+      setSubpurchaseStipend,
+    },
   };
 }
 
@@ -1453,10 +1481,9 @@ function applyPurchaseModifiersInDraft(
 
     // For beforeDiscounts alt costs (mandatory or optional), origin discounts apply to the alt
     // cost value. Use that value as the base for wouldBeFree/Reduced checks.
-    const beforeDiscountsBase: Value | undefined =
-      mandatoryAlt?.beforeDiscounts
-        ? mandatoryAlt.value
-        : bpFull.optionalAltCostBeforeDiscountsValue;
+    const beforeDiscountsBase: Value | undefined = mandatoryAlt?.beforeDiscounts
+      ? mandatoryAlt.value
+      : bpFull.optionalAltCostBeforeDiscountsValue;
 
     let originIsFree = false;
     let originIsReduced = false;
@@ -1495,7 +1522,13 @@ function applyPurchaseModifiersInDraft(
       if (originIsFree) {
         bp.cost = { modifier: CostModifier.Free };
       } else if (originIsReduced) {
-        bp.cost = { modifier: CostModifier.Custom, modifiedTo: beforeDiscountsBase.map((v) => ({ amount: Math.floor(v.amount / 2), currency: v.currency })) };
+        bp.cost = {
+          modifier: CostModifier.Custom,
+          modifiedTo: beforeDiscountsBase.map((v) => ({
+            amount: Math.floor(v.amount / 2),
+            currency: v.currency,
+          })),
+        };
       } else {
         bp.cost = { modifier: CostModifier.Custom, modifiedTo: beforeDiscountsBase };
       }
@@ -1729,9 +1762,15 @@ function applyPurchasePrereqCascadeInDraft(
           const docId = sc.template?.jumpdoc;
           const pl = jump.purchases[charId] as Id<GID.Purchase>[] | undefined;
           for (const reward of sc.rewards) {
-            if ((reward.type === RewardType.Item || reward.type === RewardType.Perk) && docId && pl) {
+            if (
+              (reward.type === RewardType.Item || reward.type === RewardType.Perk) &&
+              docId &&
+              pl
+            ) {
               const toRemove = pl.filter((pid) => {
-                const p = c.purchases.O[pid] as { template?: { jumpdoc: string; id: unknown } } | undefined;
+                const p = c.purchases.O[pid] as
+                  | { template?: { jumpdoc: string; id: unknown } }
+                  | undefined;
                 return p?.template?.jumpdoc === docId && p?.template?.id === reward.id;
               });
               for (const pid of toRemove) {
@@ -1802,7 +1841,9 @@ function createBasicPurchaseInDraft(
     ...(data.originBenefit ? { originBenefit: data.originBenefit } : {}),
     ...(data.alternativeCosts?.length ? { alternativeCosts: data.alternativeCosts } : {}),
     ...(data.optionalAltCost ? { optionalAltCost: true as const } : {}),
-    ...(data.optionalAltCostBeforeDiscountsValue?.length ? { optionalAltCostBeforeDiscountsValue: data.optionalAltCostBeforeDiscountsValue } : {}),
+    ...(data.optionalAltCostBeforeDiscountsValue?.length
+      ? { optionalAltCostBeforeDiscountsValue: data.optionalAltCostBeforeDiscountsValue }
+      : {}),
     ...(data.storedPrerequisites?.length ? { storedPrerequisites: data.storedPrerequisites } : {}),
     ...(data.usesFloatingDiscount ? { usesFloatingDiscount: true as const } : {}),
   };
@@ -2328,9 +2369,15 @@ export function useJumpDocScenarioActions(jumpId: Id<GID.Jump>, charId: Id<GID.C
           const docId = scenario.template?.jumpdoc;
           const pl = jump?.purchases[charId] as Id<GID.Purchase>[] | undefined;
           for (const reward of scenario.rewards) {
-            if ((reward.type === RewardType.Item || reward.type === RewardType.Perk) && docId && pl) {
+            if (
+              (reward.type === RewardType.Item || reward.type === RewardType.Perk) &&
+              docId &&
+              pl
+            ) {
               const toRemove = pl.filter((pid) => {
-                const p = c.purchases.O[pid] as { template?: { jumpdoc: string; id: unknown } } | undefined;
+                const p = c.purchases.O[pid] as
+                  | { template?: { jumpdoc: string; id: unknown } }
+                  | undefined;
                 return p?.template?.jumpdoc === docId && p?.template?.id === reward.id;
               });
               for (const pid of toRemove) {
@@ -2560,7 +2607,11 @@ export function useJumpDocCompanionActions(jumpId: Id<GID.Jump>, charId: Id<GID.
       const companionCharIds = companionImport?.importData.characters ?? [];
       const freebies =
         doc && companionImport?.template
-          ? (doc.availableCompanions.O[companionImport.template.id] as CompanionTemplate | undefined)?.freebies
+          ? (
+              doc.availableCompanions.O[companionImport.template.id] as
+                | CompanionTemplate
+                | undefined
+            )?.freebies
           : undefined;
 
       setTracked("Remove companion import", (c) => {
@@ -2581,8 +2632,12 @@ export function useJumpDocCompanionActions(jumpId: Id<GID.Jump>, charId: Id<GID.
                 const purchaseList = c.jumps.O[jumpId]?.purchases[companionCharId];
                 if (!purchaseList) continue;
                 const toRemove = (purchaseList as Id<GID.Purchase>[]).filter((pid) => {
-                  const p = c.purchases.O[pid] as { template?: { jumpdoc: string; id: unknown } } | undefined;
-                  return p?.template?.jumpdoc === docId && p?.template?.id === (freebie.id as never);
+                  const p = c.purchases.O[pid] as
+                    | { template?: { jumpdoc: string; id: unknown } }
+                    | undefined;
+                  return (
+                    p?.template?.jumpdoc === docId && p?.template?.id === (freebie.id as never)
+                  );
                 });
                 for (const pid of toRemove) {
                   delete c.purchases.O[pid];
@@ -2593,8 +2648,12 @@ export function useJumpDocCompanionActions(jumpId: Id<GID.Jump>, charId: Id<GID.
                 const drawbackList = c.jumps.O[jumpId]?.drawbacks[companionCharId];
                 if (!drawbackList) continue;
                 const toRemove = (drawbackList as Id<GID.Purchase>[]).filter((pid) => {
-                  const p = c.purchases.O[pid] as { template?: { jumpdoc: string; id: unknown } } | undefined;
-                  return p?.template?.jumpdoc === docId && p?.template?.id === (freebie.id as never);
+                  const p = c.purchases.O[pid] as
+                    | { template?: { jumpdoc: string; id: unknown } }
+                    | undefined;
+                  return (
+                    p?.template?.jumpdoc === docId && p?.template?.id === (freebie.id as never)
+                  );
                 });
                 for (const pid of toRemove) {
                   delete c.purchases.O[pid];
@@ -2608,8 +2667,13 @@ export function useJumpDocCompanionActions(jumpId: Id<GID.Jump>, charId: Id<GID.
                 const categoryName = doc.originCategories.O[originTemplate.type]?.name ?? "";
                 // Resolve category LID by name (can't import from components/ into state/).
                 let categoryLid: number | undefined;
-                for (const [idStr, cat] of Object.entries(c.jumps.O[jumpId]?.originCategories?.O ?? {})) {
-                  if (cat?.name === categoryName) { categoryLid = +idStr; break; }
+                for (const [idStr, cat] of Object.entries(
+                  c.jumps.O[jumpId]?.originCategories?.O ?? {},
+                )) {
+                  if (cat?.name === categoryName) {
+                    categoryLid = +idStr;
+                    break;
+                  }
                 }
                 if (categoryLid === undefined) continue;
                 const charOrigins = c.jumps.O[jumpId]?.origins[companionCharId];
@@ -2916,7 +2980,9 @@ export function useSetJumpParent(jumpId: Id<GID.Jump>) {
 
         // Collect jumpId + its current children before re-parenting.
         const toMove = c.jumpList.filter(
-          (id) => (id as number) === (jumpId as number) || (c.jumps.O[id]?.parentJump as number) === (jumpId as number),
+          (id) =>
+            (id as number) === (jumpId as number) ||
+            (c.jumps.O[id]?.parentJump as number) === (jumpId as number),
         );
 
         // Update parentJump for this jump and re-parent its children to the new parent.
@@ -2933,7 +2999,10 @@ export function useSetJumpParent(jumpId: Id<GID.Jump>) {
         c.jumpList = c.jumpList.filter((id) => !toMoveSet.has(id as number));
         const parentIdx = c.jumpList.findIndex((id) => (id as number) === (parentId as number));
         let insertAt = parentIdx !== -1 ? parentIdx + 1 : c.jumpList.length;
-        while (insertAt < c.jumpList.length && c.jumps.O[c.jumpList[insertAt]]?.parentJump !== undefined) {
+        while (
+          insertAt < c.jumpList.length &&
+          c.jumps.O[c.jumpList[insertAt]]?.parentJump !== undefined
+        ) {
           insertAt++;
         }
         c.jumpList.splice(insertAt, 0, ...toMove);
@@ -4167,9 +4236,7 @@ export function useJumpSupplementPurchases(
       setTracked("Reorder purchases", (c) => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
-        const all = [
-          ...((jump.supplementPurchases[charId]?.[suppId] ?? []) as Id<GID.Purchase>[]),
-        ];
+        const all = [...((jump.supplementPurchases[charId]?.[suppId] ?? []) as Id<GID.Purchase>[])];
         // Replace type-matching entries with the reordered list, preserve others in place.
         let ni = 0;
         const result = all.map((id) => (c.purchases.O[id]?.type === type ? newIds[ni++]! : id));
@@ -4248,9 +4315,7 @@ export function useJumpSupplementScenarios(
       setTracked("Reorder milestones", (c) => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
-        const all = [
-          ...((jump.supplementPurchases[charId]?.[suppId] ?? []) as Id<GID.Purchase>[]),
-        ];
+        const all = [...((jump.supplementPurchases[charId]?.[suppId] ?? []) as Id<GID.Purchase>[])];
         let ni = 0;
         const result = all.map((id) =>
           c.purchases.O[id]?.type === PurchaseType.SupplementScenario ? newIds[ni++]! : id,
@@ -4357,9 +4422,7 @@ export function useJumpSupplementImports(
       setTracked("Reorder supplement imports", (c) => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
-        const all = [
-          ...((jump.supplementPurchases[charId]?.[suppId] ?? []) as Id<GID.Purchase>[]),
-        ];
+        const all = [...((jump.supplementPurchases[charId]?.[suppId] ?? []) as Id<GID.Purchase>[])];
         let ni = 0;
         const result = all.map((id) =>
           c.purchases.O[id]?.type === PurchaseType.SupplementImport ? newIds[ni++]! : id,
@@ -4552,42 +4615,39 @@ export function useDeduplicateJumpPurchases() {
 export function useSetObsolete() {
   return useCallback(
     (purchaseId: Id<GID.Purchase>, currentJumpId: Id<GID.Jump>, makeObsolete: boolean) => {
-      setTracked(
-        makeObsolete ? "Mark purchase obsolete" : "Un-mark purchase obsolete",
-        (c) => {
-          const purchase = c.purchases.O[purchaseId] as SupplementPurchase | undefined;
-          if (!purchase) return;
-          if (makeObsolete) {
-            // Remove from old jump's obsoletions
-            if (purchase.obsolete !== undefined) {
-              const oldJump = c.jumps.O[purchase.obsolete];
-              if (oldJump) {
-                (oldJump.obsoletions as Id<GID.Purchase>[]) = (
-                  oldJump.obsoletions as Id<GID.Purchase>[]
-                ).filter((id) => id !== purchaseId);
-              }
+      setTracked(makeObsolete ? "Mark purchase obsolete" : "Un-mark purchase obsolete", (c) => {
+        const purchase = c.purchases.O[purchaseId] as SupplementPurchase | undefined;
+        if (!purchase) return;
+        if (makeObsolete) {
+          // Remove from old jump's obsoletions
+          if (purchase.obsolete !== undefined) {
+            const oldJump = c.jumps.O[purchase.obsolete];
+            if (oldJump) {
+              (oldJump.obsoletions as Id<GID.Purchase>[]) = (
+                oldJump.obsoletions as Id<GID.Purchase>[]
+              ).filter((id) => id !== purchaseId);
             }
-            purchase.obsolete = currentJumpId;
-            const currentJump = c.jumps.O[currentJumpId];
-            if (
-              currentJump &&
-              !(currentJump.obsoletions as Id<GID.Purchase>[]).some((id) => id === purchaseId)
-            ) {
-              (currentJump.obsoletions as Id<GID.Purchase>[]).push(purchaseId);
-            }
-          } else {
-            if (purchase.obsolete !== undefined) {
-              const oldJump = c.jumps.O[purchase.obsolete];
-              if (oldJump) {
-                (oldJump.obsoletions as Id<GID.Purchase>[]) = (
-                  oldJump.obsoletions as Id<GID.Purchase>[]
-                ).filter((id) => id !== purchaseId);
-              }
-            }
-            delete purchase.obsolete;
           }
-        },
-      );
+          purchase.obsolete = currentJumpId;
+          const currentJump = c.jumps.O[currentJumpId];
+          if (
+            currentJump &&
+            !(currentJump.obsoletions as Id<GID.Purchase>[]).some((id) => id === purchaseId)
+          ) {
+            (currentJump.obsoletions as Id<GID.Purchase>[]).push(purchaseId);
+          }
+        } else {
+          if (purchase.obsolete !== undefined) {
+            const oldJump = c.jumps.O[purchase.obsolete];
+            if (oldJump) {
+              (oldJump.obsoletions as Id<GID.Purchase>[]) = (
+                oldJump.obsoletions as Id<GID.Purchase>[]
+              ).filter((id) => id !== purchaseId);
+            }
+          }
+          delete purchase.obsolete;
+        }
+      });
     },
     [],
   );
@@ -4969,7 +5029,10 @@ function deepCopyPurchase(
   // Cross-jump paste: collapse the source value into a single DEFAULT_CURRENCY amount
   // by summing all currency components. Same-jump paste keeps the value as-is.
   if (!sameJump && Array.isArray(src.value)) {
-    const total = (src.value as SimpleValue[]).reduce((sum: number, sv) => sum + (sv.amount ?? 0), 0);
+    const total = (src.value as SimpleValue[]).reduce(
+      (sum: number, sv) => sum + (sv.amount ?? 0),
+      0,
+    );
     copy.value = [{ currency: DEFAULT_CURRENCY_ID, amount: total }];
   }
 

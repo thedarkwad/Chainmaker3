@@ -10,9 +10,19 @@
  */
 
 import "pdfjs-dist/web/pdf_viewer.css";
-import { type ReactNode, useEffect, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useState } from "react";
 import { useSwipe } from "@/ui/useSwipe";
-import { ArrowLeft, Eye, ExternalLink, Maximize2, Minimize2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Eye,
+  ExternalLink,
+  Maximize2,
+  Minimize2,
+  ChevronRight,
+  ChevronDown,
+  Plus,
+  Minus,
+} from "lucide-react";
 import { usePdfRenderer, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP, RENDER_SCALE } from "@/ui/usePdfRenderer";
 import { loadJumpDoc } from "@/api/jumpdocs";
 import { useCurrentUser } from "@/app/state/auth";
@@ -39,7 +49,12 @@ import {
   type ResolvedPrerequisite,
   type ViewerAnnotationAction,
 } from "@/chain/state/ViewerActionStore";
-import { useJumpDocSelectedAnnotations, useJumpDocHoverContext } from "@/chain/state/hooks";
+import {
+  useJumpDocSelectedAnnotations,
+  useJumpDocHoverContext,
+  useCurrencyExchanges,
+  useCurrencies,
+} from "@/chain/state/hooks";
 import {
   createId,
   Id,
@@ -49,8 +64,9 @@ import {
   type PartialLookup,
   type Registry,
 } from "../data/types";
-import type { Currency, Origin, OriginCategory } from "../data/Jump";
+import type { Currency, CurrencyExchange, Origin, OriginCategory } from "../data/Jump";
 import { Value } from "../data/Purchase";
+import { resolveJumpCurrency } from "./annotationResolvers";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Annotation extraction
@@ -667,7 +683,10 @@ function buildAnnotationActions(
           if (!ot) return [];
           return ot.boosted
             .filter((b) => b.boosterKind === "drawback" && b.booster === (ann.id as number))
-            .map((b) => ({ templateId: createId<TID.Purchase>(+keyStr), description: b.description }));
+            .map((b) => ({
+              templateId: createId<TID.Purchase>(+keyStr),
+              description: b.description,
+            }));
         })
       : [];
     return [
@@ -778,6 +797,7 @@ export type JumpDocViewerProps = {
    * Shown when expanded, and always on mobile (where main content is hidden).
    */
   budgetSlot?: ReactNode;
+  currencyExchanges?: CurrencyExchange[];
 };
 
 export function JumpDocViewer({
@@ -789,6 +809,7 @@ export function JumpDocViewer({
   onToggleExpand,
   onPopOut,
   budgetSlot,
+  currencyExchanges,
   onSwipeLeft,
   onSwipeRight,
 }: JumpDocViewerProps) {
@@ -804,6 +825,8 @@ export function JumpDocViewer({
   const [loadError, setLoadError] = useState<string | null>(null);
   // In Electron, loadJumpDoc returns a pdfUrl (file:// temp path) that overrides doc.url.
   const [pdfUrlOverride, setPdfUrlOverride] = useState<string | null>(null);
+
+  const [currencySidebarOpen, setCurrencySidebarOpen] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -901,6 +924,9 @@ export function JumpDocViewer({
     };
   }, [ownerDocument]);
 
+  let { addFromDoc, removeDocExchange } = useCurrencyExchanges(jumpId!, charId!);
+  let currencies = useCurrencies(jumpId);
+
   // ── Derived annotations ───────────────────────────────────────────────────
 
   const annotations: FullAnnotations = jumpDoc ? extractAnnotations(jumpDoc) : {};
@@ -918,6 +944,14 @@ export function JumpDocViewer({
         ny <= ann.rect.y + ann.rect.height,
     );
   }
+
+  // ── CurrencyExchanges
+  let currencyExchangeUsage =
+    jumpDoc?.availableCurrencyExchanges?.map((ex, i) =>
+      (currencyExchanges ?? [])
+        .filter((lex) => lex.templateIndex == i)
+        .reduce((n, lex) => n + Math.floor(lex.oamount / ex.oamount), 0),
+    ) ?? [];
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -1001,6 +1035,77 @@ export function JumpDocViewer({
           </div>
         )}
 
+        {/* TODO: refactor into its own component */}
+        {jumpDoc?.availableCurrencyExchanges?.some((ex) => ex.sidebar) && (
+          <div
+            className={`flex flex-col bg-accent-ring w-max text-xs gap-2 p-2 rounded-b absolute top-0 right-5 z-10 text-surface ${!currencySidebarOpen && "opacity-70"}`}
+          >
+            <button
+              className="flex items-center justify-end font-medium shrink-0"
+              onClick={() => setCurrencySidebarOpen((s) => !s)}
+            >
+              Exchange Currencies
+              {currencySidebarOpen ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            </button>
+            {currencySidebarOpen &&
+              jumpDoc?.availableCurrencyExchanges?.map?.(
+                (ex, i) =>
+                  ex.sidebar && (
+                    <div key={i} className="flex flex-col justify-center items-center gap-0.5">
+                      <span className="flex flex-row gap-1.5 items-center">
+                        <span className="opacity-80">Exchanging </span>
+                        <span className="font-semibold">
+                          {currencyExchangeUsage[i] * ex.oamount}{" "}
+                          {jumpDoc.currencies.O[ex.oCurrency].abbrev}
+                        </span>{" "}
+                        <span className="opacity-80">for </span>
+                        <span className="font-semibold">
+                          {currencyExchangeUsage[i] * ex.tamount}{" "}
+                          {jumpDoc.currencies.O[ex.tCurrency].abbrev}
+                        </span>
+                      </span>
+                      <div className="flex gap-3 text-[10px]">
+                        <button
+                          className="flex gap-0.5 items-center opacity-50 hover:opacity-100"
+                          onClick={() =>
+                            addFromDoc({
+                              oamount: ex.oamount,
+                              tamount: ex.tamount,
+                              oCurrency: resolveJumpCurrency(
+                                jumpDoc.currencies.O[ex.oCurrency].abbrev,
+                                currencies,
+                              ),
+                              tCurrency: resolveJumpCurrency(
+                                jumpDoc.currencies.O[ex.tCurrency].abbrev,
+                                currencies,
+                              ),
+                              templateIndex: i,
+                            })
+                          }
+                        >
+                          <Plus size={14} /> {ex.oamount}{" "}
+                          {jumpDoc.currencies.O[ex.oCurrency].abbrev}
+                        </button>
+                        <button
+                          className="flex gap-0.5 items-center opacity-50 hover:opacity-100"
+                          onClick={() =>
+                            removeDocExchange({
+                              oamount: ex.oamount,
+                              tamount: ex.tamount,
+                              templateIndex: i,
+                            })
+                          }
+                        >
+                          <Minus size={14} />
+                          {ex.oamount} {jumpDoc.currencies.O[ex.oCurrency].abbrev}
+                        </button>
+                      </div>
+                    </div>
+                  ),
+              )}
+          </div>
+        )}
+
         {/* Touch-only: hold to show annotations — bottom-left, matches budget bar style */}
         {isTouchOnly && (
           <button
@@ -1017,7 +1122,6 @@ export function JumpDocViewer({
             <Eye size={28} />
           </button>
         )}
-
         <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-auto relative">
           {loadError && <div className="p-8 text-center text-danger text-sm">{loadError}</div>}
           {isLoading && <div className="p-8 text-center text-muted text-sm">Loading JumpDoc…</div>}

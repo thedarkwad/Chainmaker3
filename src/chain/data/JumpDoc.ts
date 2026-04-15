@@ -185,6 +185,8 @@ export type DocCurrencyExchange = {
   oamount: number;
   tamount: number;
   bounds?: PageRect[];
+
+  sidebar?: boolean;
 };
 
 export type JumpDoc = {

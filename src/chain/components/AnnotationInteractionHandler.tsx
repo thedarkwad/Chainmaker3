@@ -2399,11 +2399,7 @@ function RewardLine({
   }
   if (reward.type === RewardType.Companion) {
     const companion = doc?.availableCompanions.O[reward.id];
-    return (
-      <span className="text-xs text-ink">
-        Companion import: {companion?.name}
-      </span>
-    );
+    return <span className="text-xs text-ink">Companion import: {companion?.name}</span>;
   }
   // Perk or Item
   const purchase = doc?.availablePurchases.O[reward.id];
@@ -2513,8 +2509,11 @@ function ScenarioInteractionPreview({
           (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
             r.type === RewardType.Companion,
         );
-        const batches = buildScenarioCompanionRewardActions(companionRewards, doc, scenario.template.jumpdoc)
-          .map((b) => ({ ...b, forceRemove: true as const }));
+        const batches = buildScenarioCompanionRewardActions(
+          companionRewards,
+          doc,
+          scenario.template.jumpdoc,
+        ).map((b) => ({ ...b, forceRemove: true as const }));
         if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
       }
       remove(existingId);
@@ -2654,8 +2653,11 @@ function buildScenarioInteraction(
           (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
             r.type === RewardType.Companion,
         );
-        const batches = buildScenarioCompanionRewardActions(companionRewards, doc, scenario.template.jumpdoc)
-          .map((b) => ({ ...b, forceRemove: true as const }));
+        const batches = buildScenarioCompanionRewardActions(
+          companionRewards,
+          doc,
+          scenario.template.jumpdoc,
+        ).map((b) => ({ ...b, forceRemove: true as const }));
         if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
       }
       remove(existingId);
@@ -3054,9 +3056,10 @@ function CurrencyExchangePreview({
 
   const commit = () => {
     const delta = count - takenCount;
+    const oCurrency = resolveJumpCurrency(action.oCurrencyAbbrev, currencies);
+    const tCurrency = resolveJumpCurrency(action.tCurrencyAbbrev, currencies);
+
     if (delta > 0) {
-      const oCurrency = resolveJumpCurrency(action.oCurrencyAbbrev, currencies);
-      const tCurrency = resolveJumpCurrency(action.tCurrencyAbbrev, currencies);
       for (let i = 0; i < delta; i++) {
         addFromDoc({
           templateIndex: action.docExchangeIndex,
@@ -3068,7 +3071,13 @@ function CurrencyExchangePreview({
       }
     } else if (delta < 0) {
       for (let i = 0; i < -delta; i++) {
-        removeDocExchange(action.docExchangeIndex);
+        removeDocExchange({
+          templateIndex: action.docExchangeIndex,
+          oCurrency,
+          tCurrency,
+          oamount: action.oamount,
+          tamount: action.tamount,
+        });
       }
     }
     onClose();
@@ -3119,7 +3128,9 @@ function buildCurrencyExchangeInteraction(
   addFromDoc: ReturnType<typeof useCurrencyExchanges>["addFromDoc"],
   removeDocExchange: ReturnType<typeof useCurrencyExchanges>["removeDocExchange"],
 ): AnnotationInteraction {
-  const takenCount = exchanges.filter((e) => e.templateIndex === action.docExchangeIndex).length;
+  const takenCount = exchanges
+    .filter((e) => e.templateIndex === action.docExchangeIndex)
+    .reduce((n, ex) => n + Math.floor(ex.oamount / action.oamount), 0);
 
   const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => (
     <CurrencyExchangePreview
