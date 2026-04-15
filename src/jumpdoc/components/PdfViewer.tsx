@@ -383,7 +383,15 @@ export const PdfViewer = memo(
 
       return lines
         .map((line, i) => {
-          const text = line.map((item) => item.str).join(" ");
+          const text = line
+            .map((item, i) => {
+              if (i == 0) return item.str;
+              let hgap = line[i].left - line[i-1].right;
+              if (hgap < 2)
+                return item.str;
+              return " " + item.str;
+            })
+            .join("");
           if (i === 0) return text;
           const vgap = line[0].top - lines[i - 1][0].top;
           const lgap = line[0].left - lines[i - 1][0].left;

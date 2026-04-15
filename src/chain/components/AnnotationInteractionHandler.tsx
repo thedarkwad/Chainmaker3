@@ -639,7 +639,7 @@ function CompanionInteractionPreview({
           createCharacterData:
             !isFollower && action.template.specificCharacter
               ? {
-                  name: charName,
+                  name: charName.trim().length > 0 ? charName : action.template.name,
                   gender: charGender,
                   species: charSpecies,
                   backgroundSummary: action.template.name,
