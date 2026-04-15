@@ -211,14 +211,14 @@ export function JumpDocSidebar({
                     onClick={handleDownloadPdf}
                     className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted transition-colors hover:bg-tint hover:text-ink"
                   >
-                    PDF
+                    Static .pdf
                   </button>
                   <button
                     type="button"
                     onClick={handleDownloadZip}
                     className="flex flex-col w-full justify-center items-baseline gap-2 px-3 py-2 text-xs text-muted transition-colors hover:bg-tint hover:text-ink"
                   >
-                    .jumpdoc
+                    Interactive .jumpdoc
                     <div className="text-xs text-ghost">For use with desktop ChainMaker app.</div>
                   </button>
                 </div>
