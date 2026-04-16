@@ -111,14 +111,14 @@ export function formatCostShort<T extends TID.Currency | LID.Currency = LID.Curr
 
 // ── Subpurchase cost helpers ──────────────────────────────────────────────────
 
-/** Effective cost per currency for one value+cost pair (as a plain number map). */
-function effectiveCostMap<T extends TID.Currency | LID.Currency = LID.Currency>(
+/** Effective cost per currency for one value+cost pair. */
+export function effectiveCostMap<T extends TID.Currency | LID.Currency = LID.Currency>(
   value: Value<T>,
   cost: ModifiedCost<T>,
 ): Record<Id<T>, number> {
   const map: Record<number, number> = {};
   if (cost.modifier === CostModifier.Free) {
-    for (const sv of value) map[sv.currency as number] = 0;
+    for (const sv of value) map[sv.currency as number] = Math.min(0, map[sv.currency as number]);
     return map;
   }
   if (cost.modifier === CostModifier.Reduced) {

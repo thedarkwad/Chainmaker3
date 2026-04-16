@@ -40,6 +40,9 @@ export interface OriginCategory {
   singleLine: boolean;
   multiple: boolean;
   default?: string;
+
+  template?: { jumpdoc: string; id: Id<TID.Origin> };
+
   /** When true (and singleLine is false), origins in this category discount purchases. */
   providesDiscounts?: boolean;
   floatingDiscounts?: { currency: Id<LID.Currency>; thresholds: number[] };
@@ -69,16 +72,9 @@ export interface PurchaseSubtype<T extends LID.Currency | TID.Currency = LID.Cur
 export interface Origin {
   value: SimpleValue;
   summary: string;
-  /** Raw template name (with ${…} placeholders) when it differs from summary. Used for matching
-   *  when the user resolved placeholders at pick-time, so summary no longer equals the doc name. */
-  templateName?: string;
   description?: string;
-  /** Original cost before synergy modification; present when the origin has synergy origins. */
-  baseCost?: SimpleValue;
-  /** Resolved synergy origin references (name + category name) stored at add-time. */
-  synergyOrigins?: { categoryName: string; originName: string }[];
-  /** How a qualifying synergy origin affects this origin's cost or access. */
-  synergyBenefit?: "discounted" | "free" | "access";
+
+  template?: { jumpdoc: string; id: Id<TID.Origin> };
 }
 
 export interface NarrativeBlurb {

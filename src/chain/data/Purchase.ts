@@ -42,7 +42,7 @@ export const DefaultSubtype: Record<
   Id<LID.PurchaseSubtype>
 > = {
   [PurchaseType.Perk]: createId(0),
-  [PurchaseType.Item]: createId(1)
+  [PurchaseType.Item]: createId(1),
 };
 
 export const enum CostModifier {
@@ -96,7 +96,12 @@ type BaseScenarioReward =
 export type ScenarioReward =
   | BaseScenarioReward
   | { type: RewardType.Currency; value: number; currency: Id<LID.Currency> }
-  | { type: RewardType.Stipend; value: number; currency: Id<LID.Currency>; subtype: Id<LID.PurchaseSubtype> };
+  | {
+      type: RewardType.Stipend;
+      value: number;
+      currency: Id<LID.Currency>;
+      subtype: Id<LID.PurchaseSubtype>;
+    };
 
 export type SupplementScenarioReward =
   | BaseScenarioReward
@@ -168,7 +173,7 @@ export type AbstractPurchase = {
 
 export type JumpPurchase<T extends TID | unknown = unknown> = AbstractPurchase & {
   jumpId: Id<GID.Jump>;
-  template?: { jumpdoc: string; id: T extends TID ? Id<T> : unknown };
+  template?: { jumpdoc: string; id: T extends TID ? Id<T> : unknown; originalCost?: Value<TID.Currency>};
   value: Value;
 };
 
@@ -191,13 +196,6 @@ export type BasicPurchase = JumpPurchase<TID.Purchase | TID.Companion> & {
   categories: Id<GID.PurchaseCategory>[];
   tags: string[];
 
-
-  modifierSource?:
-    | { type: "user" }
-    | { type: "origin"; categoryName: string; originName: string }
-    | { type: "floating-origin"; categoryName: string; originName: string }
-    | { type: "floating"; threshold: number };
-
   subtype: Id<LID.PurchaseSubtype>;
   usesFloatingDiscount?: boolean;
 
@@ -209,19 +207,7 @@ export type BasicPurchase = JumpPurchase<TID.Purchase | TID.Companion> & {
   };
 
   boosts?: { purchaseId: Id<GID.Purchase>; description: string }[];
-
-  /** Origins that halve this purchase's cost; used to recompute discount when origins change. */
-  discountOrigins?: { categoryName: string; originName: string }[];
-  /** How a qualifying origin affects this purchase: discounts it, makes it free, or restricts it to origin holders only. */
-  originBenefit?: "discounted" | "free" | "access";
-  /** Stored alternative costs; kept even when not applied so recalculation works after prereqs change. */
-  alternativeCosts?: StoredAlternativeCost[];
-  /** Set when the user explicitly chose an optional alt cost at purchase time. Preserved by recalculation unless a higher-priority modifier (free origin, mandatory alt cost) applies. */
-  optionalAltCost?: true;
-  /** Raw alt cost value for beforeDiscounts optional alt costs; stored so recalculation can re-apply origin discounts when origins change. */
-  optionalAltCostBeforeDiscountsValue?: Value;
-  /** Stored prerequisites; used for cascade-removal when a required purchase/drawback is removed. */
-  storedPrerequisites?: StoredPurchasePrerequisite[];
+  reward?: Id<TID.Scenario>;
   /** True when this item was added as a follower companion import (as opposed to a regular perk/item). */
   follower?: true;
 };
@@ -313,23 +299,27 @@ export const getUniversalSimpleValue = (p: Purchase): UniversalSimpleValue | und
   }
 };
 
-export const purchaseValue = (
-  value: Value | number,
-  mod: ModifiedCost,
-): Value | number => {
+export const purchaseValue = <T extends TID.Currency | LID.Currency = LID.Currency>(
+  value: Value<T> | number,
+  mod: ModifiedCost<T>,
+): Value<T> | number => {
   switch (mod.modifier) {
     case CostModifier.Full:
       return value;
     case CostModifier.Reduced:
       return typeof value == "object"
         ? value.map((val) => ({
-            amount:
-              Math.min(val.amount, Math.floor(val.amount / 2)),
+            amount: Math.min(val.amount, Math.floor(val.amount / 2)),
             currency: val.currency,
           }))
         : value / 2;
     case CostModifier.Free:
-      return typeof value == "object" ? [{ amount: 0, currency: createId(0) }] : 0;
+      return typeof value == "object"
+        ? value.map((val) => ({
+            amount: Math.min(val.amount, 0),
+            currency: val.currency,
+          }))
+        : 0;
     case CostModifier.Custom:
       return mod.modifiedTo;
   }
