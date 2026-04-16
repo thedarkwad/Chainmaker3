@@ -75,19 +75,14 @@ export type OriginTemplate = {
   synergyBenefit?: "discounted" | "free" | "access";
 };
 
-export type AlternativeCostPrerequisite =
-  | { type: "origin"; id: Id<TID.Origin> }
-  | { type: "drawback"; id: Id<TID.Drawback> }
-  | { type: "purchase"; id: Id<TID.Purchase> };
-
 export type AlternativeCost = {
   value: Value<TID.Currency>;
-  prerequisites: AlternativeCostPrerequisite[];
+  prerequisites: JumpDocPrerequisite[];
   beforeDiscounts?: boolean;
   mandatory: boolean;
 };
 
-export type PurchasePrerequisite =
+export type JumpDocPrerequisite =
   | { type: "purchase"; id: Id<TID.Purchase>; positive: boolean }
   | { type: "drawback"; id: Id<TID.Drawback>; positive: boolean }
   | { type: "scenario"; id: Id<TID.Scenario>; positive: boolean }
@@ -99,10 +94,17 @@ export type PurchaseTemplate<T extends TID> = {
   description: string;
   choiceContext?: string;
   cost: Value<TID.Currency>;
-  bounds?: PageRect[];
   allowMultiple: boolean;
+
+  bounds?: PageRect[];
+
+  /** Origins that affect the cost or availability of this import. */
+  origins?: Id<TID.Origin>[];
+  /** How a qualifying origin affects this import: discounts it, makes it free, or restricts it to origin holders only. */
+  originBenefit?: "discounted" | "free" | "access";
+
   alternativeCosts?: AlternativeCost[];
-  prerequisites?: PurchasePrerequisite[];
+  prerequisites?: JumpDocPrerequisite[];
 };
 
 /**
@@ -136,11 +138,6 @@ export type CompanionTemplate = Omit<PurchaseTemplate<TID.Companion>, "allowMult
     gender: string;
   }[];
 
-  /** Origins that affect the cost or availability of this import. */
-  origins?: Id<TID.Origin>[];
-  /** How a qualifying origin affects this import: discounts it, makes it free, or restricts it to origin holders only. */
-  originBenefit?: "discounted" | "free" | "access";
-
   freebies?: (
     | { type: "origin"; id: Id<TID.Origin> }
     | { type: "purchase"; id: Id<TID.Purchase> }
@@ -153,13 +150,11 @@ export type BasicPurchaseTemplate = PurchaseTemplate<TID.Purchase> & {
   boosted: { description: string; booster: number; boosterKind?: "purchase" | "drawback" }[];
   subtype: Id<TID.PurchaseSubtype>;
   temporary: boolean;
-  origins: Id<TID.Origin>[];
-  /** How a qualifying origin affects this purchase: discounts it, makes it free, or restricts it to origin holders only. */
-  originBenefit?: "discounted" | "free" | "access";
 };
 
 export type DrawbackTemplate = PurchaseTemplate<TID.Drawback> & {
   durationMod?: { type: "inc" | "set"; years: number };
+  boosted: { description: string; booster: number; boosterKind?: "purchase" | "drawback" }[];
   capstoneBooster?: boolean;
 };
 

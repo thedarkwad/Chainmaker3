@@ -12,7 +12,6 @@ import { useEffect, useRef, type ReactNode } from "react";
 export type InteractionPreviewCardProps = {
   typeName: string;
   name: string;
-  accentColor: string;
   /** Shown below the name when the user is adding (not removing). */
   costStr?: string;
   /** Multi-line descriptive text shown below the header. */
