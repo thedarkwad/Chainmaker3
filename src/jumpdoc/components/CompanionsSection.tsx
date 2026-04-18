@@ -8,13 +8,21 @@ import { memo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { CollapsibleSection } from "@/ui/CollapsibleSection";
 import { TemplateCard } from "./TemplateCard";
-import { DescriptionArea, BlurNumberInput } from "./JumpDocFields";
+import {
+  DescriptionArea,
+  BlurNumberInput,
+  ChoiceContextEditor,
+} from "./JumpDocFields";
 import { OriginBenefitSection } from "./OriginBenefitSection";
 import {
   AlternativeCostEditor,
   PrerequisitePickerModal,
   PrereqChip,
 } from "./AlternativeCostEditor";
+import {
+  PurchasePrerequisiteEditor,
+  PurchasePrerequisitePickerModal,
+} from "./PurchasesSection";
 import { RareFieldsGroup } from "./RareFieldsGroup";
 import type { AlternativeCostPrerequisite } from "@/chain/data/JumpDoc";
 import { CostDropdown } from "@/ui/CostDropdown";
@@ -33,6 +41,8 @@ import {
   useJumpDocPurchaseSubtype,
   useJumpDocDiscountOriginGroups,
   useJumpDocFirstCurrencyId,
+  useAddJumpDocPrereq,
+  useRemoveJumpDocPrereq,
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
@@ -56,7 +66,9 @@ function FreebiesEditor({
 
   return (
     <div className="flex flex-col gap-1.5 pt-1.5 border-t border-line">
-      <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">Freebies</p>
+      <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">
+        Freebies
+      </p>
       <div className="flex items-center gap-1 flex-wrap">
         {freebies.map((freebie, i) => (
           <PrereqChip key={i} prereq={freebie} onRemove={() => onRemove(i)} />
@@ -72,7 +84,7 @@ function FreebiesEditor({
       {pickerOpen && (
         <PrerequisitePickerModal
           title="Add Freebie"
-          onSelect={(item) => {
+          onSelect={item => {
             onAdd(item);
             setPickerOpen(false);
           }}
@@ -90,7 +102,9 @@ function FreebiesEditor({
 /** Section header label — matches the "Customizable Fields" header pattern. */
 function SectionLabel({ children }: { children: string }) {
   return (
-    <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">{children}</p>
+    <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">
+      {children}
+    </p>
   );
 }
 
@@ -131,18 +145,24 @@ function StipendGridRow({
   subtypeId: Id<TID.PurchaseSubtype>;
   currencyIds: Id<TID.Currency>[];
   getStipend: (cid: Id<TID.Currency>, sid: Id<TID.PurchaseSubtype>) => number;
-  setStipend: (cid: Id<TID.Currency>, sid: Id<TID.PurchaseSubtype>, v: number) => void;
+  setStipend: (
+    cid: Id<TID.Currency>,
+    sid: Id<TID.PurchaseSubtype>,
+    v: number,
+  ) => void;
 }) {
   const sub = useJumpDocPurchaseSubtype(subtypeId);
   if (!sub) return null;
   return (
     <>
-      <span className="text-xs text-muted py-0.5 leading-none text-right">{sub.name}:</span>
-      {currencyIds.map((cid) => (
+      <span className="text-xs text-muted py-0.5 leading-none text-right">
+        {sub.name}:
+      </span>
+      {currencyIds.map(cid => (
         <BlurNumberInput
           key={cid as number}
           value={getStipend(cid, subtypeId)}
-          onCommit={(v) => setStipend(cid, subtypeId, v)}
+          onCommit={v => setStipend(cid, subtypeId, v)}
           className="w-14 px-1.5 py-0.5 text-xs text-right"
         />
       ))}
@@ -172,7 +192,7 @@ export function CompanionsSection({
 
   const displayedIds =
     singleId !== undefined
-      ? companionIds.filter((id) => (id as number) === singleId)
+      ? companionIds.filter(id => (id as number) === singleId)
       : companionIds;
 
   return (
@@ -195,9 +215,11 @@ export function CompanionsSection({
       }
     >
       {displayedIds.length === 0 && (
-        <p className="text-xs text-ghost italic px-1 py-1">No companion imports yet.</p>
+        <p className="text-xs text-ghost italic px-1 py-1">
+          No companion imports yet.
+        </p>
       )}
-      {displayedIds.map((id) => (
+      {displayedIds.map(id => (
         <CompanionCard
           key={id as number}
           id={id}
@@ -235,43 +257,55 @@ const CompanionCard = memo(function CompanionCard({
   const modify = useModifyJumpDocCompanion(id);
   const removeCompanion = useRemoveJumpDocCompanion();
   const removeBound = useRemoveBoundFromCompanion();
+  const addPrereq = useAddJumpDocPrereq("companion", id as number);
+  const removePrereq = useRemoveJumpDocPrereq("companion", id as number);
   const currencies = useJumpDocCurrenciesRegistry();
   const firstCurrencyId = useJumpDocFirstCurrencyId();
   const currencyIds = useJumpDocCurrencyIds();
   const [freebiePickerOpen, setFreebiePickerOpen] = useState(false);
+  const [prereqPickerOpen, setPrereqPickerOpen] = useState(false);
   const subtypeIds = useJumpDocPurchaseSubtypeIdsSorted();
   const discountGroups = useJumpDocDiscountOriginGroups();
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   if (!companion) return null;
 
-  const selectedOriginIds = new Set((companion.origins ?? []).map((o) => o));
+  const selectedOriginIds = new Set((companion.origins ?? []).map(o => o));
 
   const key = `companion-${id as number}`;
   const fullCost = { modifier: CostModifier.Full } as const;
 
-  const getAllowance = (cid: Id<TID.Currency>) => companion.allowances[cid] ?? 0;
+  const getAllowance = (cid: Id<TID.Currency>) =>
+    companion.allowances[cid] ?? 0;
 
   const setAllowance = (cid: Id<TID.Currency>, v: number) =>
-    modify("Set Companion Allowance", (t) => {
+    modify("Set Companion Allowance", t => {
       t.allowances[cid] = v;
     });
 
   const setSpecific = (b: boolean) =>
-    modify("Set Companion Allowance", (t) => {
+    modify("Set Companion Allowance", t => {
       t.specificCharacter = b;
     });
 
   const getStipend = (cid: Id<TID.Currency>, sid: Id<TID.PurchaseSubtype>) =>
     companion.stipend[cid]?.[sid] ?? 0;
 
-  const setStipend = (cid: Id<TID.Currency>, sid: Id<TID.PurchaseSubtype>, v: number) =>
-    modify("Set Companion Stipend", (t) => {
+  const setStipend = (
+    cid: Id<TID.Currency>,
+    sid: Id<TID.PurchaseSubtype>,
+    v: number,
+  ) =>
+    modify("Set Companion Stipend", t => {
       const s = t.stipend;
       if (!s[cid]) s[cid] = {};
       s[cid][sid] = v;
     });
 
-  const makeLength = <A,>(a: A[] | undefined, l: number, constructor: () => A) => {
+  const makeLength = <A,>(
+    a: A[] | undefined,
+    l: number,
+    constructor: () => A,
+  ) => {
     let pad = (n: number) => Array(n).map(constructor);
     a = a ?? [];
     if (l < a.length) return a.slice(0, l);
@@ -294,14 +328,14 @@ const CompanionCard = memo(function CompanionCard({
       addBoundsTarget={addBoundsTarget}
       isScrollTarget={isScrollTarget}
       isAnyScrollTarget={isAnyScrollTarget}
-      cardRef={(el) => registerRef(key, el)}
-      onNameCommit={(v) =>
-        modify("Rename Companion", (t) => {
+      cardRef={el => registerRef(key, el)}
+      onNameCommit={v =>
+        modify("Rename Companion", t => {
           t.name = v;
         })
       }
       onAddBound={() => onAddBoundsRequest("companion", id)}
-      onRemoveBound={(i) => removeBound(id, i)}
+      onRemoveBound={i => removeBound(id, i)}
       onDelete={() => removeCompanion(id)}
       onBecomeScrollTarget={() => descriptionRef.current?.focus()}
       headerExtra={
@@ -311,8 +345,8 @@ const CompanionCard = memo(function CompanionCard({
             cost={fullCost}
             currencies={currencies}
             hideModifier
-            onChange={(v) =>
-              modify("Set Companion Cost", (t) => {
+            onChange={v =>
+              modify("Set Companion Cost", t => {
                 t.cost = v;
               })
             }
@@ -322,13 +356,24 @@ const CompanionCard = memo(function CompanionCard({
     >
       <DescriptionArea
         value={companion.description}
-        onCommit={(v) =>
-          modify("Set Companion Description", (t) => {
+        onCommit={v =>
+          modify("Set Companion Description", t => {
             t.description = v;
           })
         }
         textareaRef={descriptionRef}
       />
+      <ChoiceContextEditor
+        name={companion.name}
+        description={companion.description}
+        choiceContext={companion.choiceContext}
+        onCommit={v =>
+          modify("Set Choice Context", t => {
+            t.choiceContext = v;
+          })
+        }
+      />
+
       <div className="flex flex-row justify-center gap-4 flex-wrap">
         <div className="flex flex-col items-center gap-2">
           <SectionLabel>Import Data</SectionLabel>
@@ -336,12 +381,12 @@ const CompanionCard = memo(function CompanionCard({
             {currencyIds.length > 0 && (
               <div className="flex flex-col gap-1.5 w-fit p-2 items-center">
                 <SectionLabel>Allowances</SectionLabel>
-                {currencyIds.map((cid) => (
+                {currencyIds.map(cid => (
                   <CurrencyChip
                     key={cid}
                     abbrev={currencies?.O[cid]?.abbrev ?? "?"}
                     value={getAllowance(cid)}
-                    onCommit={(v) => setAllowance(cid, v)}
+                    onCommit={v => setAllowance(cid, v)}
                   />
                 ))}
               </div>
@@ -356,7 +401,7 @@ const CompanionCard = memo(function CompanionCard({
                   }}
                 >
                   <div />
-                  {currencyIds.map((cid) => (
+                  {currencyIds.map(cid => (
                     <span
                       key={cid}
                       className="text-[10px] font-mono font-semibold text-accent2 text-center"
@@ -364,7 +409,7 @@ const CompanionCard = memo(function CompanionCard({
                       {currencies?.O[cid]?.abbrev ?? "?"}
                     </span>
                   ))}
-                  {subtypeIds.map((sid) => (
+                  {subtypeIds.map(sid => (
                     <StipendGridRow
                       key={sid}
                       subtypeId={sid}
@@ -387,8 +432,8 @@ const CompanionCard = memo(function CompanionCard({
               value={companion.count ?? 1}
               step={1}
               min={1}
-              onCommit={(v) =>
-                modify("Set Companion Count", (t) => {
+              onCommit={v =>
+                modify("Set Companion Count", t => {
                   const newCount = companion.specificCharacter
                     ? Math.min(Math.max(1, v), 10)
                     : Math.max(1, v);
@@ -406,7 +451,7 @@ const CompanionCard = memo(function CompanionCard({
           {/* Specific / User Choice toggle */}
           <SegmentedControl
             value={companion.specificCharacter ? "specific" : "general"}
-            onChange={(v) => setSpecific(v === "specific")}
+            onChange={v => setSpecific(v === "specific")}
             options={[
               { value: "specific", label: "Specific Character" },
               { value: "general", label: "User Choice" },
@@ -419,10 +464,12 @@ const CompanionCard = memo(function CompanionCard({
               <span className="text-xs text-ghost col-span-full text-center">
                 Leave any inapplicable fields blank.
               </span>
-              {[...Array(companion.count ?? 1).keys()].map((i) => (
+              {[...Array(companion.count ?? 1).keys()].map(i => (
                 <>
-                  {i > 0 && <div className="my-1 border-b border-edge col-span-2" />}
-                  {(["name", "species", "gender"] as const).map((field) => (
+                  {i > 0 && (
+                    <div className="my-1 border-b border-edge col-span-2" />
+                  )}
+                  {(["name", "species", "gender"] as const).map(field => (
                     <>
                       <span className="text-[10px] font-semibold text-ghost uppercase tracking-wider text-right">
                         {field[0].toUpperCase()}
@@ -430,12 +477,19 @@ const CompanionCard = memo(function CompanionCard({
                       </span>
                       <input
                         type="text"
-                        defaultValue={companion.characterInfo?.[i]?.[field] ?? ""}
-                        onBlur={(v) =>
-                          modify("Set Companion Name", (t) => {
-                            t.characterInfo = makeLength(t.characterInfo, t.count, con);
+                        defaultValue={
+                          companion.characterInfo?.[i]?.[field] ?? ""
+                        }
+                        onBlur={v =>
+                          modify("Set Companion Name", t => {
+                            t.characterInfo = makeLength(
+                              t.characterInfo,
+                              t.count,
+                              con,
+                            );
                             if (!t.characterInfo[i]) t.characterInfo[i] = con();
-                            t.characterInfo[i][field] = v.currentTarget.value.trim();
+                            t.characterInfo[i][field] =
+                              v.currentTarget.value.trim();
                           })
                         }
                         className="w-40 text-xs text-ink bg-canvas border border-edge rounded px-2 py-1.5 focus:outline-none focus:border-accent-ring placeholder-ghost transition-colors"
@@ -454,24 +508,55 @@ const CompanionCard = memo(function CompanionCard({
         discountGroups={discountGroups}
         onToggleOrigin={(originId, willBeSelected) =>
           willBeSelected
-            ? modify("Add Origin to Companion", (t) => {
+            ? modify("Add Origin to Companion", t => {
                 if (!t.origins) t.origins = [];
                 t.origins.push(originId);
               })
-            : modify("Remove Origin from Companion", (t) => {
-                const filtered = (t.origins ?? []).filter((o) => o !== originId);
+            : modify("Remove Origin from Companion", t => {
+                const filtered = (t.origins ?? []).filter(o => o !== originId);
                 t.origins = filtered;
                 if (!filtered.length) t.originBenefit = undefined;
               })
         }
-        onBenefitChange={(v) =>
-          modify("Set Companion Origin Benefit", (t) => {
+        onBenefitChange={v =>
+          modify("Set Companion Origin Benefit", t => {
             t.originBenefit = v;
           })
         }
       />
       <RareFieldsGroup
         fields={[
+          {
+            key: "prerequisites",
+            isActive: !!companion.prerequisites?.length,
+            dormant: () => (
+              <>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                  onClick={() => setPrereqPickerOpen(true)}
+                >
+                  <Plus size={8} /> add prereq / incompatibility
+                </button>
+                {prereqPickerOpen && (
+                  <PurchasePrerequisitePickerModal
+                    onSelect={prereq => {
+                      addPrereq(prereq);
+                      setPrereqPickerOpen(false);
+                    }}
+                    onClose={() => setPrereqPickerOpen(false)}
+                  />
+                )}
+              </>
+            ),
+            active: () => (
+              <PurchasePrerequisiteEditor
+                prerequisites={companion.prerequisites}
+                onAdd={addPrereq}
+                onRemove={removePrereq}
+              />
+            ),
+          },
           {
             key: "freebies",
             isActive: !!companion.freebies?.length,
@@ -487,8 +572,8 @@ const CompanionCard = memo(function CompanionCard({
                 {freebiePickerOpen && (
                   <PrerequisitePickerModal
                     title="Add Freebie"
-                    onSelect={(item) => {
-                      modify("Add Companion Freebie", (t) => {
+                    onSelect={item => {
+                      modify("Add Companion Freebie", t => {
                         if (!t.freebies) t.freebies = [];
                         t.freebies.push(item);
                       });
@@ -502,14 +587,14 @@ const CompanionCard = memo(function CompanionCard({
             active: () => (
               <FreebiesEditor
                 freebies={companion.freebies ?? []}
-                onAdd={(item) =>
-                  modify("Add Companion Freebie", (t) => {
+                onAdd={item =>
+                  modify("Add Companion Freebie", t => {
                     if (!t.freebies) t.freebies = [];
                     t.freebies.push(item);
                   })
                 }
-                onRemove={(i) =>
-                  modify("Remove Companion Freebie", (t) => {
+                onRemove={i =>
+                  modify("Remove Companion Freebie", t => {
                     t.freebies?.splice(i, 1);
                   })
                 }
@@ -524,7 +609,7 @@ const CompanionCard = memo(function CompanionCard({
                 type="button"
                 className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
                 onClick={() =>
-                  modify("Add Companion Alternative Cost", (t) => {
+                  modify("Add Companion Alternative Cost", t => {
                     if (!t.alternativeCosts) t.alternativeCosts = [];
                     t.alternativeCosts.push({
                       value: [{ amount: 0, currency: firstCurrencyId }],
@@ -540,19 +625,19 @@ const CompanionCard = memo(function CompanionCard({
             active: () => (
               <AlternativeCostEditor
                 alternativeCosts={companion.alternativeCosts}
-                onAdd={(cost) =>
-                  modify("Add Companion Alternative Cost", (t) => {
+                onAdd={cost =>
+                  modify("Add Companion Alternative Cost", t => {
                     if (!t.alternativeCosts) t.alternativeCosts = [];
                     t.alternativeCosts.push(cost);
                   })
                 }
-                onRemove={(i) =>
-                  modify("Remove Companion Alternative Cost", (t) => {
+                onRemove={i =>
+                  modify("Remove Companion Alternative Cost", t => {
                     t.alternativeCosts?.splice(i, 1);
                   })
                 }
                 onModify={(i, updated) =>
-                  modify("Modify Companion Alternative Cost", (t) => {
+                  modify("Modify Companion Alternative Cost", t => {
                     if (t.alternativeCosts) t.alternativeCosts[i] = updated;
                   })
                 }

@@ -31,36 +31,46 @@ import {
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
+import type { DrawbackDurationMod } from "@/chain/data/JumpDoc";
 
-function DurationModActiveRow({
+export function DurationModActiveRow({
   value,
   onChange,
 }: {
-  value: { type: "inc" | "set"; years: number };
-  onChange: (v: { type: "inc" | "set"; years: number } | undefined) => void;
+  value: DrawbackDurationMod;
+  onChange: (v: DrawbackDurationMod | undefined) => void;
 }) {
   return (
     <div className="flex items-center gap-1.5 pt-1.5 border-t border-line">
       <div className="relative shrink-0">
         <select
           value={value.type}
-          onChange={(e) => onChange({ ...value, type: e.target.value as "inc" | "set" })}
+          onChange={(e) => {
+            const t = e.target.value as DrawbackDurationMod["type"];
+            if (t === "choice") onChange({ type: "choice" });
+            else onChange({ type: t, years: value.type !== "choice" ? value.years : 1 });
+          }}
           className="appearance-none bg-canvas border border-edge rounded px-2 py-1 pr-6 text-xs text-ink focus:outline-none focus:border-accent-ring transition-colors"
         >
           <option value="inc">Duration increased by:</option>
           <option value="set">Duration set to:</option>
+          <option value="choice">Duration entered by user</option>
         </select>
         <ChevronDown
           size={10}
           className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted"
         />
       </div>
-      <BlurNumberInput
-        value={value.years}
-        onCommit={(n) => onChange({ ...value, years: n })}
-        className="w-16"
-      />
-      <span className="text-xs text-ghost shrink-0">yr</span>
+      {value.type !== "choice" && (
+        <>
+          <BlurNumberInput
+            value={value.years}
+            onCommit={(n) => onChange({ ...value, years: n })}
+            className="w-16"
+          />
+          <span className="text-xs text-ghost shrink-0">Years</span>
+        </>
+      )}
       <button
         onClick={() => onChange(undefined)}
         className="text-ghost hover:text-red-400 transition-colors p-0.5"
@@ -84,7 +94,6 @@ export function DrawbacksSection({
   const modifyDoc = useModifyJumpDoc();
   const drawbackIds = useJumpDocDrawbackIds();
   const addDrawback = useAddJumpDocDrawback();
-  const removeDrawback = useRemoveJumpDocDrawback();
 
   const displayedIds = singleId !== undefined
     ? drawbackIds.filter((id) => (id as number) === singleId)

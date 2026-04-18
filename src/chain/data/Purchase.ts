@@ -1,3 +1,4 @@
+import { PossibleCost } from "../components/AnnotationInteractionHandler";
 import { ImgData } from "./AltForm";
 import { createId, GID, Id, LID, Lookup, PartialLookup, TID } from "./types";
 
@@ -173,7 +174,8 @@ export type AbstractPurchase = {
 
 export type JumpPurchase<T extends TID | unknown = unknown> = AbstractPurchase & {
   jumpId: Id<GID.Jump>;
-  template?: { jumpdoc: string; id: T extends TID ? Id<T> : unknown; originalCost?: Value<TID.Currency>};
+  template?: { jumpdoc: string; id: T extends TID ? Id<T> : unknown; originalCost?: PossibleCost};
+  boosts?: { purchaseId: Id<GID.Purchase>; description: string }[];
   value: Value;
 };
 
@@ -206,8 +208,9 @@ export type BasicPurchase = JumpPurchase<TID.Purchase | TID.Companion> & {
     list: Id<GID.Purchase>[];
   };
 
-  boosts?: { purchaseId: Id<GID.Purchase>; description: string }[];
   reward?: Id<TID.Scenario>;
+  freebie?: Id<TID.Companion>; 
+  //TODO: freebie
   /** True when this item was added as a follower companion import (as opposed to a regular perk/item). */
   follower?: true;
 };
@@ -220,17 +223,17 @@ export type Subpurchase = JumpPurchase & {
 export type Drawback = (
   | (JumpPurchase<TID.Drawback> & {
       type: PurchaseType.Drawback;
-      /** Stored alternative costs; kept even when not applied so recalculation works after prereqs change. */
-      alternativeCosts?: StoredAlternativeCost[];
-      /** Stored prerequisites; used for cascade-removal when a required purchase/drawback is removed. */
-      storedPrerequisites?: StoredPurchasePrerequisite[];
-      /** Purchases boosted by this drawback (capstone booster); used to strip text on removal. */
-      boosts?: { purchaseId: Id<GID.Purchase>; description: string }[];
     })
   | (Omit<AbstractPurchase, "charId"> & { type: PurchaseType.ChainDrawback; value: number })
 ) & {
   itemStipend?: number;
   companionStipend?: number;
+
+  stipend?: Id<TID.Origin>;
+  //TODO: UI, initialization
+  floatingDiscountThresholds?: PartialLookup<LID.PurchaseSubtype, SimpleValue<LID.Currency>[]>;
+  /** User-chosen duration in years, for drawbacks with durationMod.type === "choice". */
+  customDuration?: number;
 
   subtype?: Id<LID.PurchaseSubtype> | null;
 
@@ -240,8 +243,6 @@ export type Drawback = (
 export type Scenario = JumpPurchase<TID.Scenario> & {
   type: PurchaseType.Scenario;
   rewards: ScenarioReward[];
-  /** Stored prerequisites; used for cascade-removal when a required purchase/drawback/scenario is removed. */
-  storedPrerequisites?: StoredPurchasePrerequisite[];
 };
 
 export type SupplementScenario = Omit<SupplementPurchase, "type"> & {
@@ -252,14 +253,6 @@ export type SupplementScenario = Omit<SupplementPurchase, "type"> & {
 export type CompanionImport = JumpPurchase<TID.Companion> & {
   type: PurchaseType.Companion;
   importData: CompanionImportData;
-  /** Origins that halve this import's cost; used to recompute discount when origins change. */
-  discountOrigins?: { categoryName: string; originName: string }[];
-  /** How a qualifying origin affects this import: discounts it, makes it free, or restricts it to origin holders only. */
-  originBenefit?: "discounted" | "free" | "access";
-  /** Stored alternative costs; kept even when not applied so recalculation works after prereqs change. */
-  alternativeCosts?: StoredAlternativeCost[];
-  /** Set when the user explicitly chose an optional alt cost at add time. Preserved by recalculation unless a higher-priority modifier applies. */
-  optionalAltCost?: true;
 };
 
 export type SupplementImport = AbstractPurchase & {

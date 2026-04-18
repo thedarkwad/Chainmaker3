@@ -23,7 +23,7 @@ import type {
   CompanionTemplate,
   DocOriginCategory,
   AlternativeCost,
-  PurchasePrerequisite,
+  JumpDocPrerequisite,
 } from "@/chain/data/JumpDoc";
 import type { SimpleValue } from "@/chain/data/Purchase";
 import type { Currency, PurchaseSubtype } from "@/chain/data/Jump";
@@ -393,7 +393,7 @@ function removeOriginFromDoc(d: JumpDoc, id: Id<TID.Origin>) {
   // Remove origin from purchases and strip it from alternative cost prerequisites
   for (const purchase of Object.values(d.availablePurchases.O)) {
     if (!purchase) continue;
-    purchase.origins = purchase.origins.filter((o) => o !== id);
+    purchase.origins = (purchase.origins ?? []).filter((o) => o !== id);
     if (purchase.alternativeCosts) {
       for (const ac of purchase.alternativeCosts) {
         ac.prerequisites = ac.prerequisites.filter((p) => !(p.type === "origin" && p.id === id));
@@ -480,14 +480,14 @@ export function useModifyJumpDocPurchase(id: Id<TID.Purchase>) {
 
 // ── Symmetric prerequisite add / remove ───────────────────────────────────────
 
-type PrereqSourceType = "purchase" | "drawback" | "scenario";
+type PrereqSourceType = "purchase" | "drawback" | "scenario" | "origin" | "companion";
 
 /** Returns the prerequisites array for a template, initialising it if absent. Returns null if the template doesn't exist. */
 function getDocPrereqs(
   d: JumpDoc,
   type: PrereqSourceType,
   id: number,
-): PurchasePrerequisite[] | null {
+): JumpDocPrerequisite[] | null {
   if (type === "purchase") {
     const t = d.availablePurchases.O[id as Id<TID.Purchase>];
     if (!t) return null;
@@ -500,7 +500,19 @@ function getDocPrereqs(
     if (!t.prerequisites) t.prerequisites = [];
     return t.prerequisites;
   }
-  const t = d.availableScenarios.O[id as Id<TID.Scenario>];
+  if (type === "scenario") {
+    const t = d.availableScenarios.O[id as Id<TID.Scenario>];
+    if (!t) return null;
+    if (!t.prerequisites) t.prerequisites = [];
+    return t.prerequisites;
+  }
+  if (type === "companion") {
+    const t = d.availableCompanions.O[id as Id<TID.Companion>];
+    if (!t) return null;
+    if (!t.prerequisites) t.prerequisites = [];
+    return t.prerequisites;
+  }
+  const t = d.origins.O[id as Id<TID.Origin>];
   if (!t) return null;
   if (!t.prerequisites) t.prerequisites = [];
   return t.prerequisites;
@@ -512,19 +524,21 @@ function getDocPrereqs(
  * reverse entry to the target template so the relationship is symmetric.
  */
 export function useAddJumpDocPrereq(sourceType: PrereqSourceType, sourceId: number) {
-  return (prereq: PurchasePrerequisite) => {
+  return (prereq: JumpDocPrerequisite) => {
     useJumpDocStore.setState(
       createJumpDocTrackedAction("Add Prerequisite", (d) => {
         const srcPrereqs = getDocPrereqs(d, sourceType, sourceId);
         if (srcPrereqs) srcPrereqs.push(prereq);
 
-        if (!prereq.positive && prereq.type != "origin") {
-          const reversePrereq: PurchasePrerequisite =
+        if (!prereq.positive) {
+          const reversePrereq: JumpDocPrerequisite =
             sourceType === "purchase"
               ? { type: "purchase", id: sourceId as Id<TID.Purchase>, positive: false }
               : sourceType === "drawback"
                 ? { type: "drawback", id: sourceId as Id<TID.Drawback>, positive: false }
-                : { type: "scenario", id: sourceId as Id<TID.Scenario>, positive: false };
+                : sourceType === "scenario"
+                  ? { type: "scenario", id: sourceId as Id<TID.Scenario>, positive: false }
+                  : { type: "origin", id: sourceId as Id<TID.Origin>, positive: false };
           const tgtPrereqs = getDocPrereqs(d, prereq.type, prereq.id as number);
           if (
             tgtPrereqs &&
@@ -555,7 +569,7 @@ export function useRemoveJumpDocPrereq(sourceType: PrereqSourceType, sourceId: n
         if (!prereq) return;
         srcPrereqs.splice(index, 1);
 
-        if (!prereq.positive && prereq.type != "origin") {
+        if (!prereq.positive && prereq.type != "origin" && sourceType !== "companion") {
           const tgtPrereqs = getDocPrereqs(d, prereq.type, prereq.id as number);
           if (tgtPrereqs) {
             const reverseIdx = tgtPrereqs.findIndex(
@@ -657,6 +671,7 @@ export function useAddJumpDocDrawback() {
       createJumpDocTrackedAction("Add Drawback", (d) => {
         newId = registryAdd<TID.Drawback, DrawbackTemplate>(d.availableDrawbacks, {
           name: parsed?.title ?? "",
+          boosted: [],
           description: parsed?.desc ?? "",
           cost: [
             {

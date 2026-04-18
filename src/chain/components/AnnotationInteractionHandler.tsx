@@ -1,2330 +1,1507 @@
-/**
- * AnnotationInteractionHandler — reacts to ViewerAnnotationActions from JumpDocViewer.
- *
- * Mounted once inside JumpLayout. When the viewer (inline or popped-out) writes a
- * pendingAction, this handler in the main window picks it up, builds an
- * AnnotationInteraction per action, then either:
- *   - executes it immediately (single action, forcePreview = false), or
- *   - shows a SweetAlert2 popup with one column per action so the user can choose.
- *
- * The popup always renders in the main window, even when the viewer is popped out.
- */
-
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import Swal from "sweetalert2";
-import withReactContent from "sweetalert2-react-content";
-import { createId, type GID, type Id, type LID, type TID, type Registry } from "@/chain/data/types";
-import type {
-  Currency,
-  CurrencyExchange,
-  Origin,
-  OriginCategory,
-  PurchaseSubtype,
-} from "@/chain/data/Jump";
-import type { Budget } from "@/chain/data/CalculatedData";
 import {
-  CostModifier,
-  PurchaseType,
-  RewardType,
-  type CompanionImport,
-  type ModifiedCost,
-  type Scenario,
-  type StoredAlternativeCost,
-  type StoredPurchasePrerequisite,
-  type Value,
-} from "@/chain/data/Purchase";
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useNavigate, useParams } from "@tanstack/react-router";
+import { toast } from "react-toastify";
+import { SegmentedControl } from "@/ui/SegmentedControl";
 import {
-  stripTemplating,
-  type ScenarioRewardTemplate,
-  type ScenarioTemplate,
-} from "@/chain/data/JumpDoc";
-import type { Chain } from "@/chain/data/Chain";
-import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
-import { useChainStore } from "@/chain/state/Store";
-import { useNavigate } from "@tanstack/react-router";
+  createId,
+  GID,
+  Id,
+  LID,
+  PartialIndex,
+  PartialLookup,
+  Registry,
+  registryAdd,
+  TID,
+} from "../data/types";
 import {
+  setTracked,
   useAllCharacters,
+  useChain,
+  useCreateCompanion,
   useRemoveCharacter,
-  useBudget,
-  useCurrencyExchanges,
-  useJumpCurrencies,
-  useJumpDocCompanionActions,
-  useJumpDocDrawbackActions,
-  useJumpDocPurchaseActions,
-  useJumpDocScenarioActions,
-  useJumpOriginCategories,
-  useJumpOrigins,
-  usePurchaseSubtypes,
-} from "@/chain/state/hooks";
+  useUpdateStack,
+} from "../state/hooks";
+import { useChainStore } from "../state/Store";
 import {
+  AnnotationAction,
+  AnnotationInteraction,
+  BuildListener,
+  JumpDocBuildData,
   useViewerActionStore,
-  type ResolvedAltCost,
-  type ViewerAnnotationAction,
-} from "@/chain/state/ViewerActionStore";
+} from "../state/ViewerActionStore";
+import { Chain } from "../data/Chain";
+import {
+  BasicPurchase,
+  CompanionImport,
+  CostModifier,
+  JumpPurchase,
+  ModifiedCost,
+  PurchaseType,
+  purchaseValue,
+  RewardType,
+  SimpleValue,
+  Scenario,
+  ScenarioReward,
+  Value,
+} from "../data/Purchase";
+import withReactContent from "sweetalert2-react-content";
+import Swal from "sweetalert2";
+import {
+  AlternativeCostPrerequisite,
+  Annotation,
+  BasicPurchaseTemplate,
+  CompanionTemplate,
+  DocOriginCategory,
+  DrawbackDurationMod,
+  DrawbackTemplate,
+  JumpDoc,
+  JumpDocPrerequisite,
+  OriginTemplate,
+  PurchaseTemplate,
+  ScenarioTemplate,
+  stripTemplating,
+} from "../data/JumpDoc";
+import { InteractionPreviewCard } from "./InteractionPreviewCard";
 import { CompanionMultiSelect } from "./CompanionMultiSelect";
 import { NewCompanionModal } from "./NewCompanionModal";
-import { InteractionPreviewCard, InteractionPreviewCardProps } from "./InteractionPreviewCard";
-import { SegmentedControl } from "@/ui/SegmentedControl";
-import { convertWhitespace } from "@/utilities/miscUtilities";
 import {
-  type TagField,
-  type RouteParams,
-  resolveJumpOriginCategory,
-  resolveJumpCurrency,
-  resolveJumpPurchaseSubtype,
-  extractTags,
   applyTags,
-  resolveEviction,
-  resolveOriginTemplate,
-  createOriginStipendDrawbacks,
-  removeOriginStipendDrawbacks,
-  commitAddOrigin,
-  resolveAltCostsToStorage,
-  checkResolvedAltCostPrereqs,
-  resolvePrereqsToStorage,
-  getUnmetPrereqs,
-  altCostValueStr,
-  originDiscountModifier,
-  originDiscountCostStr,
-  parseTemplatePlaceholders,
+  extractTags,
   originTemplateInfo,
-  buildFreebieActions,
-  buildScenarioRewardActions,
-  buildScenarioCompanionRewardActions,
+  resolveOriginTemplate,
+  TagField,
 } from "./annotationResolvers";
+import { formatCostDisplay, formatCostShort } from "@/ui/CostDropdown";
+import { convertWhitespace, objFilter } from "@/utilities/miscUtilities";
+import { Currency, DEFAULT_CURRENCY_ID } from "../data/Jump";
+import { formatDuration } from "@/utilities/units";
 
 const MySwal = withReactContent(Swal);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Public type
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type AnnotationInteraction = {
-  /** Human-readable annotation name. */
-  name: string;
-  /** Human-readable type label (e.g. "Perk", "Origin"). */
-  typeName: string;
-  /** Accent color for this annotation type. */
-  color: string;
-  /**
-   * When false and this is the only clicked annotation, executeDefault() fires
-   * immediately. When true, the preview popup is always shown.
-   */
-  forcePreview: boolean;
-  /** When true, this interaction represents a blocked/error state. Filtered out when other non-error interactions exist. */
-  isError?: boolean;
-  /** When true, this interaction is origin-option derived and will be sorted to the end of the tab list. */
-  isOriginOption?: true;
-  /**
-   * Execute the action with default parameters — used for no-friction single clicks.
-   * The Preview component should call this (plus onClose) when the user confirms.
-   */
-  executeDefault: () => void;
-  /**
-   * Renders a preview of the action, possibly with form controls.
-   * Receives onClose to dismiss the SweetAlert2 popup when done.
-   */
-  Preview: React.ComponentType<{ onClose: () => void }>;
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared origin helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Purchase preview component
-// ─────────────────────────────────────────────────────────────────────────────
-
-type PurchaseAction = Extract<ViewerAnnotationAction, { collection: "purchase" }>;
-type PurchaseSubtypeResolved = {
-  lid: Id<LID.PurchaseSubtype>;
-  type: PurchaseType.Perk | PurchaseType.Item;
-};
-
-function PurchaseInteractionPreview({
-  action,
-  existingId,
-  removeId,
-  copyCount,
-  subtype,
-  effectiveCostStr,
-  boosterDescriptions,
-  extraActions,
-  onExecute,
-  onRemove,
-  onClose,
-}: {
-  action: PurchaseAction;
-  existingId: Id<GID.Purchase> | undefined;
-  /** ID of an existing copy to remove (for allowMultiple with copies already held). */
-  removeId: Id<GID.Purchase> | undefined;
-  copyCount: number;
-  subtype: PurchaseSubtypeResolved | undefined;
-  effectiveCostStr: string;
-  boosterDescriptions: string[];
-  extraActions?: {
-    label: string;
-    variant: "confirm";
-    onConfirm: (name: string, description: string) => void;
-  }[];
-  onExecute: (name: string, description: string) => void;
-  onRemove: () => void;
-  onClose: () => void;
-}) {
-  const tags = useMemo(
-    () => extractTags([action.template.name, action.template.description]),
-    [action.template.name, action.template.description],
-  );
-  const hasTags = tags.length > 0;
-
-  const [tagValues, setTagValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(tags.map((t) => [t.name, ""])),
-  );
-
-  const resolvedName = hasTags ? applyTags(action.template.name, tagValues) : action.template.name;
-  const baseDesc = hasTags
-    ? applyTags(action.template.description, tagValues)
-    : action.template.description;
-
-  const resolvedDesc =
-    boosterDescriptions.length > 0
-      ? `${baseDesc}\n\n${boosterDescriptions.join("\n\n")}`
-      : baseDesc;
-
-  const errorMessage = !subtype
-    ? `"${action.subtypeName}" subtype no longer exists in this jump.`
-    : undefined;
-
-  const execute = () => {
-    onExecute(resolvedName, resolvedDesc);
-    onClose();
-  };
-
-  const allActions: InteractionPreviewCardProps["actions"] = [
-    {
-      label: existingId !== undefined ? "Remove" : `Add (${effectiveCostStr})`,
-      variant: existingId !== undefined ? "danger" : "confirm",
-      onConfirm: execute,
-    },
-    ...(existingId === undefined && extraActions
-      ? extraActions.map((ea) => ({
-          label: ea.label,
-          variant: ea.variant,
-          onConfirm: () => {
-            ea.onConfirm(resolvedName, resolvedDesc);
-            onClose();
-          },
-        }))
-      : []),
-    ...(existingId === undefined && removeId !== undefined
-      ? [{ label: "Remove a copy", variant: "danger" as const, onConfirm: onRemove }]
-      : []),
-  ];
-
-  const copyInfo =
-    copyCount > 0 && action.template.allowMultiple
-      ? `${copyCount} ${copyCount === 1 ? "copy" : "copies"} already held`
-      : undefined;
-
-  return (
-    <InteractionPreviewCard
-      typeName={action.typeName}
-      name={resolvedName}
-      accentColor={existingId !== undefined ? "#ef4444" : "#22c55e"}
-      costStr={existingId !== undefined ? undefined : effectiveCostStr}
-      description={resolvedDesc || undefined}
-      info={copyInfo}
-      errorMessage={errorMessage}
-      actions={allActions}
-      onClose={onClose}
-    >
-      {!errorMessage && hasTags && (
-        <TagFieldsSection
-          tags={tags}
-          tagValues={tagValues}
-          choiceContext={action.template.choiceContext}
-          onChangeTag={(name, value) => setTagValues((v) => ({ ...v, [name]: value }))}
-        />
-      )}
-    </InteractionPreviewCard>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Drawback / Scenario preview (shared)
-// ─────────────────────────────────────────────────────────────────────────────
-
-type DocItemAction = Extract<ViewerAnnotationAction, { collection: "drawback" | "scenario" }>;
-type CompanionAction = Extract<ViewerAnnotationAction, { collection: "companion" }>;
-
-function DocItemInteractionPreview({
-  action,
-  existingId,
-  removeId,
-  copyCount,
-  accentColor,
-  effectiveCostStr,
-  onExecute,
-  onRemove,
-  onClose,
-}: {
-  action: DocItemAction;
-  existingId: Id<GID.Purchase> | undefined;
-  removeId: Id<GID.Purchase> | undefined;
-  copyCount: number;
-  accentColor: string;
-  effectiveCostStr?: string;
-  onExecute: (name: string, description: string) => void;
-  onRemove: () => void;
-  onClose: () => void;
-}) {
-  const tags = useMemo(
-    () => extractTags([action.template.name, action.template.description]),
-    [action.template.name, action.template.description],
-  );
-  const [tagValues, setTagValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(tags.map((t) => [t.name, ""])),
-  );
-
-  const resolvedName =
-    tags.length > 0 ? applyTags(action.template.name, tagValues) : action.template.name;
-  const resolvedDesc =
-    tags.length > 0
-      ? applyTags(action.template.description, tagValues)
-      : action.template.description;
-
-  const copyInfo =
-    copyCount > 0 && existingId === undefined
-      ? `${copyCount} cop${copyCount === 1 ? "y" : "ies"} already held`
-      : undefined;
-
-  const allActions: InteractionPreviewCardProps["actions"] = [
-    {
-      label: existingId !== undefined ? "Remove" : "Add",
-      variant: existingId !== undefined ? "danger" : "confirm",
-      onConfirm: () => onExecute(resolvedName, resolvedDesc),
-    },
-  ];
-  if (existingId === undefined && removeId !== undefined) {
-    allActions.push({ label: "Remove a copy", variant: "danger", onConfirm: onRemove });
-  }
-
-  return (
-    <InteractionPreviewCard
-      typeName={action.typeName}
-      name={resolvedName}
-      accentColor={existingId !== undefined ? "#ef4444" : accentColor}
-      costStr={existingId !== undefined ? undefined : (effectiveCostStr ?? action.costStr)}
-      description={resolvedDesc || undefined}
-      info={copyInfo}
-      actions={allActions}
-      onClose={onClose}
-    >
-      {tags.length > 0 && (
-        <TagFieldsSection
-          tags={tags}
-          tagValues={tagValues}
-          choiceContext={action.template.choiceContext}
-          onChangeTag={(name, value) => setTagValues((v) => ({ ...v, [name]: value }))}
-        />
-      )}
-    </InteractionPreviewCard>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Companion preview component
-// ─────────────────────────────────────────────────────────────────────────────
-
-function CompanionCharField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <>
-      <span className="text-xs text-muted shrink-0 w-14 text-right">{label}:</span>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex-1 text-xs bg-tint border border-edge rounded px-1.5 py-0.5 text-ink focus:outline-none focus:border-accent"
-        placeholder={label.toLowerCase()}
-      />
-    </>
-  );
-}
-
-function CompanionInteractionPreview({
-  action,
-  selfCharId,
-  jumpId,
-  existingId,
-  currencies,
-  hasOriginDiscount,
-  originBenefit,
-  qualifyingMandatoryAltCost,
-  qualifyingOptionalAltCosts,
-  storedAltCosts,
-  addFromTemplate,
-  remove,
-  navigateTo,
-  onClose,
-}: {
-  action: CompanionAction;
-  selfCharId: Id<GID.Character>;
+export type AnnotationInteractionHandlerProps = {
   jumpId: Id<GID.Jump>;
-  existingId: Id<GID.Purchase> | undefined;
-  currencies: Registry<LID.Currency, Currency> | undefined;
-  hasOriginDiscount: boolean;
-  originBenefit: "discounted" | "free" | "access" | undefined;
-  qualifyingMandatoryAltCost:
-    | { value: { amount: number; currencyAbbrev: string }[]; beforeDiscounts?: boolean }
-    | undefined;
-  qualifyingOptionalAltCosts: ResolvedAltCost[];
-  storedAltCosts: StoredAlternativeCost[];
-  addFromTemplate: ReturnType<typeof useJumpDocCompanionActions>["addFromTemplate"];
-  remove: ReturnType<typeof useJumpDocCompanionActions>["remove"];
-  navigateTo: (follower: boolean) => (scrollTo?: string) => void;
-  onClose: () => void;
-}) {
-  const allChars = useAllCharacters();
-  const removeCharacter = useRemoveCharacter();
-  const setPendingNewCompanion = useViewerActionStore((s) => s.setPendingNewCompanion);
-  const [follower, setFollower] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Id<GID.Character>[]>([]);
-  const [confirmDelete, setConfirmDelete] = useState<{
-    charIdsToDelete: Id<GID.Character>[];
-    message: string;
-  } | null>(null);
+  charId: Id<GID.Character>;
+  doc: JumpDoc;
+};
 
-  const defaultCharInfo = action.template.characterInfo?.[0];
-  const [charName, setCharName] = useState(defaultCharInfo?.name ?? "");
-  const [charSpecies, setCharSpecies] = useState(defaultCharInfo?.species ?? "");
-  const [charGender, setCharGender] = useState(defaultCharInfo?.gender ?? "");
+export type PossibleCost = ModifiedCost<TID.Currency> & {
+  cost: Value<TID.Currency>;
+  floatingDiscountOption?: boolean;
+};
 
-  const selectableChars = allChars.filter((c) => c.id !== selfCharId);
-  const selectedChars = selectedIds
-    .map((id) => selectableChars.find((c) => c.id === id))
-    .filter((c): c is { id: Id<GID.Character>; name: string } => c !== undefined);
-  const availableChars = selectableChars.filter((c) => !selectedIds.includes(c.id));
+// ─────────────────────────────────────────────────────────────────────────────
+// Wrapper for Chain Mutation Hooks
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const max = action.template.count;
-
-  // For "discounted"/"free" benefit the first copy gets the discount; companions don't allow
-  // multiples so isFirstCopy is always true.
-  const effectiveCostStr = (() => {
-    if (qualifyingMandatoryAltCost?.beforeDiscounts && hasOriginDiscount) {
-      return `${originDiscountCostStr(qualifyingMandatoryAltCost.value, currencies, originBenefit, true)} ; altered`;
+/** Sub-route destinations used by `ChainMutators.navigate`. */
+export type MutatorNavTarget =
+  | { sub: "purchases"; scrollTo?: Id<GID.Purchase> }
+  | {
+      sub: "drawbacks";
+      scrollTo?: Id<GID.Purchase>;
+      extraSearch?: Record<string, string>;
     }
-    if (qualifyingMandatoryAltCost?.beforeDiscounts) {
-      return `${altCostValueStr(qualifyingMandatoryAltCost.value)} ; altered`;
-    }
-    if (hasOriginDiscount) {
-      const originMod = originDiscountModifier(action.cost, currencies, originBenefit, true);
-      if (originMod.modifier === CostModifier.Free) {
-        return originDiscountCostStr(action.cost, currencies, originBenefit, true);
+  | { sub: "companions"; scrollTo?: Id<GID.Purchase> }
+  | { sub: ""; extraSearch?: Record<string, string> };
+
+export type ChainMutators = {
+  /** Navigate after a successful interaction. Suppressed after the first call per interaction batch. */
+  navigate: (target: MutatorNavTarget) => void;
+  addPurchaseFromTemplate: (
+    data: {
+      template: BasicPurchaseTemplate | DrawbackTemplate;
+      type: "purchase" | "drawback";
+      tags: Record<string, string>;
+      cost: PossibleCost;
+      reward?: Id<TID.Scenario>;
+      freebie?: Id<TID.Companion>;
+      customDuration?: number;
+    },
+    jumpId: Id<GID.Jump>,
+    charId: Id<GID.Character>,
+    doc: JumpDoc,
+  ) => Id<GID.Purchase> | undefined;
+  addOriginFromTemplate: (
+    ata: {
+      template: OriginTemplate;
+      tags: Record<string, string>;
+      cost: SimpleValue<TID.Currency>;
+      freebie?: Id<TID.Companion>;
+    },
+    jumpId: Id<GID.Jump>,
+    charId: Id<GID.Character>,
+    doc: JumpDoc,
+  ) => Id<TID.Origin>;
+  repricePurchase: (
+    id: Id<GID.Purchase>,
+    cost: PossibleCost,
+    doc: JumpDoc,
+  ) => void;
+  repriceOrigin: (
+    templateId: Id<TID.Origin>,
+    jumpId: Id<GID.Jump>,
+    charId: Id<GID.Character>,
+    build: JumpDocBuildData,
+    doc: JumpDoc,
+  ) => void;
+  removePurchase: (id: Id<GID.Purchase>, build: JumpDocBuildData) => void;
+  addScenarioFromTemplate: (
+    data: {
+      template: ScenarioTemplate;
+      tags: Record<string, string>;
+      rewardGroupIndex: number | undefined;
+    },
+    jumpId: Id<GID.Jump>,
+    charId: Id<GID.Character>,
+    doc: JumpDoc,
+  ) => Id<GID.Purchase> | undefined;
+  addCompanionImport: (
+    data: {
+      template: CompanionTemplate;
+      companionIds: Id<GID.Character>[];
+    },
+    jumpId: Id<GID.Jump>,
+    charId: Id<GID.Character>,
+    doc: JumpDoc,
+  ) => Id<GID.Purchase> | undefined;
+  createCompanion: (data: {
+    template: CompanionTemplate;
+    name: string;
+    gender: string;
+    species: string;
+  }) => Id<GID.Character>;
+  addFollower: (
+    data: {
+      template: CompanionTemplate;
+    },
+    jumpId: Id<GID.Jump>,
+    charId: Id<GID.Character>,
+    doc: JumpDoc,
+  ) => Id<GID.Purchase> | undefined;
+  removeCharacters: (ids: Id<GID.Character>[]) => void;
+  removeOrigin: (
+    templateId: Id<TID.Origin>,
+    jumpId: Id<GID.Jump>,
+    charId: Id<GID.Character>,
+  ) => void;
+  setFreeFormOrigin: (
+    data: {
+      categoryId: Id<TID.OriginCategory>;
+      value: string;
+      cost: SimpleValue<TID.Currency>;
+    },
+    jumpId: Id<GID.Jump>,
+    charId: Id<GID.Character>,
+    doc: JumpDoc,
+  ) => void;
+  addCurrencyExchangeFromDoc: (
+    opts: {
+      templateIndex: number;
+      oCurrency: Id<TID.Currency>;
+      tCurrency: Id<TID.Currency>;
+      oamount: number;
+      tamount: number;
+    },
+    jumpId: Id<GID.Jump>,
+    charId: Id<GID.Character>,
+    doc: JumpDoc,
+  ) => void;
+  removeCurrencyExchangeFromDoc: (
+    opts: { templateIndex: number; oamount: number; tamount: number },
+    jumpId: Id<GID.Jump>,
+    charId: Id<GID.Character>,
+  ) => void;
+};
+
+/**
+ * Creates a BuildListener that fires when any value in the deps array changes.
+ * On first build the deps are stored but the action does not fire.
+ * Semantics mirror React's useEffect dependency array.
+ */
+export function createListener(
+  action: (
+    build: JumpDocBuildData,
+    chain: Chain,
+    doc: JumpDoc,
+    mutators: ChainMutators,
+  ) => void,
+  deps: (build: JumpDocBuildData) => readonly unknown[],
+): BuildListener {
+  let prev: readonly unknown[] | undefined;
+  return {
+    condition: build => {
+      const next = deps(build);
+      if (!prev) {
+        prev = next;
+        return true;
       }
-      if (qualifyingMandatoryAltCost) {
-        return `${altCostValueStr(qualifyingMandatoryAltCost.value)} ; altered`;
-      }
-      return originDiscountCostStr(action.cost, currencies, originBenefit, true);
-    }
-    if (qualifyingMandatoryAltCost) {
-      return `${altCostValueStr(qualifyingMandatoryAltCost.value)} ; altered`;
-    }
-    return action.costStr;
-  })();
+      return next.some((d, i) => d !== prev![i]);
+    },
+    action: (build, chain, doc, mutators) => {
+      prev = deps(build);
+      action(build, chain, doc, mutators);
+    },
+  };
+}
 
-  const computeInitialCost = (): ModifiedCost | undefined => {
-    if (qualifyingMandatoryAltCost?.beforeDiscounts) {
-      const altResolved: Value = qualifyingMandatoryAltCost.value.map(
-        ({ amount, currencyAbbrev }) => ({
-          amount,
-          currency: resolveJumpCurrency(currencyAbbrev, currencies),
-        }),
+// ─────────────────────────────────────────────────────────────────────────────
+// Listener factories
+// ─────────────────────────────────────────────────────────────────────────────
+
+const fmtNames = (names: string[]) => names.map(n => `"${n}"`).join(", ");
+
+/** Removes purchases/drawbacks/scenarios/companion imports whose prereqs or origin-access restrictions are no longer satisfied. */
+export function createPrereqRemovalListener(): BuildListener {
+  const shouldRemove = (
+    template: {
+      prerequisites?: JumpDocPrerequisite[];
+      originBenefit?: string;
+      origins?: Id<TID.Origin>[];
+    },
+    build: JumpDocBuildData,
+    doc: JumpDoc,
+  ) => {
+    const hasPrereqError = (template.prerequisites ?? []).some(
+      p => getPrereqError(p, build, doc) !== undefined,
+    );
+    const hasAccessError =
+      template.originBenefit === "access" &&
+      (template.origins ?? []).length > 0 &&
+      (template.origins ?? []).every(o =>
+        build.origins.every(bo => bo.template?.id !== o),
       );
-      if (hasOriginDiscount) {
-        const altMod = originDiscountModifier(
-          qualifyingMandatoryAltCost.value,
-          currencies,
-          originBenefit,
-          true,
-        );
-        if (altMod.modifier === CostModifier.Free) return { modifier: CostModifier.Free };
-        return {
-          modifier: CostModifier.Custom,
-          modifiedTo: altResolved.map((v) => ({
-            amount: Math.floor(v.amount / 2),
-            currency: v.currency,
-          })),
-        };
-      }
-      return { modifier: CostModifier.Custom, modifiedTo: altResolved };
-    }
-    if (hasOriginDiscount) {
-      const originMod = originDiscountModifier(action.cost, currencies, originBenefit, true);
-      if (originMod.modifier === CostModifier.Free) return originMod;
-      if (qualifyingMandatoryAltCost) {
-        const resolvedValue: Value = qualifyingMandatoryAltCost.value.map(
-          ({ amount, currencyAbbrev }) => ({
-            amount,
-            currency: resolveJumpCurrency(currencyAbbrev, currencies),
-          }),
-        );
-        return { modifier: CostModifier.Custom, modifiedTo: resolvedValue };
-      }
-      return originMod;
-    }
-    if (qualifyingMandatoryAltCost) {
-      const resolvedValue: Value = qualifyingMandatoryAltCost.value.map(
-        ({ amount, currencyAbbrev }) => ({
-          amount,
-          currency: resolveJumpCurrency(currencyAbbrev, currencies),
-        }),
-      );
-      return { modifier: CostModifier.Custom, modifiedTo: resolvedValue };
-    }
-    return undefined;
+    return hasPrereqError || hasAccessError;
   };
 
-  const doRemove = (follower: boolean) => {
-    if (existingId === undefined) return;
-    // For specific-character imports, check if the linked character(s) have activity
-    // before deleting them. Non-specific imports never auto-delete companion characters.
-    if (action.template.specificCharacter) {
-      const state = useChainStore.getState();
-      const chain = state.chain;
-      const jumpAccess = state.calculatedData.jumpAccess;
-      const purchase = chain?.purchases.O[existingId];
-      if (purchase?.type === PurchaseType.Companion) {
-        const ci = purchase as CompanionImport;
-        const linkedChars = ci.importData.characters.filter(
-          (cid) => chain?.characters.O[cid]?.originalImportTID !== undefined,
-        );
-        if (linkedChars.length > 0) {
-          const jump = chain?.jumps.O[jumpId];
-          const isActive = (cid: Id<GID.Character>): boolean => {
-            const access = jumpAccess?.[cid];
-            if (access && [...access].some((jid) => jid !== (jumpId as number))) return true;
-            if ((jump?.purchases[cid]?.length ?? 0) > 0) return true;
-            if ((jump?.drawbacks[cid]?.length ?? 0) > 0) return true;
-            return false;
-          };
-          const activeChars = linkedChars
-            .map((cid) => ({ id: cid, name: chain?.characters.O[cid]?.name ?? "" }))
-            .filter(({ id }) => isActive(id));
-          if (activeChars.length > 0) {
-            const names = activeChars.map((c) => c.name).join(", ");
-            setConfirmDelete({
-              charIdsToDelete: linkedChars,
-              message: `This will also delete: ${names}. They have activity elsewhere. Are you sure?`,
-            });
-            return;
+  return createListener(
+    (build, chain, doc, mutators) => {
+      const removed: string[] = [];
+      const removeAll = (gids: Id<GID.Purchase>[]) => {
+        for (const gid of [...gids]) {
+          removed.push(chain.purchases.O[gid]?.name ?? "?");
+          mutators.removePurchase(gid, build);
+        }
+      };
+      for (const tidStr in build.purchases) {
+        const tid = createId<TID.Purchase>(+tidStr);
+        const template = doc.availablePurchases.O[tid];
+        if (template && shouldRemove(template, build, doc))
+          removeAll(build.purchases[tid] ?? []);
+      }
+      for (const tidStr in build.drawbacks) {
+        const tid = createId<TID.Drawback>(+tidStr);
+        const template = doc.availableDrawbacks.O[tid];
+        if (template && shouldRemove(template, build, doc))
+          removeAll(build.drawbacks[tid] ?? []);
+      }
+      for (const tidStr in build.scenarios) {
+        const tid = createId<TID.Scenario>(+tidStr);
+        const template = doc.availableScenarios.O[tid];
+        if (template && shouldRemove(template, build, doc))
+          removeAll(build.scenarios[tid] ?? []);
+      }
+      for (const tidStr in build.companionImports) {
+        const tid = createId<TID.Companion>(+tidStr);
+        const template = doc.availableCompanions.O[tid];
+        if (template && shouldRemove(template, build, doc))
+          removeAll(build.companionImports[tid] ?? []);
+      }
+      if (removed.length) toast.info(`Removed: ${fmtNames(removed)}`);
+    },
+    build => [
+      Object.keys(build.purchases).length,
+      Object.keys(build.drawbacks).length,
+      Object.keys(build.scenarios).length,
+      Object.keys(build.companionImports).length,
+      build.origins
+        .map(o => o.template?.id ?? "")
+        .sort()
+        .join(","),
+    ],
+  );
+}
+
+const valuesEqualTID = (
+  a: Value<TID.Currency>,
+  b: Value<TID.Currency>,
+): boolean => {
+  const normalize = (v: Value<TID.Currency>) =>
+    [...v].sort((x, y) => (x.currency as number) - (y.currency as number));
+  const na = normalize(a);
+  const nb = normalize(b);
+  if (na.length !== nb.length) return false;
+  return na.every(
+    (sv, i) => sv.currency === nb[i]!.currency && sv.amount === nb[i]!.amount,
+  );
+};
+
+/** Reprices TID-linked purchases whose stored cost no longer matches any currently valid cost option. */
+export function createRepricePurchasesListener(): BuildListener {
+  return createListener(
+    (build, currentChain, doc, mutators) => {
+      const repriced: string[] = [];
+      for (const tidStr in build.purchases) {
+        const tid = createId<TID.Purchase>(+tidStr);
+        const template = doc.availablePurchases.O[tid];
+        if (!template) continue;
+        const gids = build.purchases[tid] ?? [];
+
+        for (let i = 0; i < gids.length; i++) {
+          const gid = gids[i]!;
+          const p = currentChain.purchases.O[gid] as JumpPurchase | undefined;
+          if (
+            (p as BasicPurchase).reward ??
+            (p as BasicPurchase).freebie !== undefined
+          )
+            continue;
+          if (!p?.template?.originalCost) continue;
+          const originalCost = p.template.originalCost as PossibleCost;
+          const originalEffective = purchaseValue(
+            originalCost.cost,
+            originalCost,
+          ) as Value<TID.Currency>;
+
+          const possibleCosts = computePossibleCosts(
+            template,
+            build,
+            doc,
+            i === 0,
+          );
+          const allCosts = [possibleCosts.default, ...possibleCosts.options];
+          const costsToCheck = originalCost.floatingDiscountOption
+            ? allCosts.filter(c => c.floatingDiscountOption)
+            : allCosts;
+
+          const stillValid = costsToCheck.some(c =>
+            valuesEqualTID(
+              originalEffective,
+              purchaseValue(c.cost, c) as Value<TID.Currency>,
+            ),
+          );
+
+          if (!stillValid) {
+            repriced.push(p.name);
+            mutators.repricePurchase(
+              gid,
+              { ...possibleCosts.default, floatingDiscountOption: undefined },
+              doc,
+            );
           }
-          // No active characters — silently delete all linked chars.
-          for (const cid of linkedChars) removeCharacter(cid);
         }
       }
+      if (repriced.length)
+        toast.info(`Prices adjusted on ${fmtNames(repriced)}`);
+    },
+    build => [
+      build.origins
+        .map(o => o.template?.id ?? "")
+        .sort()
+        .join(","),
+      Object.keys(build.drawbacks).length,
+      Object.keys(build.purchases).length,
+    ],
+  );
+}
+
+/** Appends or strips booster-text on TID-linked purchases and drawbacks as booster presence changes. */
+export function createBoosterTextListener(): BuildListener {
+  const reconcileBoosts = (
+    gid: Id<GID.Purchase>,
+    boosted: DrawbackTemplate["boosted"],
+    build: JumpDocBuildData,
+    c: Chain,
+    added: string[],
+    removed: string[],
+  ) => {
+    const p = c.purchases.O[gid] as JumpPurchase | undefined;
+    if (!p) return;
+    for (const { description, booster, boosterKind } of boosted) {
+      const boosterPresent =
+        boosterKind === "drawback"
+          ? (build.drawbacks[booster as any] ?? []).length > 0
+          : (build.purchases[booster as any] ?? []).length > 0;
+      const suffix = `${description}`;
+      const alreadyApplied = p.boosts?.some?.(b => b.purchaseId == booster);
+
+      if (boosterPresent && !alreadyApplied) {
+        p.description = p.description.trimEnd() + "\n\n" + suffix;
+        if (!p.boosts) p.boosts = [];
+        p.boosts.push({ purchaseId: booster as Id<GID.Purchase>, description });
+        added.push(p.name);
+      } else if (!boosterPresent && alreadyApplied) {
+        p.description = p.description.replace(suffix, "").trimEnd();
+        p.boosts = (p.boosts ?? []).filter(b => b.purchaseId !== booster);
+        removed.push(p.name);
+      }
     }
-    remove(existingId);
-    navigateTo(follower)();
-    onClose();
   };
 
-  const confirmAndRemove = (follower: boolean) => {
-    if (!confirmDelete || existingId === undefined) return;
-    for (const cid of confirmDelete.charIdsToDelete) removeCharacter(cid);
-    remove(existingId);
-    navigateTo(follower)();
-    onClose();
-  };
+  return createListener(
+    (build, _, doc) => {
+      const added: string[] = [];
+      const removed: string[] = [];
+      setTracked("Reconcile booster text", c => {
+        for (const tidStr in build.purchases) {
+          const tid = createId<TID.Purchase>(+tidStr);
+          const template = doc.availablePurchases.O[tid];
+          if (!template?.boosted.length) continue;
+          for (const gid of build.purchases[tid] ?? [])
+            reconcileBoosts(
+              gid,
+              template.boosted as DrawbackTemplate["boosted"],
+              build,
+              c as Chain,
+              added,
+              removed,
+            );
+        }
+        for (const tidStr in build.drawbacks) {
+          const tid = createId<TID.Drawback>(+tidStr);
+          const template = doc.availableDrawbacks.O[tid];
+          if (!template?.boosted?.length) continue;
+          for (const gid of build.drawbacks[tid] ?? [])
+            reconcileBoosts(
+              gid,
+              template.boosted,
+              build,
+              c as Chain,
+              added,
+              removed,
+            );
+        }
+        c.budgetFlag += 1;
+      });
+      if (added.length) toast.info(`Boosts added to ${fmtNames(added)}`);
+      if (removed.length)
+        toast.info(`Boosts removed from ${fmtNames(removed)}`);
+    },
+    build => [
+      Object.keys(build.purchases).length,
+      Object.keys(build.drawbacks).length,
+    ],
+  );
+}
 
-  const doExecute =
-    (isFollower: boolean, overrideInitialCost?: ModifiedCost, isOptionalAltCost?: boolean) =>
-    () => {
-      if (existingId !== undefined) {
-        doRemove(isFollower);
-        return;
-      } else {
-        const value: Value = action.cost.map(({ amount, currencyAbbrev }) => ({
-          amount,
-          currency: resolveJumpCurrency(currencyAbbrev, currencies),
-        }));
-        const newId = addFromTemplate({
-          name: action.template.name,
-          description: action.template.description,
-          value,
-          templateId: action.docTemplateId,
-          docId: action.docId,
-          companionIds: selectedIds,
-          allowances: action.allowances,
-          stipend: action.stipend,
-          initialCost: overrideInitialCost ?? computeInitialCost(),
-          discountOrigins: action.originNames.length > 0 ? action.originNames : undefined,
-          originBenefit,
-          alternativeCosts: storedAltCosts.length ? storedAltCosts : undefined,
-          optionalAltCost: isOptionalAltCost || undefined,
-          follower: isFollower,
-          createCharacterData:
-            !isFollower && action.template.specificCharacter
-              ? {
-                  name: charName.trim().length > 0 ? charName : action.template.name,
-                  gender: charGender,
-                  species: charSpecies,
-                  backgroundSummary: action.template.name,
-                  backgroundDescription: action.template.description,
-                }
-              : undefined,
-        });
-        // For non-follower companion imports: enqueue any freebies from the template.
-        if (!isFollower) {
-          const doc = useJumpDocStore.getState().doc;
-          const freebies = action.template.freebies;
-          if (doc && freebies?.length) {
-            const companionImport = useChainStore.getState().chain?.purchases.O[newId] as
-              | CompanionImport
-              | undefined;
-            const companionCharIds = companionImport?.importData.characters ?? [];
-            if (companionCharIds.length > 0) {
-              const batches = buildFreebieActions(freebies, doc, action.docId, companionCharIds);
-              if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
+/** Removes or reprices origins whose synergy prerequisites are no longer satisfied. */
+export function createOriginSynergyListener(
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>,
+): BuildListener {
+  return createListener(
+    (build, _chain, doc, mutators) => {
+      const removed: string[] = [];
+      const repriced: string[] = [];
+      for (const origin of build.origins) {
+        if (!origin.template) continue;
+        const template = doc.origins.O[origin.template.id];
+        if (!template?.synergies?.length) continue;
+
+        const synergyPresent = template.synergies.some(sid =>
+          build.origins.some(o => o.template?.id === sid),
+        );
+
+        if (template.synergyBenefit === "access") {
+          if (!synergyPresent) {
+            removed.push(template.name);
+            mutators.removeOrigin(template.id, jumpId, charId);
+          }
+        } else if (
+          template.synergyBenefit === "discounted" ||
+          template.synergyBenefit === "free"
+        ) {
+          const originalCost = origin.template.originalCost;
+          if (!originalCost) continue;
+          const originalHadSynergy =
+            originalCost.modifier !== CostModifier.Full ||
+            (originalCost.cost[0]?.amount ?? template.cost.amount) <
+              template.cost.amount;
+          if (synergyPresent !== originalHadSynergy) {
+            repriced.push(template.name);
+            mutators.repriceOrigin(template.id, jumpId, charId, build, doc);
+          }
+        }
+      }
+      if (removed.length) toast.info(`Removed: ${fmtNames(removed)}`);
+      if (repriced.length)
+        toast.info(`Prices adjusted on ${fmtNames(repriced)}`);
+    },
+    build => [
+      build.origins
+        .map(o => o.template?.id ?? "")
+        .sort()
+        .join(","),
+    ],
+  );
+}
+
+/** Creates or removes origin stipend drawbacks as the active origin set changes. */
+export function createOriginStipendListener(
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>,
+): BuildListener {
+  return createListener(
+    (build, _chain, doc, _mutators) => {
+      const created: string[] = [];
+      const removed: string[] = [];
+      setTracked("Reconcile origin stipends", c => {
+        const jump = c.jumps.O[jumpId];
+        if (!jump) return;
+
+        const activeOriginTids = new Set(
+          build.origins.map(o => o.template?.id).filter(id => id != null),
+        );
+
+        for (const tidStr in build.stipend) {
+          const originTid = createId<TID.Origin>(+tidStr);
+          if (!activeOriginTids.has(originTid)) {
+            for (const gid of build.stipend[originTid] ?? []) {
+              removed.push(c.purchases.O[gid]?.name ?? "?");
+              delete c.purchases.O[gid];
+              const list = jump.drawbacks[charId] as
+                | Id<GID.Purchase>[]
+                | undefined;
+              if (list) {
+                const idx = list.indexOf(gid);
+                if (idx !== -1) list.splice(idx, 1);
+              }
             }
           }
         }
-        navigateTo(isFollower)(String(newId));
-      }
-      onClose();
-    };
 
-  const isSpecific = action.template.specificCharacter;
+        for (const origin of build.origins) {
+          if (!origin.template) continue;
+          const template = doc.origins.O[origin.template.id];
+          if (!template?.originStipend?.length) continue;
+          const existing = build.stipend?.[template.id] ?? [];
 
-  const optionalAltCostActions: InteractionPreviewCardProps["actions"] =
-    existingId === undefined
-      ? qualifyingOptionalAltCosts.map((ac) => ({
-          label: `Add (${altCostValueStr(ac.value)})`,
-          variant: "confirm" as const,
-          onConfirm: () => {
-            const resolvedValue: Value = ac.value.map(({ amount, currencyAbbrev }) => ({
-              amount,
-              currency: resolveJumpCurrency(currencyAbbrev, currencies),
-            }));
-            doExecute(
-              follower,
-              { modifier: CostModifier.Custom, modifiedTo: resolvedValue },
-              true,
-            )();
-          },
-        }))
-      : [];
+          const docCat = doc.originCategories.O[template.type];
+          const categoryName = docCat?.name ?? "";
 
-  let actions: InteractionPreviewCardProps["actions"];
-  if (confirmDelete) {
-    actions = [
-      { label: "Confirm Delete", variant: "danger", onConfirm: () => confirmAndRemove(follower) },
-      {
-        label: "Cancel",
-        variant: "warn",
-        noAutoClose: true,
-        onConfirm: () => setConfirmDelete(null),
-      },
-    ];
-  } else if (existingId !== undefined) {
-    actions = [
-      { label: "Remove", variant: "danger", noAutoClose: true, onConfirm: () => doRemove(false) },
-    ];
-  } else if (isSpecific) {
-    actions = [
-      {
-        label: `Add (${effectiveCostStr})`,
-        variant: "confirm",
-        onConfirm: doExecute(follower),
-      },
-      ...optionalAltCostActions,
-    ];
-  } else {
-    actions = [
-      {
-        label: `Add (${effectiveCostStr})`,
-        variant: selectedChars.length === 0 ? "warn" : "confirm",
-        blocker:
-          selectedChars.length === 0
-            ? "You must select or create at least one character in order to add them as a companion."
-            : undefined,
-        onConfirm: doExecute(follower),
-      },
-      ...optionalAltCostActions,
-    ];
-  }
+          for (const entry of template.originStipend) {
+            if (entry.amount <= 0) continue;
+            const subtypeName =
+              doc.purchaseSubtypes.O[entry.purchaseSubtype]?.name ?? "";
+            const alreadyExists = existing.some(gid => {
+              const p = c.purchases.O[gid] as any;
+              return (
+                p?.stipend === template.id &&
+                (p as any)._stipendSubtype === entry.purchaseSubtype
+              );
+            });
+            if (alreadyExists) continue;
 
-  return (
-    <>
-      <InteractionPreviewCard
-        typeName={action.typeName}
-        name={action.template.name}
-        accentColor={existingId !== undefined ? "#ef4444" : "#f59e0b"}
-        costStr={existingId !== undefined ? undefined : effectiveCostStr}
-        description={
-          confirmDelete ? confirmDelete.message : action.template.description || undefined
-        }
-        errorMessage={undefined}
-        actions={actions}
-        onClose={onClose}
-      >
-        {!confirmDelete && existingId === undefined && (
-          <div className="px-2 pb-1">
-            <SegmentedControl
-              value={follower ? "follower" : "companion"}
-              onChange={(v) => setFollower(v === "follower")}
-              options={[
-                { value: "companion", label: "Companion" },
-                { value: "follower", label: "Follower" },
-              ]}
-            />
-          </div>
-        )}
-        {!confirmDelete && existingId === undefined && isSpecific && !follower && (
-          <div className="px-2 pb-2 grid grid-cols-[auto_1fr] gap-1.5 self-center items-center">
-            <CompanionCharField label="Name" value={charName} onChange={setCharName} />
-            <CompanionCharField label="Species" value={charSpecies} onChange={setCharSpecies} />
-            <CompanionCharField label="Gender" value={charGender} onChange={setCharGender} />
-          </div>
-        )}
-        {!confirmDelete && existingId === undefined && !isSpecific && !follower && (
-          <div className="px-2 pb-2 flex flex-col gap-1.5">
-            <span className="text-xs text-muted font-medium">
-              Chosen Companions ({selectedIds.length} of {max}):
-            </span>
-            <CompanionMultiSelect
-              selected={selectedChars}
-              available={availableChars}
-              onAdd={(id) => setSelectedIds((prev) => [...prev, id])}
-              onRemove={(id) => setSelectedIds((prev) => prev.filter((cid) => cid !== id))}
-              onNew={() => {
-                setPendingNewCompanion({
-                  onDone: (newId) => {
-                    setSelectedIds((prev) => [...prev, newId]);
-                  },
-                  onCancel: () => {},
-                });
-              }}
-              max={max}
-            />
-          </div>
-        )}
-      </InteractionPreviewCard>
-    </>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Alternative cost helpers — see annotationResolvers.ts
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Origin preview component
-// ─────────────────────────────────────────────────────────────────────────────
-
-type OriginAction = Extract<ViewerAnnotationAction, { collection: "origin" }>;
-
-/** Minimal action shape required by OriginInteractionPreview — satisfied by both OriginAction and rolled randomizer templates. */
-type OriginPreviewAction = {
-  typeName: string;
-  costStr: string;
-  template: { name: string; description?: string; choiceContext?: string };
-};
-
-function OriginInteractionPreview({
-  action,
-  alreadyPresent,
-  accentColor,
-  evictedName,
-  synergyLabel,
-  effectiveCostStr,
-  categoryDeleted,
-  onExecute,
-  onReroll,
-  onClose,
-}: {
-  action: OriginPreviewAction;
-  alreadyPresent: boolean;
-  accentColor: string;
-  evictedName: string | null;
-  synergyLabel: string | undefined;
-  effectiveCostStr: string | undefined;
-  categoryDeleted: boolean;
-  onExecute: (name: string, description: string) => void;
-  onReroll?: () => void;
-  onClose: () => void;
-}) {
-  const tags = useMemo(
-    () => extractTags([action.template.name, action.template.description ?? ""]),
-    [action.template.name, action.template.description],
-  );
-  const [tagValues, setTagValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(tags.map((t) => [t.name, ""])),
-  );
-  const resolvedName =
-    tags.length > 0 ? applyTags(action.template.name, tagValues) : action.template.name;
-  const resolvedDesc =
-    tags.length > 0
-      ? applyTags(action.template.description ?? "", tagValues)
-      : (action.template.description ?? "");
-
-  return (
-    <InteractionPreviewCard
-      typeName={action.typeName}
-      name={resolvedName}
-      description={resolvedDesc || undefined}
-      accentColor={accentColor}
-      costStr={alreadyPresent ? undefined : effectiveCostStr}
-      warning={evictedName ?? synergyLabel ?? undefined}
-      errorMessage={
-        categoryDeleted ? `"${action.typeName}" no longer exists in this jump.` : undefined
-      }
-      actions={[
-        {
-          label: alreadyPresent ? `Remove ${action.typeName}` : `Use ${action.typeName}`,
-          variant: alreadyPresent ? "danger" : evictedName ? "warn" : "confirm",
-          onConfirm: () => {
-            onExecute(resolvedName, resolvedDesc);
-            onClose();
-          },
-        },
-        // ...(onReroll
-        //   ? [{ label: "Reroll", variant: "warn" as const, noAutoClose: true, onConfirm: onReroll }]
-        //   : []),
-      ]}
-      onClose={onClose}
-    >
-      {!categoryDeleted && tags.length > 0 && (
-        <TagFieldsSection
-          tags={tags}
-          tagValues={tagValues}
-          choiceContext={action.template.choiceContext}
-          onChangeTag={(name, value) => setTagValues((v) => ({ ...v, [name]: value }))}
-        />
-      )}
-    </InteractionPreviewCard>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Interaction builders
-// ─────────────────────────────────────────────────────────────────────────────
-
-function buildOriginInteraction(
-  action: Extract<ViewerAnnotationAction, { collection: "origin" }>,
-  origins: Record<number, Origin[]> | null,
-  originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
-  currencies: Registry<LID.Currency, Currency> | undefined,
-  purchaseSubtypes: Registry<LID.PurchaseSubtype, PurchaseSubtype> | undefined,
-  jumpId: Id<GID.Jump>,
-  charId: Id<GID.Character>,
-  setOrigins: ReturnType<typeof useJumpOrigins>["setOrigins"],
-  getModifiersUpdater: ReturnType<typeof useJumpDocPurchaseActions>["getModifiersUpdater"],
-  navigate: ReturnType<typeof useNavigate>,
-  routeParams: RouteParams,
-  forceRemove: boolean,
-): AnnotationInteraction | null {
-  const categoryLid = resolveJumpOriginCategory(action.typeName, originCategories);
-  const categoryDeleted = categoryLid === undefined;
-  const chainCategory = categoryLid !== undefined ? originCategories?.O[categoryLid] : undefined;
-  const currentList: Origin[] = categoryLid !== undefined ? (origins?.[categoryLid] ?? []) : [];
-  const alreadyPresent = currentList.some(
-    (o) => o.summary === action.name || o.templateName === action.name,
-  );
-  if (forceRemove && !alreadyPresent) return null;
-  const { evictedIdx, evictedName } = resolveEviction(
-    currentList,
-    alreadyPresent,
-    chainCategory,
-    action.docCategoryMax,
-  );
-
-  // Always pass modifiers updater when synergies or discounts are involved.
-  const hasModifiers =
-    action.discountedPurchaseTemplateIds.length > 0 || action.synergyOriginNames.length > 0;
-  const discountUpdate = hasModifiers ? getModifiersUpdater(action.docId) : undefined;
-
-  // Synergy: check if any synergy origin is held.
-  const hasSynergy =
-    action.synergyOriginNames.length > 0 &&
-    action.synergyOriginNames.some(({ categoryName, originName }) => {
-      const catLid = resolveJumpOriginCategory(categoryName, originCategories);
-      if (!catLid) return false;
-      return (origins?.[catLid] ?? []).some(
-        (o) => o.summary === originName || o.templateName === originName,
-      );
-    });
-
-  // Access-restricted origin: block add when synergy origin not held.
-  if (action.synergyBenefit === "access" && !hasSynergy && !alreadyPresent && !forceRemove) {
-    const originList = action.synergyOriginNames.map((o) => o.originName).join(", ");
-    const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => (
-      <InteractionPreviewCard
-        typeName={action.typeName}
-        name={action.name}
-        accentColor="#22c55e"
-        costStr={action.costStr}
-        description={action.template.description}
-        errorMessage={`This origin is restricted to holders of: ${originList}.`}
-        actions={[]}
-        onClose={onClose}
-      />
-    );
-    return {
-      name: action.name,
-      typeName: action.typeName,
-      color: "#22c55e",
-      forcePreview: true,
-      executeDefault: () => {},
-      Preview,
-    };
-  }
-
-  // Effective cost string when synergy applies.
-  const effectiveCostStr = (() => {
-    if (alreadyPresent) return undefined;
-    if (hasSynergy && action.synergyBenefit === "free") return "free";
-    if (hasSynergy && action.synergyBenefit === "discounted") {
-      const threshold = Object.values(currencies?.O ?? {}).find(
-        (c) => c?.abbrev === action.docCurrencyAbbrev,
-      )?.discountFreeThreshold;
-      if (threshold != null && action.template.cost.amount <= threshold) return "free; discounted";
-      const halfCost = action.costStr.replace(/(\d+)/g, (m) => String(Math.floor(Number(m) / 2)));
-      return `${halfCost}; discounted`;
-    }
-    return action.costStr;
-  })();
-
-  const tags = extractTags([action.template.name, action.template.description ?? ""]);
-
-  const execute = (name: string, description: string) => {
-    if (categoryLid === undefined) return;
-    if (alreadyPresent) {
-      setOrigins(
-        (d) => {
-          const rec = d as Record<number, Origin[]>;
-          const list = rec[categoryLid];
-          if (!list) return;
-          const idx = list.findIndex(
-            (o) => o.summary === action.name || o.templateName === action.name,
-          );
-          if (idx !== -1) list.splice(idx, 1);
-          if (list.length === 0) delete rec[categoryLid];
-        },
-        (c) => {
-          removeOriginStipendDrawbacks(action.name, jumpId, charId)(c);
-          discountUpdate?.(c);
-        },
-      );
-    } else {
-      const stipendMutation = (c: Chain) => {
-        if (evictedName) removeOriginStipendDrawbacks(evictedName, jumpId, charId)(c);
-        if (action.resolvedOriginStipend.length)
-          createOriginStipendDrawbacks(
-            name,
-            action.resolvedOriginStipend,
-            currencies,
-            purchaseSubtypes,
-            jumpId,
-            charId,
-          )(c);
-        discountUpdate?.(c);
-      };
-      commitAddOrigin(
-        categoryLid,
-        evictedIdx,
-        {
-          name,
-          templateName: action.template.name !== name ? action.template.name : undefined,
-          description,
-          synergyOrigins: action.synergyOriginNames.length ? action.synergyOriginNames : undefined,
-          synergyBenefit: action.synergyBenefit,
-        },
-        action.template.cost.amount,
-        action.docCurrencyAbbrev,
-        currencies,
-        setOrigins,
-        stipendMutation,
-      );
-    }
-    navigate({ to: "/chain/$chainId/char/$charId/jump/$jumpId", params: routeParams });
-  };
-
-  const accentColor = alreadyPresent ? "#ef4444" : evictedName ? "#f59e0b" : "#22c55e";
-
-  const synergyLabel =
-    !alreadyPresent && hasSynergy && action.synergyBenefit !== "access"
-      ? `Synergy: ${action.synergyOriginNames.map((o) => o.originName).join(", ")}`
-      : undefined;
-
-  const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => (
-    <OriginInteractionPreview
-      action={action}
-      alreadyPresent={alreadyPresent}
-      accentColor={accentColor}
-      evictedName={evictedName}
-      synergyLabel={synergyLabel}
-      effectiveCostStr={effectiveCostStr}
-      categoryDeleted={categoryDeleted}
-      onExecute={execute}
-      onClose={onClose}
-    />
-  );
-
-  return {
-    name: action.name,
-    typeName: action.typeName,
-    color: "#22c55e",
-    forcePreview:
-      categoryDeleted ||
-      (!alreadyPresent && (action.synergyOriginNames.length > 0 || tags.length > 0)),
-    executeDefault: () => execute(action.template.name, action.template.description ?? ""),
-    Preview,
-  };
-}
-
-function buildOriginRandomizerInteraction(
-  action: Extract<ViewerAnnotationAction, { collection: "origin-randomizer" }>,
-  origins: Record<number, Origin[]> | null,
-  originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
-  currencies: Registry<LID.Currency, Currency> | undefined,
-  purchaseSubtypes: Registry<LID.PurchaseSubtype, PurchaseSubtype> | undefined,
-  jumpId: Id<GID.Jump>,
-  charId: Id<GID.Character>,
-  setOrigins: ReturnType<typeof useJumpOrigins>["setOrigins"],
-  navigate: ReturnType<typeof useNavigate>,
-  routeParams: RouteParams,
-  forceRemove: boolean,
-): AnnotationInteraction | null {
-  if (forceRemove) return null; // randomizer has nothing to remove
-  const categoryLid = resolveJumpOriginCategory(action.categoryName, originCategories);
-  const categoryDeleted = categoryLid === undefined;
-  const chainCategory = categoryLid !== undefined ? originCategories?.O[categoryLid] : undefined;
-  const currentList: Origin[] = categoryLid !== undefined ? (origins?.[categoryLid] ?? []) : [];
-  // Randomizer always adds, so alreadyPresent=false for eviction purposes.
-  const { evictedIdx, evictedName } = resolveEviction(
-    currentList,
-    false,
-    chainCategory,
-    action.docCategoryMax,
-  );
-
-  const buildStipendMutation =
-    (template: (typeof action.templates)[number], resolvedName: string) => (c: Chain) => {
-      if (evictedName) removeOriginStipendDrawbacks(evictedName, jumpId, charId)(c);
-      if (template.resolvedOriginStipend.length)
-        createOriginStipendDrawbacks(
-          resolvedName,
-          template.resolvedOriginStipend,
-          currencies,
-          purchaseSubtypes,
-          jumpId,
-          charId,
-        )(c);
-    };
-
-  const execute = () => {
-    if (categoryLid === undefined) return;
-    const available = action.templates.filter(
-      (t) => !currentList.some((o) => o.summary === t.name),
-    );
-    if (available.length === 0) return;
-    const template = available[Math.floor(Math.random() * available.length)]!;
-    const resolvedName = resolveOriginTemplate(template.name);
-    commitAddOrigin(
-      categoryLid,
-      evictedIdx,
-      { ...template, name: resolvedName },
-      action.cost.amount,
-      action.docCurrencyAbbrev,
-      currencies,
-      setOrigins,
-      buildStipendMutation(template, resolvedName),
-    );
-    navigate({ to: "/chain/$chainId/char/$charId/jump/$jumpId", params: routeParams });
-  };
-
-  const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => {
-    const [rolled, setRolled] = React.useState<{
-      template: (typeof action.templates)[number];
-      resolvedName: string;
-      rollKey: number;
-    } | null>(null);
-
-    const roll = () => {
-      if (categoryLid === undefined) return;
-      const available = action.templates.filter(
-        (t) => !currentList.some((o) => o.summary === t.name),
-      );
-      if (available.length === 0) return;
-      const template = available[Math.floor(Math.random() * available.length)]!;
-      const resolvedName = resolveOriginTemplate(template.name);
-      if (parseTemplatePlaceholders(template.name).placeholders.length > 0) {
-        setRolled((prev) => ({ template, resolvedName, rollKey: (prev?.rollKey ?? 0) + 1 }));
-      } else {
-        commitAddOrigin(
-          categoryLid,
-          evictedIdx,
-          { ...template, name: resolvedName },
-          action.cost.amount,
-          action.docCurrencyAbbrev,
-          currencies,
-          setOrigins,
-          buildStipendMutation(template, resolvedName),
-        );
-        navigate({ to: "/chain/$chainId/char/$charId/jump/$jumpId", params: routeParams });
-        onClose();
-      }
-    };
-
-    if (rolled) {
-      return (
-        <OriginInteractionPreview
-          key={rolled.rollKey}
-          action={{ typeName: action.typeName, costStr: action.costStr, template: rolled.template }}
-          alreadyPresent={false}
-          accentColor={evictedName ? "#f59e0b" : "#22c55e"}
-          evictedName={evictedName}
-          synergyLabel={undefined}
-          effectiveCostStr={action.costStr}
-          categoryDeleted={categoryDeleted}
-          onExecute={(name, desc) => {
-            if (categoryLid === undefined) return;
-            commitAddOrigin(
-              categoryLid,
-              evictedIdx,
-              { ...rolled.template, name, description: desc || rolled.template.description },
-              action.cost.amount,
-              action.docCurrencyAbbrev,
-              currencies,
-              setOrigins,
-              buildStipendMutation(rolled.template, name),
+            const lidCurrency = convertCurrencyId(
+              entry.currency,
+              doc,
+              jump.currencies,
             );
-            navigate({ to: "/chain/$chainId/char/$charId/jump/$jumpId", params: routeParams });
-          }}
-          onReroll={roll}
-          onClose={onClose}
-        />
-      );
-    }
+            const lidSubtype = convertSubtypeId(
+              entry.purchaseSubtype,
+              doc,
+              jump.purchaseSubtypes,
+            );
+            if (lidSubtype == null) continue;
 
-    return (
-      <InteractionPreviewCard
-        typeName={action.typeName}
-        name={action.name}
-        accentColor={evictedName ? "#f59e0b" : "#22c55e"}
-        costStr={action.costStr}
-        warning={evictedName ?? undefined}
-        errorMessage={
-          categoryDeleted ? `"${action.typeName}" no longer exists in this jump.` : undefined
+            const name = `${template.name} ${subtypeName} Stipend`;
+            created.push(name);
+            const newId = c.purchases.fId;
+            const newDrawback = {
+              id: newId,
+              charId,
+              jumpId,
+              name,
+              description: `Stipend from the ${template.name} ${categoryName} for ${subtypeName} purchases.`,
+              type: PurchaseType.Drawback,
+              cost: { modifier: CostModifier.Full },
+              value: [{ amount: entry.amount, currency: lidCurrency }],
+              overrides: {},
+              stipend: template.id,
+              _stipendSubtype: entry.purchaseSubtype,
+            };
+            c.purchases.O[newId] = newDrawback as never;
+            c.purchases.fId = createId<GID.Purchase>((newId as number) + 1);
+            if (!jump.drawbacks[charId]) jump.drawbacks[charId] = [];
+            jump.drawbacks[charId]!.push(newId);
+          }
         }
-        actions={[
-          {
-            label: "Randomize",
-            variant: "confirm",
-            noAutoClose: true,
-            onConfirm: roll,
-          },
-        ]}
-        onClose={onClose}
-      />
-    );
-  };
 
-  return {
-    name: action.name,
-    typeName: action.typeName,
-    color: "#22c55e",
-    forcePreview: true,
-    executeDefault: execute,
-    Preview,
-  };
+        c.budgetFlag += 1;
+      });
+      if (removed.length) toast.info(`Removed stipends: ${fmtNames(removed)}`);
+      if (created.length) toast.info(`Added stipends: ${fmtNames(created)}`);
+    },
+    build => [
+      build.origins
+        .map(o => o.template?.id ?? "")
+        .sort()
+        .join(","),
+    ],
+  );
+}
+
+/** Recomputes jump duration from the base doc duration plus all active drawback/scenario duration mods.
+ *  "set" and "choice" mods establish the base; "inc" mods stack on top. */
+export function createDurationListener(
+  jumpId: Id<GID.Jump>,
+  doc: JumpDoc,
+): BuildListener {
+  const durationModDrawbackTids = Object.keys(doc.availableDrawbacks.O)
+    .map(s => createId<TID.Drawback>(+s))
+    .filter(tid => doc.availableDrawbacks.O[tid]?.durationMod);
+  const durationScenarioModTids = Object.keys(doc.availableScenarios.O)
+    .map(s => createId<TID.Scenario>(+s))
+    .filter(tid => doc.availableScenarios.O[tid]?.durationMod);
+
+  return createListener(
+    (build, chain, doc, _mutators) => {
+      let base = doc.duration.years;
+      let increment = 0;
+
+      const applyMod = (mod: DrawbackDurationMod, gids: Id<GID.Purchase>[]) => {
+        if (mod.type === "set") {
+          base = mod.years;
+        } else if (mod.type === "choice") {
+          for (const gid of gids) {
+            const p = chain.purchases.O[gid] as
+              | { customDuration?: number }
+              | undefined;
+            base = p?.customDuration ?? 0;
+          }
+        } else {
+          increment += mod.years * gids.length;
+        }
+      };
+
+      for (const tidStr in build.drawbacks) {
+        const tid = createId<TID.Drawback>(+tidStr);
+        const mod = doc.availableDrawbacks.O[tid]?.durationMod;
+        if (mod) applyMod(mod, build.drawbacks[tid] ?? []);
+      }
+      for (const tidStr in build.scenarios) {
+        const tid = createId<TID.Scenario>(+tidStr);
+        const mod = doc.availableScenarios.O[tid]?.durationMod;
+        if (mod) applyMod(mod, build.scenarios[tid] ?? []);
+      }
+
+      const newYears = base + increment;
+      const newDuration = {
+        days: doc.duration.days,
+        months: doc.duration.months,
+        years: newYears,
+      };
+      let changed = false;
+      setTracked("Update jump duration", c => {
+        const jump = c.jumps.O[jumpId];
+        if (!jump) return;
+        if (!jump.originalDuration)
+          jump.originalDuration = { ...jump.duration };
+
+        const prev = jump.originalDuration;
+        if (
+          prev &&
+          prev.years === newYears &&
+          prev.months === newDuration.months &&
+          prev.days === newDuration.days
+        )
+          return;
+        changed = true;
+        jump.duration = newDuration;
+        jump.originalDuration = newDuration;
+      });
+      if (changed)
+        toast.info(`Jump duration updated to ${formatDuration(newYears)}`);
+    },
+    build => [
+      ...durationModDrawbackTids.map(
+        tid => (build.drawbacks[tid] ?? []).length,
+      ),
+      ...durationScenarioModTids.map(
+        tid => (build.scenarios[tid] ?? []).length,
+      ),
+    ],
+  );
+}
+
+/** Removes reward purchases whose granting scenario is no longer in the build. */
+export function createScenarioRewardListener(): BuildListener {
+  return createListener(
+    (build, chain, _doc, mutators) => {
+      const removed: string[] = [];
+      for (const tidStr in build.purchases) {
+        const tid = createId<TID.Purchase>(+tidStr);
+        for (const gid of build.purchases[tid] ?? []) {
+          const p = chain.purchases.O[gid] as BasicPurchase | undefined;
+          if (!p?.reward) continue;
+          const scenarioPresent =
+            (build.scenarios[p.reward as any] ?? []).length > 0;
+          if (!scenarioPresent) {
+            removed.push(p.name);
+            mutators.removePurchase(gid, build);
+          }
+        }
+      }
+      if (removed.length)
+        toast.info(`Removed reward purchases: ${fmtNames(removed)}`);
+    },
+    build => [Object.keys(build.scenarios).length],
+  );
+}
+
+/** Removes freebie purchases, drawbacks, and origins whose granting companion import is no longer in the build.
+ *  Runs once on first build (empty deps). */
+export function createFreebieCleanupListener(
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>,
+): BuildListener {
+  return createListener(
+    (build, chain, _doc, mutators) => {
+      const removed: string[] = [];
+
+      for (const tidStr in build.purchases) {
+        const tid = createId<TID.Purchase>(+tidStr);
+        for (const gid of build.purchases[tid] ?? []) {
+          const p = chain.purchases.O[gid] as BasicPurchase | undefined;
+          if (!p?.freebie) continue;
+          if ((build.companionImports[p.freebie] ?? []).length === 0) {
+            removed.push(p.name);
+            mutators.removePurchase(gid, build);
+          }
+        }
+      }
+
+      for (const tidStr in build.drawbacks) {
+        const tid = createId<TID.Drawback>(+tidStr);
+        for (const gid of build.drawbacks[tid] ?? []) {
+          const p = chain.purchases.O[gid] as BasicPurchase | undefined;
+          if (!p?.freebie) continue;
+          if ((build.companionImports[p.freebie] ?? []).length === 0) {
+            removed.push(p.name);
+            mutators.removePurchase(gid, build);
+          }
+        }
+      }
+
+      for (const origin of build.origins) {
+        if (!origin.freebie || !origin.template) continue;
+        if ((build.companionImports[origin.freebie] ?? []).length === 0) {
+          removed.push(origin.summary);
+          mutators.removeOrigin(origin.template.id, jumpId, charId);
+        }
+      }
+
+      if (removed.length)
+        toast.info(`Removed freebie items: ${fmtNames(removed)}`);
+    },
+    () => [],
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Template randomness explainer — see annotationResolvers.ts
+// Shared tag fields UI
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildOriginOptionInteraction(
-  action: Extract<ViewerAnnotationAction, { collection: "origin-option" }>,
-  origins: Record<number, Origin[]> | null,
-  originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
-  currencies: Registry<LID.Currency, Currency> | undefined,
-  setOrigins: ReturnType<typeof useJumpOrigins>["setOrigins"],
-  navigate: ReturnType<typeof useNavigate>,
-  routeParams: RouteParams,
-  forceRemove: boolean,
-): AnnotationInteraction | null {
-  const categoryLid = resolveJumpOriginCategory(action.typeName, originCategories);
-  const categoryDeleted = categoryLid === undefined;
-  const chainCategory = categoryLid !== undefined ? originCategories?.O[categoryLid] : undefined;
-  const currentList: Origin[] = categoryLid !== undefined ? (origins?.[categoryLid] ?? []) : [];
-  if (forceRemove) return null;
-  const isFreeform = action.option.type === "freeform";
-  const { evictedIdx, evictedName } = resolveEviction(
-    currentList,
-    false,
-    chainCategory,
-    undefined, // origin-options carry no docCategoryMax
-  );
-
-  const execute = (summaryOverride?: string) => {
-    if (categoryLid === undefined) return;
-    const resolved =
-      action.option.type === "template"
-        ? resolveOriginTemplate(action.option.name)
-        : action.option.name;
-    commitAddOrigin(
-      categoryLid,
-      evictedIdx,
-      { name: summaryOverride ?? resolved },
-      action.option.cost.amount,
-      action.docCurrencyAbbrev,
-      currencies,
-      setOrigins,
-    );
-    navigate({ to: "/chain/$chainId/char/$charId/jump/$jumpId", params: routeParams });
-  };
-
-  const accentColor = evictedName ? "#f59e0b" : "#22c55e";
-  const isRandomized = !isFreeform && /\$\{[^}]+\}/.test(action.option.name);
-  const templateInfo = !isFreeform ? originTemplateInfo(action.option.name) : null;
-
-  const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => {
-    const [freeformText, setFreeformText] = React.useState(currentList[0]?.summary ?? "");
-    const doExecute = () => {
-      execute(isFreeform ? freeformText || undefined : undefined);
-      onClose();
-    };
-    return (
-      <InteractionPreviewCard
-        typeName={action.typeName}
-        name={""}
-        accentColor={accentColor}
-        costStr={action.costStr}
-        warning={evictedName ?? undefined}
-        errorMessage={
-          categoryDeleted ? `"${action.typeName}" no longer exists in this jump.` : undefined
-        }
-        actions={[
-          {
-            label: "Update",
-            variant: "confirm",
-            onConfirm: doExecute,
-          },
-        ]}
-        onClose={onClose}
-      >
-        {isFreeform && (
-          <div className="px-2 pb-2">
+function TagFieldsSection({
+  tags,
+  tagValues,
+  choiceContext,
+  onChangeTag,
+}: {
+  tags: TagField[];
+  tagValues: Record<string, string>;
+  choiceContext?: string;
+  onChangeTag: (name: string, value: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 p-2 rounded-md border-edge bg-tint border">
+      {tags.map(tag => (
+        <label key={tag.name} className="contents">
+          <div
+            className={`text-xs font-semibold text-muted text-right min-w-min max-w-max w-30 justify-self-end ${!tag.multiline ? "self-stretch items-center flex" : ""}`}
+          >
+            {tag.name
+              .split(" ")
+              .map(w => w[0].toUpperCase() + w.slice(1))
+              .join(" ")}
+            :
+          </div>
+          {tag.multiline ? (
+            <textarea
+              className="bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
+              rows={3}
+              value={tagValues[tag.name] ?? ""}
+              ref={el => {
+                if (el) {
+                  el.style.height = "auto";
+                  el.style.height = `${el.scrollHeight}px`;
+                }
+              }}
+              onChange={e => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = `${el.scrollHeight}px`;
+                onChangeTag(tag.name, e.target.value);
+              }}
+            />
+          ) : (
             <input
               type="text"
-              className="bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
-              placeholder="Enter value…"
-              value={freeformText}
-              onChange={(e) => setFreeformText(e.target.value)}
+              className="h-min bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
+              value={tagValues[tag.name] ?? ""}
+              onChange={e => onChangeTag(tag.name, e.target.value)}
             />
-          </div>
-        )}
-        {templateInfo && (templateInfo.aux || isRandomized) && (
-          <div className="px-2 pb-2 flex flex-col gap-1">
-            <p className="text-xs text-ghost">{templateInfo.main}</p>
-            {templateInfo.aux?.map((s, i) => (
-              <p key={i} className="text-xs text-ghost">
-                {s}
-              </p>
-            ))}
-          </div>
-        )}
-      </InteractionPreviewCard>
-    );
-  };
-
-  return {
-    name: isFreeform
-      ? `Manually Set ${action.typeName}`
-      : isRandomized
-        ? `Randomize ${action.typeName}`
-        : `Set ${action.typeName} to "${action.name}"`,
-    typeName: action.typeName,
-    color: "#22c55e",
-    isOriginOption: true,
-    forcePreview: categoryDeleted || isFreeform || isRandomized,
-    executeDefault: () => execute(),
-    Preview,
-  };
-}
-
-type OriginOptionData = {
-  categoryName: string;
-  isFreeform: boolean;
-  evictedName: string | null | undefined;
-  /** Current freeform value in the jump for this category; null for non-freeform options. */
-  currentFreeformValue: string | null;
-  accentColor: string;
-  displayName: string;
-  /** Raw template name (with ${...} placeholders) for non-freeform options; null for freeform. */
-  rawName: string | null;
-  costStr: string | undefined;
-  execute: (summaryOverride?: string) => void;
-};
-
-type OriginOptionGroup = { categoryName: string; options: OriginOptionData[] };
-
-/** Selection state for a set of option groups: per-category selected index + freeform text. */
-type GroupSelectionState = Record<string, { idx: number; freeform: string }>;
-
-function initGroupState(groups: OriginOptionGroup[]): GroupSelectionState {
-  return Object.fromEntries(
-    groups.map((g) => {
-      const freeformOpt = g.options.find((o) => o.isFreeform);
-      const currentValue = freeformOpt?.currentFreeformValue ?? "";
-      return [g.categoryName, { idx: 0, freeform: currentValue }];
-    }),
+          )}
+        </label>
+      ))}
+      <div />
+      {choiceContext && (
+        <div className="text-xs text-ghost flex flex-col gap-1.5 max-w-sm">
+          {convertWhitespace(choiceContext)}
+        </div>
+      )}
+    </div>
   );
 }
 
-function executeGroupSelections(groups: OriginOptionGroup[], state: GroupSelectionState) {
-  for (const g of groups) {
-    const { idx, freeform } = state[g.categoryName] ?? { idx: 0, freeform: "" };
-    const opt = g.options[idx];
-    if (opt) opt.execute(opt.isFreeform ? freeform || undefined : undefined);
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+// Dialog wrapper (shown inside SweetAlert2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function InteractionDialog({
+  interactions,
+  build,
+  mutators,
+  onClose,
+}: {
+  interactions: AnnotationInteraction<object>[];
+  build: JumpDocBuildData;
+  mutators: ChainMutators;
+  onClose: () => void;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [interactionState, setInteractionState] = useState<object>(
+    () => interactions[0]?.initialize(build) ?? {},
+  );
+
+  useEffect(() => {
+    setInteractionState(interactions[activeIndex]?.initialize(build) ?? {});
+  }, [activeIndex]);
+
+  const enqueueInteractions = useViewerActionStore(s => s.enqueueInteractions);
+
+  let interaction = interactions[activeIndex];
+  let errorMessage = interaction.error(build);
+  let actions = (
+    typeof interaction.actions == "function"
+      ? interaction.actions(build)
+      : interaction.actions
+  )
+    .filter(a => a.condition(build))
+    .map(a => ({
+      label:
+        typeof a.name == "function" ? a.name(build, interactionState) : a.name,
+      variant: a.variant ?? "confirm",
+      blocker:
+        typeof a.blocker == "function"
+          ? a.blocker(build, interactionState)
+          : a.blocker,
+      onConfirm: () =>
+        a
+          .execute(build, mutators, interactionState)
+          .forEach(followup => enqueueInteractions([followup])),
+    }));
+
+  return (
+    <div className="bg-surface rounded-xl border border-edge shadow-xl text-left w-max max-w-[90vw] md:max-w-[70vw] lg:max-w-[60vw] justify-items-center overflow-visible">
+      {interactions.length > 1 && (
+        <>
+          <p className="px-4 pt-3 pb-2 text-sm font-semibold text-ink border-b border-edge">
+            Multiple options — choose one:
+          </p>
+          <div className="flex flex-row flex-wrap justify-center gap-1 mx-2 mt-2 max-w-100">
+            {interactions.map(({ name, initialize }, i) => (
+              <button
+                onClick={() => {
+                  if (i != activeIndex) {
+                    setActiveIndex(i);
+                    setInteractionState(
+                      interactions[activeIndex].initialize(build),
+                    );
+                  }
+                }}
+                className={`text-xs px-2 py-0.5 rounded-full border ${i == activeIndex ? "bg-accent2-tint text-accent2 border-accent2-ring" : "text-muted border-transparent hover:text-ink hover:border-edge hover:bg-tint"}`}
+              >
+                {stripTemplating(
+                  typeof name == "function"
+                    ? name(build, initialize(build))
+                    : name,
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <div className="flex flex-col max-w-120 w-full">
+        <InteractionPreviewCard
+          typeName={interaction.typeName}
+          description={
+            typeof interaction.description == "function"
+              ? interaction.description(build, interactionState)
+              : interaction.description
+          }
+          name={
+            typeof interaction.name == "function"
+              ? interaction.name(build, interactionState)
+              : interaction.name
+          }
+          costStr={
+            typeof interaction.costStr == "function"
+              ? interaction.costStr(build, interactionState)
+              : interaction.costStr
+          }
+          info={
+            typeof interaction.info == "function"
+              ? interaction.info(build, interactionState)
+              : interaction.info
+          }
+          warning={
+            typeof interaction.warning == "function"
+              ? interaction.warning(build, interactionState)
+              : interaction.warning
+          }
+          actions={actions}
+          onClose={onClose}
+          errorMessage={errorMessage}
+        >
+          <interaction.preview
+            buildData={build}
+            setState={partial => {
+              setInteractionState(s => ({ ...s, ...partial }));
+            }}
+            state={interactionState}
+          />
+        </InteractionPreviewCard>
+      </div>
+    </div>
+  );
 }
 
-/** Resolves per-action option data for any list of origin-option actions (mixed categories OK). */
-function buildOriginOptionDataArray(
-  optionActions: Array<Extract<ViewerAnnotationAction, { collection: "origin-option" }>>,
-  origins: Record<number, Origin[]> | null,
-  originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
-  currencies: Registry<LID.Currency, Currency> | undefined,
-  setOrigins: ReturnType<typeof useJumpOrigins>["setOrigins"],
-  navigate: ReturnType<typeof useNavigate> | null,
-  routeParams: RouteParams | null,
-  forceRemove: boolean,
-): OriginOptionData[] {
-  return optionActions.flatMap((action) => {
-    const categoryLid = resolveJumpOriginCategory(action.typeName, originCategories);
-    if (categoryLid === undefined) return []; // category deleted — skip silently
-    const chainCategory = originCategories?.O[categoryLid];
-    const currentList: Origin[] = origins?.[categoryLid] ?? [];
-    const isFreeform = action.option.type === "freeform";
-    const { evictedIdx, evictedName } = resolveEviction(
-      currentList,
-      false,
-      chainCategory,
-      undefined,
+function computeBuildData(
+  chain: Chain,
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>,
+  doc?: JumpDoc,
+): JumpDocBuildData {
+  let jump = chain.jumps.O[jumpId];
+
+  let purchases: PartialIndex<TID.Purchase, GID.Purchase> = {};
+  let drawbacks: PartialIndex<TID.Drawback, GID.Purchase> = {};
+  let scenarios: PartialIndex<TID.Scenario, GID.Purchase> = {};
+  let companionImports: PartialIndex<TID.Companion, GID.Purchase> = {};
+
+  [
+    ...(jump.purchases[charId] ?? []),
+    ...(jump.drawbacks[charId] ?? []),
+    ...(jump.scenarios[charId] ?? []),
+  ]?.forEach(pId => {
+    let purchase = chain.purchases.O[pId] as JumpPurchase;
+    if (purchase.template?.id !== undefined)
+      switch (purchase.type) {
+        case PurchaseType.Perk:
+        case PurchaseType.Item:
+          if (!purchases[purchase.template.id as Id<TID.Purchase>])
+            purchases[purchase.template.id as Id<TID.Purchase>] = [];
+          purchases[purchase.template.id as Id<TID.Purchase>]!.push(
+            purchase.id,
+          );
+          break;
+        case PurchaseType.Companion:
+          if (!companionImports[purchase.template.id as Id<TID.Companion>])
+            companionImports[purchase.template.id as Id<TID.Companion>] = [];
+          companionImports[purchase.template.id as Id<TID.Companion>]!.push(
+            purchase.id,
+          );
+          break;
+        case PurchaseType.Drawback:
+          if (!drawbacks[purchase.template.id as Id<TID.Drawback>])
+            drawbacks[purchase.template.id as Id<TID.Drawback>] = [];
+          drawbacks[purchase.template.id as Id<TID.Drawback>]!.push(
+            purchase.id,
+          );
+          break;
+        case PurchaseType.Scenario:
+          if (!scenarios[purchase.template.id as Id<TID.Scenario>])
+            scenarios[purchase.template.id as Id<TID.Scenario>] = [];
+          scenarios[purchase.template.id as Id<TID.Scenario>]!.push(
+            purchase.id,
+          );
+          break;
+      }
+  });
+
+  let stipend: PartialIndex<TID.Origin, GID.Purchase> | undefined;
+  if (doc) {
+    const hasOriginStipend = Object.values(doc.origins.O).some(t =>
+      t?.originStipend?.some(e => e.amount > 0),
+    );
+    if (hasOriginStipend) {
+      stipend = {};
+      for (const pId of jump.drawbacks[charId] ?? []) {
+        const p = chain.purchases.O[pId];
+        if (!p) continue;
+        const stipendTid = (p as any).stipend as Id<TID.Origin> | undefined;
+        if (stipendTid != null) {
+          if (!stipend[stipendTid]) stipend[stipendTid] = [];
+          stipend[stipendTid]!.push(pId);
+        }
+      }
+    }
+  }
+
+  return {
+    purchases,
+    drawbacks,
+    scenarios,
+    companionImports,
+    currencyExchanges: jump.currencyExchanges[charId] ?? [],
+    origins: Object.values(jump.origins[charId] ?? {}).flat(),
+    ...(stipend !== undefined ? { stipend } : {}),
+  };
+}
+
+function getPrereqError(
+  prereq: JumpDocPrerequisite,
+  build: JumpDocBuildData,
+  doc: JumpDoc,
+): string | undefined {
+  let has: boolean;
+  let name: string;
+  switch (prereq.type) {
+    case "drawback":
+      has = (build.drawbacks[prereq.id] ?? []).length > 0;
+      name = (doc.availableDrawbacks.O[prereq.id] ?? []).name;
+      break;
+    case "purchase":
+      has = (build.purchases[prereq.id] ?? []).length > 0;
+      name = (doc.availablePurchases.O[prereq.id] ?? []).name;
+      break;
+    case "scenario":
+      has = (build.scenarios[prereq.id] ?? []).length > 0;
+      name = (doc.availableScenarios.O[prereq.id] ?? []).name;
+      break;
+    case "origin":
+      has = build.origins.some(o => o.template?.id == prereq.id);
+      name = doc.origins.O[prereq.id].name;
+  }
+  if (!has && prereq.positive) return `Restricted to holders of "${name}".`;
+  if (has && !prereq.positive) return `Incompatible with "${name}".`;
+}
+
+function computePossibleCosts(
+  template: PurchaseTemplate<TID>,
+  build: JumpDocBuildData,
+  doc: JumpDoc,
+  isFirstCopy?: boolean,
+) {
+  let isPurchase = (template as BasicPurchaseTemplate).subtype !== undefined;
+  let floatingDiscountMode = isPurchase
+    ? doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype]
+        .floatingDiscountMode
+    : undefined;
+  let maxFloatingDiscountThreshold: PartialLookup<TID.Currency, number> = {};
+
+  if (floatingDiscountMode) {
+    for (let sv of doc.purchaseSubtypes.O[
+      (template as BasicPurchaseTemplate).subtype
+    ].floatingDiscountThresholds ?? [])
+      maxFloatingDiscountThreshold[sv.currency] = Math.max(
+        maxFloatingDiscountThreshold[sv.currency] ?? 0,
+        sv.amount,
+      );
+  }
+
+  let floatingDiscount = (c: PossibleCost) =>
+    (purchaseValue(c.cost, c) as Value<TID.Currency>).every(
+      c => c.amount <= (maxFloatingDiscountThreshold[c.currency] ?? 0),
     );
 
-    const execute = (summaryOverride?: string) => {
-      if (forceRemove) {
-        // Clear the entire category regardless of which option was selected.
-        setOrigins((d) => {
-          delete (d as Record<number, Origin[]>)[categoryLid];
-        });
-      } else {
-        const resolved =
-          action.option.type === "template"
-            ? resolveOriginTemplate(action.option.name)
-            : action.option.name;
-        commitAddOrigin(
-          categoryLid,
-          evictedIdx,
-          { name: summaryOverride ?? resolved },
-          action.option.cost.amount,
-          action.docCurrencyAbbrev,
-          currencies,
-          setOrigins,
-        );
-      }
-      if (navigate && routeParams)
-        navigate({ to: "/chain/$chainId/char/$charId/jump/$jumpId", params: routeParams });
+  let applyOrigin: (c: PossibleCost) => PossibleCost = c => {
+    if (
+      !build.origins.some(
+        o => o.template && (template.origins ?? []).includes(o.template.id),
+      )
+    )
+      return c;
+
+    if (floatingDiscountMode == "origin" && floatingDiscount(c)) {
+      return { ...c, floatingDiscountOption: true };
+    }
+
+    switch (template.originBenefit ?? "discounted") {
+      case "free":
+        return {
+          ...c,
+          modifier: CostModifier.Free,
+        };
+      case "discounted":
+        if (
+          c.cost.every(
+            c =>
+              c.amount <=
+              (doc.currencies.O[c.currency].discountFreeThreshold ?? 0),
+          )
+        )
+          return { ...c, modifier: CostModifier.Free };
+        switch (c.modifier) {
+          case CostModifier.Full:
+            return { ...c, modifier: CostModifier.Reduced };
+          case CostModifier.Reduced:
+            return {
+              ...c,
+              modifier: CostModifier.Custom,
+              modifiedTo: purchaseValue<TID.Currency>(
+                purchaseValue<TID.Currency>(c.cost, {
+                  modifier: CostModifier.Reduced,
+                }),
+                { modifier: CostModifier.Reduced },
+              ) as Value<TID.Currency>,
+            };
+          case CostModifier.Custom:
+            return {
+              ...c,
+              modifier: CostModifier.Custom,
+              modifiedTo: purchaseValue<TID.Currency>(c.modifiedTo, {
+                modifier: CostModifier.Reduced,
+              }) as Value<TID.Currency>,
+            };
+          case CostModifier.Free:
+            return c;
+        }
+      default:
+        return c;
+    }
+  };
+
+  let cost = applyOrigin({ cost: template.cost, modifier: CostModifier.Full });
+  let costOptions = [];
+
+  for (const altCost of template.alternativeCosts ?? []) {
+    let f = (a: (p: AlternativeCostPrerequisite) => boolean) =>
+      altCost.AND
+        ? altCost.prerequisites.some(a)
+        : altCost.prerequisites.every(a);
+    if (
+      f(prereq => {
+        if (
+          isFirstCopy &&
+          prereq.type === "purchase" &&
+          (prereq.id as number) === (template.id as number)
+        )
+          return true;
+        switch (prereq.type) {
+          case "purchase":
+            return (build.purchases[prereq.id] ?? []).length === 0;
+          case "drawback":
+            return (build.drawbacks[prereq.id] ?? []).length === 0;
+          case "origin":
+            return !build.origins.some(o => o.template?.id === prereq.id);
+        }
+      })
+    )
+      break;
+    let newCost: PossibleCost = {
+      cost: template.cost,
+      modifier: CostModifier.Custom as const,
+      modifiedTo: altCost.value,
     };
+    if (altCost.beforeDiscounts) {
+      newCost.floatingDiscountOption =
+        floatingDiscountMode == "free" && floatingDiscount(newCost);
+      newCost = applyOrigin(newCost);
+    }
+    if (altCost.mandatory) cost = newCost;
+    else costOptions.push(newCost);
+  }
+  return { default: cost, options: costOptions };
+}
+
+export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
+  type: A extends TID.Purchase ? "purchase" : "drawback",
+  template: A extends TID.Purchase ? BasicPurchaseTemplate : DrawbackTemplate,
+  doc: JumpDoc,
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>,
+  override?: {
+    cost: PossibleCost;
+    type: "scenario" | "import";
+    source?: Id<TID.Scenario> | Id<TID.Companion>;
+  },
+): AnnotationInteraction<Record<string, string>> {
+  const tags = extractTags([template.name, template.description]);
+  const hasTags = tags.length > 0;
+
+  const copies = (build: JumpDocBuildData) =>
+    (type == "purchase" ? build.purchases : build.drawbacks)[
+      template.id as any
+    ] ?? [];
+
+  const baseDescription = (build: JumpDocBuildData) => {
+    let activeBoosters =
+      template?.boosted?.filter?.(
+        ({ booster, boosterKind }) =>
+          (boosterKind == "drawback" ? build.drawbacks : build.purchases)[
+            booster as any
+          ]?.length,
+      ) ?? [];
+    return `${template.description}\n\n${activeBoosters.map(b => b.description).join("\n\n")}`;
+  };
+
+  let getCost = (build: JumpDocBuildData) =>
+    override
+      ? { default: override.cost, options: [] }
+      : computePossibleCosts(template, build, doc);
+
+  let error = (build: JumpDocBuildData) => {
+    let prereqErrors = (template.prerequisites ?? [])
+      .map(p => getPrereqError(p, build, doc))
+      .filter(err => err) as string[];
+    let originError: string | undefined = undefined;
+    if (
+      template.originBenefit == "access" &&
+      template.origins?.every?.(o =>
+        build.origins.every(bo => bo.template?.id != o),
+      )
+    ) {
+      originError = `Restricted to holders of ${template.origins?.map((o, i) => `${i == (template.origins?.length ?? 0) - 1 && i > 0 && "or "}"${doc.origins.O[o].name}"`).join(", ")}.`;
+    }
+    if (prereqErrors.length > 0 || originError)
+      return `${prereqErrors.join(" ")} ${originError}`;
+  };
+
+  let actions: (
+    build: JumpDocBuildData,
+  ) => AnnotationAction<Record<string, string>>[] = build => {
+    let cost = getCost(build);
+    const seen = new Set<string>();
+    const flatCosts = [cost.default, ...cost.options].filter(c => {
+      const key = formatCostShort(c.cost, c, doc.currencies);
+      return seen.size === seen.add(key).size ? false : true;
+    });
+    let floatingDiscountCosts = flatCosts.filter(c => c.floatingDiscountOption);
 
     return [
       {
-        categoryName: action.typeName,
-        isFreeform,
-        evictedName,
-        currentFreeformValue: isFreeform ? (currentList[0]?.summary ?? null) : null,
-        accentColor: evictedName ? "#f59e0b" : "#22c55e",
-        displayName: isFreeform
-          ? `Manually set ${action.typeName}`
-          : stripTemplating(action.option.name),
-        rawName: isFreeform ? null : action.option.name,
-        costStr: action.costStr,
-        execute,
+        name: "Remove",
+        variant: "danger",
+        condition: build => copies(build).length > 0,
+        execute: (build, mutators) => {
+          mutators.removePurchase(copies(build)[0], build);
+          mutators.navigate({
+            sub: type === "drawback" ? "drawbacks" : "purchases",
+          });
+          return [];
+        },
       },
-    ];
-  });
-}
-
-/** Groups a flat OriginOptionData array into per-category groups, preserving encounter order. */
-function groupOptionData(options: OriginOptionData[]): OriginOptionGroup[] {
-  const map = new Map<string, OriginOptionGroup>();
-  for (const opt of options) {
-    const g = map.get(opt.categoryName);
-    if (g) g.options.push(opt);
-    else map.set(opt.categoryName, { categoryName: opt.categoryName, options: [opt] });
-  }
-  return [...map.values()];
-}
-
-/** One labelled category group: a heading + selectable option buttons + optional freeform input. */
-function OriginOptionSelector({
-  group,
-  selectedIdx,
-  freeformText,
-  onSelect,
-  onFreeformChange,
-}: {
-  group: OriginOptionGroup;
-  selectedIdx: number;
-  freeformText: string;
-  onSelect: (i: number) => void;
-  onFreeformChange: (v: string) => void;
-}) {
-  const selectedOpt = group.options[selectedIdx];
-  const onlyFreeform = group.options.length === 1 && group.options[0]!.isFreeform;
-  return (
-    <div className="flex flex-col gap-1">
-      <p className="text-xs text-ghost font-medium uppercase tracking-wide">{group.categoryName}</p>
-      {onlyFreeform ? (
-        <input
-          type="text"
-          className="bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
-          placeholder="Enter value…"
-          value={freeformText}
-          onChange={(e) => onFreeformChange(e.target.value)}
-        />
-      ) : (
-        group.options.map((opt, i) => {
-          let { main, aux } = originTemplateInfo(opt.rawName ?? "");
-
-          return (
-            <>
-              <button
-                key={i}
-                type="button"
-                onClick={() => onSelect(i)}
-                className={`text-left px-3 py-2 rounded border transition-colors ${
-                  i === selectedIdx
-                    ? "border-accent2-ring bg-accent2-tint text-ink"
-                    : "border-edge text-muted hover:border-trim hover:text-ink"
-                }`}
-              >
-                <span className="text-sm font-medium">
-                  {opt?.isFreeform ? opt.displayName : main}
-                </span>
-                {opt.costStr && <span className="text-xs text-ghost ml-2">[{opt.costStr}]</span>}
-                {aux && aux.length && (
-                  <div className="text-xs text-ghost flex flex-col gap-0.5">
-                    {aux.map((s) => (
-                      <p>{s}</p>
-                    ))}
-                  </div>
-                )}
-              </button>
-              {selectedOpt?.isFreeform && selectedIdx == i && (
-                <input
-                  type="text"
-                  className="bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
-                  placeholder="Enter value…"
-                  value={freeformText}
-                  onChange={(e) => onFreeformChange(e.target.value)}
-                />
-              )}
-            </>
-          );
-        })
-      )}
-    </div>
-  );
-}
-
-/** Renders all option groups with their current selection state. */
-function OriginOptionGroups({
-  groups,
-  state,
-  onChange,
-}: {
-  groups: OriginOptionGroup[];
-  state: GroupSelectionState;
-  onChange: (categoryName: string, idx: number, freeform: string) => void;
-}) {
-  return (
-    <div className={`flex flex-col ${groups.length > 1 ? "gap-3" : "gap-1"}`}>
-      {groups.map((g) => {
-        const { idx, freeform } = state[g.categoryName] ?? { idx: 0, freeform: "" };
-        return (
-          <OriginOptionSelector
-            key={g.categoryName}
-            group={g}
-            selectedIdx={idx}
-            freeformText={freeform}
-            onSelect={(i) => onChange(g.categoryName, i, "")}
-            onFreeformChange={(v) => onChange(g.categoryName, idx, v)}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * Pools multiple origin-option actions (mixed categories OK) into a single preview card.
- * Options are shown as independent groups per category, each with a mandatory default selection.
- * forcePreview is true only when at least one category has ≥2 options (a real choice exists).
- */
-function buildPooledOriginOptionInteraction(
-  actions: Array<Extract<ViewerAnnotationAction, { collection: "origin-option" }>>,
-  origins: Record<number, Origin[]> | null,
-  originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
-  currencies: Registry<LID.Currency, Currency> | undefined,
-  setOrigins: ReturnType<typeof useJumpOrigins>["setOrigins"],
-  navigate: ReturnType<typeof useNavigate>,
-  routeParams: RouteParams,
-  forceRemove: boolean,
-): AnnotationInteraction | null {
-  if (actions.length === 0) return null;
-
-  const allOptions = buildOriginOptionDataArray(
-    actions,
-    origins,
-    originCategories,
-    currencies,
-    setOrigins,
-    navigate,
-    routeParams,
-    forceRemove,
-  );
-  if (allOptions.length === 0) return null;
-
-  const groups = groupOptionData(allOptions);
-  const needsChoice = groups.some((g) => g.options.length >= 2);
-  const hasFreeform = allOptions.some((o) => o.isFreeform);
-  const cardTypeName = groups.length === 1 ? groups[0]!.categoryName : "Origin Options";
-
-  const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => {
-    const [state, setState] = React.useState<GroupSelectionState>(() => initGroupState(groups));
-    const handleChange = (categoryName: string, idx: number, freeform: string) =>
-      setState((prev) => ({ ...prev, [categoryName]: { idx, freeform } }));
-    return (
-      <InteractionPreviewCard
-        typeName={cardTypeName}
-        name=""
-        accentColor="#22c55e"
-        actions={[
-          {
-            label: "Confirm",
-            variant: "confirm",
-            onConfirm: () => executeGroupSelections(groups, state),
-          },
-        ]}
-        onClose={onClose}
-      >
-        <OriginOptionGroups groups={groups} state={state} onChange={handleChange} />
-      </InteractionPreviewCard>
-    );
-  };
-
-  return {
-    name: `Set ${cardTypeName}`,
-    typeName: cardTypeName,
-    color: "#22c55e",
-    isOriginOption: true,
-    forcePreview: needsChoice || hasFreeform,
-    executeDefault: () => executeGroupSelections(groups, initGroupState(groups)),
-    Preview,
-  };
-}
-
-/**
- * Combines a single origin action with co-located origin-option actions.
- * The origin card is shown with its description; option groups appear below so
- * the user can set both at once. One tab is produced per call, so pass each
- * origin action separately when there are multiple origins.
- */
-function buildCombinedOriginWithOptionsInteraction(
-  originAction: Extract<ViewerAnnotationAction, { collection: "origin" }>,
-  optionActions: Array<Extract<ViewerAnnotationAction, { collection: "origin-option" }>>,
-  origins: Record<number, Origin[]> | null,
-  originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
-  currencies: Registry<LID.Currency, Currency> | undefined,
-  purchaseSubtypes: Registry<LID.PurchaseSubtype, PurchaseSubtype> | undefined,
-  jumpId: Id<GID.Jump>,
-  charId: Id<GID.Character>,
-  setOrigins: ReturnType<typeof useJumpOrigins>["setOrigins"],
-  getModifiersUpdater: ReturnType<typeof useJumpDocPurchaseActions>["getModifiersUpdater"],
-  navigate: ReturnType<typeof useNavigate>,
-  routeParams: RouteParams,
-  forceRemove: boolean,
-): AnnotationInteraction | null {
-  const action = originAction;
-  const categoryLid = resolveJumpOriginCategory(action.typeName, originCategories);
-  const categoryDeleted = categoryLid === undefined;
-  const chainCategory = categoryLid !== undefined ? originCategories?.O[categoryLid] : undefined;
-  const currentList: Origin[] = categoryLid !== undefined ? (origins?.[categoryLid] ?? []) : [];
-  const alreadyPresent = currentList.some(
-    (o) => o.summary === action.name || o.templateName === action.name,
-  );
-  if (forceRemove && !alreadyPresent) return null;
-  const { evictedIdx, evictedName } = resolveEviction(
-    currentList,
-    alreadyPresent,
-    chainCategory,
-    action.docCategoryMax,
-  );
-
-  const hasModifiers =
-    action.discountedPurchaseTemplateIds.length > 0 || action.synergyOriginNames.length > 0;
-  const discountUpdate = hasModifiers ? getModifiersUpdater(action.docId) : undefined;
-
-  const hasSynergy =
-    action.synergyOriginNames.length > 0 &&
-    action.synergyOriginNames.some(({ categoryName, originName }) => {
-      const catLid = resolveJumpOriginCategory(categoryName, originCategories);
-      if (!catLid) return false;
-      return (origins?.[catLid] ?? []).some(
-        (o) => o.summary === originName || o.templateName === originName,
-      );
-    });
-
-  // Access-restricted: show error card without option selector.
-  if (action.synergyBenefit === "access" && !hasSynergy && !alreadyPresent && !forceRemove) {
-    const originList = action.synergyOriginNames.map((o) => o.originName).join(", ");
-    const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => (
-      <InteractionPreviewCard
-        typeName={action.typeName}
-        name={action.name}
-        accentColor="#22c55e"
-        costStr={action.costStr}
-        description={action.template.description}
-        errorMessage={`This origin is restricted to holders of: ${originList}.`}
-        actions={[]}
-        onClose={onClose}
-      />
-    );
-    return {
-      name: action.name,
-      typeName: action.typeName,
-      color: "#22c55e",
-      forcePreview: true,
-      executeDefault: () => {},
-      Preview,
-    };
-  }
-
-  const effectiveCostStr = (() => {
-    if (alreadyPresent) return undefined;
-    if (hasSynergy && action.synergyBenefit === "free") return "free";
-    if (hasSynergy && action.synergyBenefit === "discounted") {
-      const threshold = Object.values(currencies?.O ?? {}).find(
-        (c) => c?.abbrev === action.docCurrencyAbbrev,
-      )?.discountFreeThreshold;
-      if (threshold != null && action.template.cost.amount <= threshold) return "free; discounted";
-      const halfCost = action.costStr.replace(/(\d+)/g, (m) => String(Math.floor(Number(m) / 2)));
-      return `${halfCost}; discounted`;
-    }
-    return action.costStr;
-  })();
-
-  const executeOrigin = (name: string, description: string) => {
-    if (categoryLid === undefined) return;
-    if (alreadyPresent) {
-      setOrigins(
-        (d) => {
-          const rec = d as Record<number, Origin[]>;
-          const list = rec[categoryLid];
-          if (!list) return;
-          const idx = list.findIndex(
-            (o) => o.summary === action.name || o.templateName === action.name,
-          );
-          if (idx !== -1) list.splice(idx, 1);
-          if (list.length === 0) delete rec[categoryLid];
-        },
-        (c) => {
-          removeOriginStipendDrawbacks(action.name, jumpId, charId)(c);
-          discountUpdate?.(c);
-        },
-      );
-    } else {
-      const stipendMutation = (c: Chain) => {
-        if (evictedName) removeOriginStipendDrawbacks(evictedName, jumpId, charId)(c);
-        if (action.resolvedOriginStipend.length)
-          createOriginStipendDrawbacks(
-            name,
-            action.resolvedOriginStipend,
-            currencies,
-            purchaseSubtypes,
+      ...flatCosts.map(c => ({
+        name: `Add (${formatCostShort(c.cost, c, doc.currencies)})`,
+        condition: (build: JumpDocBuildData) =>
+          copies(build).length == 0 || template.allowMultiple,
+        execute: (
+          _: JumpDocBuildData,
+          mutators: ChainMutators,
+          state: Record<string, string>,
+        ) => {
+          const customDuration =
+            state._duration !== undefined
+              ? parseInt(state._duration, 10)
+              : undefined;
+          const newId = mutators.addPurchaseFromTemplate(
+            {
+              template,
+              cost: { ...c, floatingDiscountOption: undefined },
+              tags: state,
+              type,
+              reward:
+                override?.type == "scenario"
+                  ? (override?.source as any)
+                  : undefined,
+              freebie:
+                override?.type === "import"
+                  ? (override.source as Id<TID.Companion>)
+                  : undefined,
+              customDuration:
+                customDuration !== undefined && !isNaN(customDuration)
+                  ? customDuration
+                  : undefined,
+            },
             jumpId,
             charId,
-          )(c);
-        discountUpdate?.(c);
-      };
-      commitAddOrigin(
-        categoryLid,
-        evictedIdx,
-        {
-          name,
-          templateName: action.template.name !== name ? action.template.name : undefined,
-          description,
-          synergyOrigins: action.synergyOriginNames.length ? action.synergyOriginNames : undefined,
-          synergyBenefit: action.synergyBenefit,
+            doc,
+          );
+          navAfterAdd(newId, mutators);
+          return [];
         },
-        action.template.cost.amount,
-        action.docCurrencyAbbrev,
-        currencies,
-        setOrigins,
-        stipendMutation,
-      );
-    }
-    navigate({ to: "/chain/$chainId/char/$charId/jump/$jumpId", params: routeParams });
-  };
-
-  const accentColor = alreadyPresent ? "#ef4444" : evictedName ? "#f59e0b" : "#22c55e";
-  const synergyLabel =
-    !alreadyPresent && hasSynergy && action.synergyBenefit !== "access"
-      ? `Synergy: ${action.synergyOriginNames.map((o) => o.originName).join(", ")}`
-      : undefined;
-
-  // Build option groups — no navigate, origin's navigate handles the redirect.
-  const optionGroups = groupOptionData(
-    buildOriginOptionDataArray(
-      optionActions,
-      origins,
-      originCategories,
-      currencies,
-      setOrigins,
-      null,
-      null,
-      forceRemove,
-    ),
-  );
-
-  const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => {
-    const tags = useMemo(
-      () => extractTags([action.template.name, action.template.description ?? ""]),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [],
-    );
-    const [tagValues, setTagValues] = useState<Record<string, string>>(() =>
-      Object.fromEntries(tags.map((t) => [t.name, ""])),
-    );
-    const resolvedName =
-      tags.length > 0 ? applyTags(action.template.name, tagValues) : action.template.name;
-    const resolvedDesc =
-      tags.length > 0
-        ? applyTags(action.template.description ?? "", tagValues)
-        : (action.template.description ?? "");
-
-    const [optState, setOptState] = useState<GroupSelectionState>(() =>
-      initGroupState(optionGroups),
-    );
-    const handleChange = (categoryName: string, idx: number, freeform: string) =>
-      setOptState((prev) => ({ ...prev, [categoryName]: { idx, freeform } }));
-
-    return (
-      <InteractionPreviewCard
-        typeName={action.typeName}
-        description={resolvedDesc || undefined}
-        name={resolvedName}
-        accentColor={accentColor}
-        costStr={alreadyPresent ? undefined : effectiveCostStr}
-        warning={evictedName ?? synergyLabel ?? undefined}
-        errorMessage={
-          categoryDeleted ? `"${action.typeName}" no longer exists in this jump.` : undefined
-        }
-        actions={[
-          {
-            label: alreadyPresent ? `Remove ${action.typeName}` : `Use ${action.typeName}`,
-            variant: alreadyPresent ? "danger" : evictedName ? "warn" : "confirm",
-            onConfirm: () => {
-              executeOrigin(resolvedName, resolvedDesc);
-              executeGroupSelections(optionGroups, optState);
-              onClose();
+      })),
+      ...floatingDiscountCosts.map(c => ({
+        name: `Use Floating Discount(${formatCostDisplay(
+          c.cost,
+          c,
+          doc.currencies,
+        )})`,
+        condition: (build: JumpDocBuildData) =>
+          copies(build).length == 0 || template.allowMultiple,
+        execute: (
+          _: JumpDocBuildData,
+          mutators: ChainMutators,
+          state: Record<string, string>,
+        ) => {
+          const customDuration =
+            state._duration !== undefined
+              ? parseInt(state._duration, 10)
+              : undefined;
+          const newId = mutators.addPurchaseFromTemplate(
+            {
+              template,
+              cost: c,
+              tags: state,
+              type,
+              reward:
+                override?.type == "scenario"
+                  ? (override?.source as any)
+                  : undefined,
+              freebie:
+                override?.type === "import"
+                  ? (override.source as Id<TID.Companion>)
+                  : undefined,
+              customDuration:
+                customDuration !== undefined && !isNaN(customDuration)
+                  ? customDuration
+                  : undefined,
             },
-          },
-        ]}
-        onClose={onClose}
-      >
-        {!alreadyPresent && tags.length > 0 && (
-          <TagFieldsSection
-            tags={tags}
-            tagValues={tagValues}
-            choiceContext={action.template.choiceContext}
-            onChangeTag={(name, value) => setTagValues((v) => ({ ...v, [name]: value }))}
-          />
-        )}
-        {!alreadyPresent && optionGroups.length > 0 && (
-          <OriginOptionGroups groups={optionGroups} state={optState} onChange={handleChange} />
-        )}
-      </InteractionPreviewCard>
-    );
+            jumpId,
+            charId,
+            doc,
+          );
+          navAfterAdd(newId, mutators);
+          return [];
+        },
+      })),
+    ];
   };
 
-  return {
-    name: action.name,
-    typeName: action.typeName,
-    color: "#22c55e",
-    isOriginOption: true,
-    forcePreview: !alreadyPresent,
-    executeDefault: () => executeOrigin(action.template.name, action.template.description ?? ""),
-    Preview,
-  };
-}
-
-/**
- * Returns an AnnotationInteraction that shows a read-only explanation when an
- * "access"-type template is clicked but the user doesn't hold a qualifying origin.
- * Shared by purchase and companion interaction builders.
- */
-function buildAccessDeniedInteraction(
-  action: {
-    name: string;
-    typeName: string;
-    costStr: string;
-    originNames: { categoryName: string; originName: string }[];
-  },
-  color: string,
-): AnnotationInteraction {
-  const originList = action.originNames.map((o) => o.originName).join(", ");
-  const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => (
-    <InteractionPreviewCard
-      typeName={action.typeName}
-      name={action.name}
-      accentColor={color}
-      costStr={action.costStr}
-      errorMessage={`This purchase is restricted to holders of: ${originList}.`}
-      actions={[]}
-      onClose={onClose}
-    />
-  );
-  return {
-    name: action.name,
-    typeName: action.typeName,
-    color,
-    forcePreview: true,
-    isError: true,
-    executeDefault: () => {},
-    Preview,
-  };
-}
-
-function buildPurchaseInteraction(
-  action: PurchaseAction,
-  origins: Record<number, Origin[]> | null,
-  originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
-  purchaseSubtypes: Registry<LID.PurchaseSubtype, PurchaseSubtype> | undefined,
-  currencies: Registry<LID.Currency, Currency> | undefined,
-  budget: Budget | undefined,
-  addFromTemplate: ReturnType<typeof useJumpDocPurchaseActions>["addFromTemplate"],
-  removePurchase: ReturnType<typeof useJumpDocPurchaseActions>["removePurchase"],
-  findByTemplate: ReturnType<typeof useJumpDocPurchaseActions>["findByTemplate"],
-  countByTemplate: ReturnType<typeof useJumpDocPurchaseActions>["countByTemplate"],
-  findDrawback: ReturnType<typeof useJumpDocDrawbackActions>["findByTemplate"],
-  findScenario: ReturnType<typeof useJumpDocScenarioActions>["findByTemplate"],
-  findOrigin: (docId: string, id: Id<TID.Origin>) => boolean,
-  navigate: ReturnType<typeof useNavigate>,
-  routeParams: RouteParams,
-  forceRemove: boolean,
-  findReverseIncompatibilities: ReturnType<
-    typeof useJumpDocPurchaseActions
-  >["findReverseIncompatibilities"],
-): AnnotationInteraction | null {
-  const subtype = resolveJumpPurchaseSubtype(action.subtypeName, purchaseSubtypes);
-  const subtypeData = subtype ? purchaseSubtypes?.O[subtype.lid] : undefined;
-  const floatingDiscountMode = action.cost.some((c) => c.amount)
-    ? subtypeData?.floatingDiscountMode
-    : undefined;
-  const hasFloatingDiscountThresholds =
-    !!subtypeData?.floatingDiscountThresholds?.length && action.cost.some((c) => c.amount);
-  const tags = extractTags([action.template.name, action.template.description]);
-  const existingId =
-    forceRemove || !action.template.allowMultiple
-      ? findByTemplate(action.docId, action.docTemplateId)
+  const subtypePlacement =
+    type === "purchase"
+      ? doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype]
+          ?.placement
       : undefined;
-  if (forceRemove && existingId === undefined) return null;
 
-  // Origin discount: check each qualifying origin in its specific category.
-  const hasOriginDiscount = action.originNames.some(({ categoryName, originName }) => {
-    const categoryLid = resolveJumpOriginCategory(categoryName, originCategories);
-    if (categoryLid === undefined) return false;
-    return (origins?.[categoryLid] ?? []).some(
-      (o) => o.summary === originName || o.templateName === originName,
-    );
-  });
-
-  // Only the first copy of a given template gets the free discount; subsequent copies are Reduced.
-  const isFirstCopy = countByTemplate(action.docId, action.docTemplateId) === 0;
-
-  // Access-only purchases are never discounted; discount display only applies to "discounted"/"free".
-  const isAccessOnly = action.originBenefit === "access";
-
-  // Floating discount relevance.
-  // Case a) free-use: no origin discount, subtype allows any purchase to use a floating discount.
-  // Case b) origin-based: has origin discount, but discount must be applied manually.
-  // In both cases, don't offer if the undiscounted cost exceeds the largest threshold for any currency.
-  const withinFloatingDiscountThreshold = action.cost.every(({ amount, currencyAbbrev }) => {
-    if (amount <= 0) return true;
-    const thresholds = subtypeData?.floatingDiscountThresholds ?? [];
-    const currencyLid = Object.entries(currencies?.O ?? {}).find(
-      ([, c]) => c?.abbrev === currencyAbbrev,
-    )?.[0];
-    if (currencyLid === undefined) return true;
-    const maxThreshold = Math.max(
-      ...thresholds.filter((t) => String(t.currency) === currencyLid).map((t) => t.amount),
-    );
-    return isFinite(maxThreshold) && amount <= maxThreshold;
-  });
-  const floatingDiscountFreeRelevant =
-    !hasOriginDiscount &&
-    !isAccessOnly &&
-    hasFloatingDiscountThresholds &&
-    withinFloatingDiscountThreshold &&
-    (floatingDiscountMode === "free" || floatingDiscountMode == null);
-  const floatingDiscountOriginRelevant =
-    hasOriginDiscount &&
-    !isAccessOnly &&
-    hasFloatingDiscountThresholds &&
-    withinFloatingDiscountThreshold &&
-    floatingDiscountMode === "origin";
-  const floatingDiscountRelevant = floatingDiscountFreeRelevant || floatingDiscountOriginRelevant;
-
-  // Capstone boosters: append boosted descriptions for any booster the user holds.
-  const boosterDescriptions = action.template.boosted.flatMap((b) => {
-    const held =
-      b.boosterKind === "drawback"
-        ? findDrawback(action.docId, b.booster as Id<TID.Drawback>) !== undefined
-        : findByTemplate(action.docId, b.booster as Id<TID.Purchase>) !== undefined;
-    return held ? [b.description] : [];
-  });
-
-  // If the user lacks a qualifying origin for an access-only purchase, block with an explanation.
-  if (isAccessOnly && !hasOriginDiscount) {
-    return buildAccessDeniedInteraction(action, "#818cf8");
-  }
-
-  // Prerequisite check: block add if any prereq is unmet (only when adding, not removing).
-  // Also checks the reverse direction: held purchases that declare THIS template incompatible.
-  if (!existingId) {
-    const unmet =
-      action.prerequisites.length > 0
-        ? getUnmetPrereqs(
-            action.prerequisites,
-            action.docId,
-            findByTemplate,
-            findDrawback,
-            findScenario,
-            findOrigin,
-          )
-        : [];
-    const reverseBlocked = findReverseIncompatibilities(action.docId, action.docTemplateId);
-    if (unmet.length > 0 || reverseBlocked.length > 0) {
-      const missing = unmet.filter((p) => p.positive).map((p) => p.name);
-      const incompatible = [
-        ...unmet.filter((p) => !p.positive).map((p) => p.name),
-        ...reverseBlocked,
-      ];
-      const parts: string[] = [];
-      if (missing.length) parts.push(`Requires: ${missing.join(", ")}`);
-      if (incompatible.length) parts.push(`Incompatible with: ${incompatible.join(", ")}`);
-      const errorMessage = parts.join(" · ");
-      const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => (
-        <InteractionPreviewCard
-          typeName={action.typeName}
-          name={action.name}
-          accentColor="#818cf8"
-          costStr={action.costStr}
-          errorMessage={errorMessage}
-          actions={[]}
-          onClose={onClose}
-        />
-      );
-      return {
-        name: action.name,
-        typeName: action.typeName,
-        color: "#818cf8",
-        forcePreview: true,
-        isError: true,
-        executeDefault: () => {},
-        Preview,
-      };
-    }
-  }
-
-  // Alternative costs: determine qualifying mandatory and optional alt costs.
-  const qualifyingMandatoryAltCost = (() => {
-    const q = action.alternativeCosts.filter(
-      (ac) =>
-        ac.mandatory &&
-        checkResolvedAltCostPrereqs(
-          ac.prerequisites,
-          action.docId,
-          origins,
-          originCategories,
-          findByTemplate,
-          findDrawback,
-        ),
-    );
-    if (!q.length) return undefined;
-    return q.find((ac) => ac.value.every((v) => v.amount === 0)) ?? q[0]!;
-  })();
-
-  const qualifyingOptionalAltCosts = action.alternativeCosts.filter((ac) => {
-    if (ac.mandatory) return false;
-    if (
-      !checkResolvedAltCostPrereqs(
-        ac.prerequisites,
-        action.docId,
-        origins,
-        originCategories,
-        findByTemplate,
-        findDrawback,
-      )
-    )
-      return false;
-    // Exclude alt costs that spend a hidden currency the user has no balance or stipend of.
-    if (currencies && budget) {
-      for (const v of ac.value) {
-        if (v.amount === 0) continue;
-        const abbrev = v.currencyAbbrev;
-        for (const [idStr, c] of Object.entries(currencies.O) as [string, Currency | undefined][]) {
-          if (c?.abbrev !== abbrev) continue;
-          const currId = createId<LID.Currency>(+idStr);
-          if (c.hidden && (budget.currency[currId] ?? 0) <= 0) {
-            const subtypeStipends = subtype ? budget.stipends[subtype.lid] : undefined;
-            const stipend = subtypeStipends ? (subtypeStipends[currId] ?? 0) : 0;
-            if (stipend <= 0) return false;
-          }
-          break;
-        }
-      }
-    }
-    return true;
-  });
-
-  // Determine origin modifier (for priority comparison).
-  const originModifier =
-    hasOriginDiscount && !isAccessOnly
-      ? originDiscountModifier(action.cost, currencies, action.originBenefit, isFirstCopy)
-      : undefined;
-  const originIsFree = originModifier?.modifier === CostModifier.Free;
-
-  // Effective cost string.
-  // beforeDiscounts alt costs: origin discount applies on top of the alt cost base.
-  // Regular alt costs: override origin discount entirely.
-  // Priority: beforeDiscounts-alt+origin > origin-free > regular-alt > origin-reduced > full.
-  // For origin-based floating discount subtypes, origin discounts are not auto-applied.
-  const effectiveCostStr = (() => {
-    if (existingId !== undefined) return undefined;
-    if (
-      qualifyingMandatoryAltCost?.beforeDiscounts &&
-      hasOriginDiscount &&
-      !isAccessOnly &&
-      !floatingDiscountOriginRelevant
-    ) {
-      return `${originDiscountCostStr(qualifyingMandatoryAltCost.value, currencies, action.originBenefit, isFirstCopy)} ; altered`;
-    }
-    if (qualifyingMandatoryAltCost?.beforeDiscounts)
-      return `${altCostValueStr(qualifyingMandatoryAltCost.value)} ; altered`;
-    if (originIsFree && !floatingDiscountOriginRelevant)
-      return originDiscountCostStr(action.cost, currencies, action.originBenefit, isFirstCopy);
-    if (qualifyingMandatoryAltCost)
-      return `${altCostValueStr(qualifyingMandatoryAltCost.value)} ; altered`;
-    if (hasOriginDiscount && !isAccessOnly && !floatingDiscountOriginRelevant)
-      return originDiscountCostStr(action.cost, currencies, action.originBenefit, isFirstCopy);
-    return action.costStr;
-  })();
-
-  const navigateToPurchases = (scrollTo?: string) =>
-    navigate({
-      to: "/chain/$chainId/char/$charId/jump/$jumpId/purchases",
-      params: routeParams,
-      search: { scrollTo },
-    });
-
-  const storedAltCosts = resolveAltCostsToStorage(
-    action.alternativeCosts,
-    action.docId,
-    currencies,
-  );
-  const storedPrereqs = resolvePrereqsToStorage(action.prerequisites, action.docId);
-
-  const doExecute = (
-    name: string,
-    description: string,
-    overrideInitialCost?: ModifiedCost,
-    isOptionalAltCost?: boolean,
-    usesFloatingDiscount?: boolean,
-    optionalAltCostBeforeDiscountsValue?: Value,
+  const navAfterAdd = (
+    newId: Id<GID.Purchase> | undefined,
+    mutators: ChainMutators,
   ) => {
-    if (existingId !== undefined) {
-      removePurchase(existingId);
-      navigateToPurchases();
-    } else if (subtype) {
-      // Resolve which currently-held purchases will gain booster text from this purchase.
-      const boosts: { purchaseId: Id<GID.Purchase>; description: string }[] =
-        action.isBoosterFor.flatMap(({ templateId, description: boostDesc }) => {
-          const pId = findByTemplate(action.docId, templateId);
-          return pId !== undefined ? [{ purchaseId: pId, description: boostDesc }] : [];
-        });
-      // Resolve booster purchases already held that boost this item so that deleting them
-      // later can strip the booster text via stripBoostsFromPurchases.
-      const reverseBoosts: { boosterPurchaseId: Id<GID.Purchase>; description: string }[] =
-        action.template.boosted.flatMap(
-          ({ booster: boosterTid, boosterKind, description: boostDesc }) => {
-            // Default to "purchase" for old data without boosterKind.
-            if (boosterKind === "drawback") {
-              const boosterId = findDrawback(action.docId, boosterTid as Id<TID.Drawback>);
-              return boosterId !== undefined
-                ? [{ boosterPurchaseId: boosterId, description: boostDesc }]
-                : [];
-            }
-            const boosterId = findByTemplate(action.docId, boosterTid as Id<TID.Purchase>);
-            return boosterId !== undefined
-              ? [{ boosterPurchaseId: boosterId, description: boostDesc }]
-              : [];
-          },
-        );
-      const value: Value = action.cost.map(({ amount, currencyAbbrev }) => ({
-        amount,
-        currency: resolveJumpCurrency(currencyAbbrev, currencies),
-      }));
-
-      // Compute initial cost: override > beforeDiscounts-alt+origin > origin-free > regular-alt > origin-reduced.
-      // For origin-based floating discount subtypes, origin discount is never auto-applied.
-      let initialCost: ModifiedCost | undefined = overrideInitialCost;
-      if (!initialCost) {
-        if (qualifyingMandatoryAltCost?.beforeDiscounts) {
-          // Alt cost is the base; apply origin discount on top if applicable.
-          const altResolved: Value = qualifyingMandatoryAltCost.value.map(
-            ({ amount, currencyAbbrev }) => ({
-              amount,
-              currency: resolveJumpCurrency(currencyAbbrev, currencies),
-            }),
-          );
-          if (hasOriginDiscount && !isAccessOnly && !floatingDiscountOriginRelevant) {
-            const altMod = originDiscountModifier(
-              qualifyingMandatoryAltCost.value,
-              currencies,
-              action.originBenefit,
-              isFirstCopy,
-            );
-            if (altMod.modifier === CostModifier.Free) {
-              initialCost = { modifier: CostModifier.Free };
-            } else {
-              initialCost = {
-                modifier: CostModifier.Custom,
-                modifiedTo: altResolved.map((v) => ({
-                  amount: Math.floor(v.amount / 2),
-                  currency: v.currency,
-                })),
-              };
-            }
-          } else {
-            initialCost = { modifier: CostModifier.Custom, modifiedTo: altResolved };
-          }
-        } else if (originIsFree && !floatingDiscountOriginRelevant) {
-          initialCost = originModifier;
-        } else if (qualifyingMandatoryAltCost) {
-          const resolvedValue: Value = qualifyingMandatoryAltCost.value.map(
-            ({ amount, currencyAbbrev }) => ({
-              amount,
-              currency: resolveJumpCurrency(currencyAbbrev, currencies),
-            }),
-          );
-          initialCost = { modifier: CostModifier.Custom, modifiedTo: resolvedValue };
-        } else if (hasOriginDiscount && !isAccessOnly && !floatingDiscountOriginRelevant) {
-          initialCost = originModifier;
-        }
-      }
-
-      const newId = addFromTemplate({
-        name,
-        description,
-        value,
-        templateId: action.docTemplateId,
-        docId: action.docId,
-        subtype: subtype.lid,
-        type: subtype.type,
-        boosts,
-        reverseBoosts: reverseBoosts.length ? reverseBoosts : undefined,
-        initialCost,
-        discountOrigins:
-          !isAccessOnly && action.originNames.length > 0 ? action.originNames : undefined,
-        originBenefit: action.originBenefit,
-        alternativeCosts: (() => {
-          const altCosts = isFirstCopy
-            ? storedAltCosts.filter((ac) => {
-                if (!ac.mandatory || ac.prerequisites.length === 0) return true;
-                return !ac.prerequisites.every(
-                  (p) =>
-                    p.type === "purchase" &&
-                    p.docId === action.docId &&
-                    p.templateId === action.docTemplateId,
-                );
-              })
-            : storedAltCosts;
-          return altCosts.length ? altCosts : undefined;
-        })(),
-        optionalAltCost: isOptionalAltCost || undefined,
-        optionalAltCostBeforeDiscountsValue,
-        storedPrerequisites: storedPrereqs.length ? storedPrereqs : undefined,
-        usesFloatingDiscount: usesFloatingDiscount || undefined,
-        temporary: action.template.temporary || undefined,
-      });
-      navigateToPurchases(String(newId));
+    if (newId === undefined) return;
+    if (type === "drawback") {
+      mutators.navigate({ sub: "drawbacks", scrollTo: newId });
+    } else if (subtypePlacement !== "route") {
+      mutators.navigate({ sub: "purchases", scrollTo: newId });
     }
   };
 
-  // Build extra actions for optional alt costs.
-  const optionalAltCostActions = qualifyingOptionalAltCosts.map((ac) => {
-    const resolvedValue: Value = ac.value.map(({ amount, currencyAbbrev }) => ({
-      amount,
-      currency: resolveJumpCurrency(currencyAbbrev, currencies),
-    }));
-    if (ac.beforeDiscounts) {
-      // Alt cost stacks with origin discounts — compute effective cost and label accordingly.
-      const hasApplicableDiscount =
-        hasOriginDiscount && !isAccessOnly && !floatingDiscountOriginRelevant;
-      let label: string;
-      let overrideInitialCost: ModifiedCost;
-      if (hasApplicableDiscount) {
-        label = `Add (${originDiscountCostStr(ac.value, currencies, action.originBenefit, isFirstCopy)}) ; altered`;
-        const altMod = originDiscountModifier(
-          ac.value,
-          currencies,
-          action.originBenefit,
-          isFirstCopy,
-        );
-        if (altMod.modifier === CostModifier.Free) {
-          overrideInitialCost = { modifier: CostModifier.Free };
-        } else {
-          overrideInitialCost = {
-            modifier: CostModifier.Custom,
-            modifiedTo: resolvedValue.map((v) => ({
-              amount: Math.floor(v.amount / 2),
-              currency: v.currency,
-            })),
-          };
-        }
-      } else {
-        label = `Add (${altCostValueStr(ac.value)}) ; altered`;
-        overrideInitialCost = { modifier: CostModifier.Custom, modifiedTo: resolvedValue };
-      }
-      return {
-        label,
-        variant: "confirm" as const,
-        onConfirm: (name: string, description: string) => {
-          doExecute(name, description, overrideInitialCost, true, undefined, resolvedValue);
-        },
-      };
-    }
-    return {
-      label: `Add (${altCostValueStr(ac.value)})`,
-      variant: "confirm" as const,
-      onConfirm: (name: string, description: string) => {
-        doExecute(
-          name,
-          description,
-          { modifier: CostModifier.Custom, modifiedTo: resolvedValue },
-          true,
-        );
-      },
-    };
-  });
-
-  // Floating discount action — shown when relevant and only when adding (not removing).
-  const floatingDiscountCost = floatingDiscountRelevant
-    ? originDiscountModifier(action.cost, currencies, action.originBenefit, isFirstCopy)
-    : undefined;
-  const floatingDiscountAction = floatingDiscountCost
-    ? [
-        {
-          label: `Use Floating Discount (${originDiscountCostStr(action.cost, currencies, action.originBenefit, isFirstCopy)})`,
-          variant: "confirm" as const,
-          onConfirm: (name: string, description: string) => {
-            doExecute(name, description, floatingDiscountCost, false, true);
-          },
-        },
-      ]
-    : [];
-
-  // For allowMultiple purchases, find an existing copy to offer as a removal target.
-  const existingCount = countByTemplate(action.docId, action.docTemplateId);
-  const removeId =
-    action.template.allowMultiple && existingCount > 0
-      ? findByTemplate(action.docId, action.docTemplateId)
+  const durationMod =
+    type === "drawback"
+      ? (template as DrawbackTemplate).durationMod
       : undefined;
-
-  const doRemoveCopy = () => {
-    if (removeId !== undefined) {
-      removePurchase(removeId);
-      navigateToPurchases();
-    }
-  };
-
-  const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => (
-    <PurchaseInteractionPreview
-      action={action}
-      existingId={existingId}
-      removeId={removeId}
-      copyCount={existingCount}
-      subtype={subtype}
-      effectiveCostStr={effectiveCostStr ?? action.costStr}
-      boosterDescriptions={boosterDescriptions}
-      onExecute={doExecute}
-      onRemove={doRemoveCopy}
-      extraActions={[...optionalAltCostActions, ...floatingDiscountAction]}
-      onClose={onClose}
-    />
-  );
-
-  const hasAnyModifier = qualifyingOptionalAltCosts.length > 0 || floatingDiscountRelevant;
+  const isUserChoiceDuration = durationMod?.type === "choice";
 
   return {
-    name: action.name,
-    typeName: action.typeName,
-    color: "#818cf8",
-    forcePreview:
-      existingId === undefined &&
-      (!subtype || tags.length > 0 || hasAnyModifier || existingCount > 0),
-    executeDefault: () =>
-      doExecute(
-        action.template.name,
-        boosterDescriptions.length > 0
-          ? `${action.template.description}\n\n${boosterDescriptions.join("\n\n")}`
-          : action.template.description,
+    initialize: (): Record<string, string> =>
+      isUserChoiceDuration ? { _duration: "1" } : {},
+    error,
+    preview: (props: {
+      buildData: JumpDocBuildData;
+      state: Record<string, string>;
+      setState: (partial: Partial<Record<string, string>>) => void;
+    }) =>
+      hasTags || isUserChoiceDuration ? (
+        <div className="flex flex-col gap-2">
+          {hasTags && (
+            <TagFieldsSection
+              tags={tags}
+              tagValues={props.state}
+              choiceContext={template.choiceContext}
+              onChangeTag={(name, value) => props.setState({ [name]: value })}
+            />
+          )}
+          {isUserChoiceDuration && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-ghost shrink-0">Duration:</span>
+              <input
+                type="number"
+                min={1}
+                value={props.state._duration ?? "1"}
+                onChange={e => props.setState({ _duration: e.target.value })}
+                className="w-16 text-xs bg-canvas border border-edge rounded px-2 py-1 focus:outline-none focus:border-accent-ring transition-colors"
+              />
+              <span className="text-xs text-ghost shrink-0">yr</span>
+            </div>
+          )}
+        </div>
+      ) : null,
+    typeName: type[0].toUpperCase() + type.slice(1),
+    name: (_, tagValues) =>
+      hasTags ? applyTags(template.name, tagValues) : template.name,
+    description: (build, tagValues) =>
+      hasTags
+        ? applyTags(baseDescription(build), tagValues)
+        : baseDescription(build),
+    costStr: build =>
+      formatCostDisplay(
+        getCost(build).default.cost,
+        getCost(build).default,
+        doc.currencies,
       ),
-    Preview,
+    shortCostStr: build =>
+      formatCostShort(
+        getCost(build).default.cost,
+        getCost(build).default,
+        doc.currencies,
+      ),
+    info: build =>
+      copies(build).length > 0
+        ? `${copies(build).length} cop${copies(build).length === 1 ? "y" : "ies"} already held`
+        : undefined,
+    actions,
+    forcePreview: _ => tags.length > 0 || isUserChoiceDuration,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scenario preview (outcome selection)
+// Scenario interaction
 // ─────────────────────────────────────────────────────────────────────────────
 
-type ScenarioAction = Extract<ViewerAnnotationAction, { collection: "scenario" }>;
-type RewardGroup = NonNullable<ScenarioTemplate["rewardGroups"]>[number];
+type ScenarioRewardGroup = NonNullable<
+  ScenarioTemplate["rewardGroups"]
+>[number];
+type ScenarioInteractionState = {
+  tags: Record<string, string>;
+  selectedOutcome: number;
+};
 
-/** Displays a single reward line (currency/stipend/perk/item). */
 function RewardLine({
   reward,
   doc,
 }: {
-  reward: ScenarioRewardTemplate;
-  doc: ReturnType<typeof useJumpDocStore.getState>["doc"];
+  reward: ScenarioRewardGroup["rewards"][number];
+  doc: JumpDoc;
 }) {
   if (reward.type === RewardType.Currency) {
-    const abbrev = doc?.currencies.O[reward.currency]?.abbrev ?? "?";
+    const abbrev = doc.currencies.O[reward.currency]?.abbrev ?? "?";
     return (
       <span className="text-xs text-ink">
         {reward.value} {abbrev}
@@ -2332,8 +1509,8 @@ function RewardLine({
     );
   }
   if (reward.type === RewardType.Stipend) {
-    const abbrev = doc?.currencies.O[reward.currency]?.abbrev ?? "?";
-    const subtypeName = doc?.purchaseSubtypes.O[reward.subtype]?.name ?? "?";
+    const abbrev = doc.currencies.O[reward.currency]?.abbrev ?? "?";
+    const subtypeName = doc.purchaseSubtypes.O[reward.subtype]?.name ?? "?";
     return (
       <span className="text-xs text-ink">
         {reward.value} {abbrev} ({subtypeName} stipend)
@@ -2341,31 +1518,35 @@ function RewardLine({
     );
   }
   if (reward.type === RewardType.Companion) {
-    const companion = doc?.availableCompanions.O[reward.id];
-    return <span className="text-xs text-ink">Companion import: {companion?.name}</span>;
+    const companion = doc.availableCompanions.O[reward.id];
+    return (
+      <span className="text-xs text-ink">
+        Companion import: {companion?.name}
+      </span>
+    );
   }
-  // Perk or Item
-  const purchase = doc?.availablePurchases.O[reward.id];
+  const purchase = doc.availablePurchases.O[reward.id];
   return <span className="text-xs text-ink">{purchase?.name}</span>;
 }
 
-/** Pill-based outcome selector with context + reward list for the selected group. */
 function ScenarioOutcomeSelector({
   groups,
   selectedIndex,
   onSelect,
   doc,
 }: {
-  groups: RewardGroup[];
+  groups: ScenarioRewardGroup[];
   selectedIndex: number;
   onSelect: (i: number) => void;
-  doc: ReturnType<typeof useJumpDocStore.getState>["doc"];
+  doc: JumpDoc;
 }) {
   const group = groups[selectedIndex];
   return (
     <div className="flex flex-col gap-2 pb-1">
       <div className="flex flex-wrap items-center gap-1.5 pl-3">
-        <span className="text-xs text-muted font-semibold shrink-0">Outcome:</span>
+        <span className="text-xs text-muted font-semibold shrink-0">
+          Outcome:
+        </span>
         {groups.map((g, i) => (
           <button
             key={i}
@@ -2392,8 +1573,8 @@ function ScenarioOutcomeSelector({
             <div className="flex flex-row flex-wrap gap-x-1.5 text-xs">
               <span className="font-medium">Rewards:</span>
               {group.rewards.map((r, i) => (
-                <span>
-                  <RewardLine key={i} reward={r} doc={doc} />
+                <span key={i}>
+                  <RewardLine reward={r} doc={doc} />
                   {i < group.rewards.length - 1 ? "; " : ""}
                 </span>
               ))}
@@ -2405,1134 +1586,2048 @@ function ScenarioOutcomeSelector({
   );
 }
 
-function ScenarioInteractionPreview({
-  action,
-  existingId,
-  addFromTemplate,
-  storedPrereqs,
-  remove,
-  navigateTo,
-  onClose,
-}: {
-  action: ScenarioAction;
-  existingId: Id<GID.Purchase> | undefined;
-  addFromTemplate: ReturnType<typeof useJumpDocScenarioActions>["addFromTemplate"];
-  storedPrereqs: StoredPurchasePrerequisite[];
-  remove: ReturnType<typeof useJumpDocScenarioActions>["remove"];
-  navigateTo: (scrollTo?: string) => void;
-  onClose: () => void;
-}) {
-  const rewardGroups = action.template.rewardGroups ?? [];
-  const [selectedOutcome, setSelectedOutcome] = useState(0);
-  const doc = useJumpDocStore((s) => s.doc);
+// ─────────────────────────────────────────────────────────────────────────────
+// Companion import interaction
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const tags = useMemo(
-    () => extractTags([action.template.name, action.template.description ?? ""]),
-    [action.template.name, action.template.description],
-  );
-  const [tagValues, setTagValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(tags.map((t) => [t.name, ""])),
-  );
-  const resolvedName =
-    tags.length > 0 ? applyTags(action.template.name, tagValues) : action.template.name;
-  const resolvedDesc =
-    tags.length > 0
-      ? applyTags(action.template.description ?? "", tagValues)
-      : (action.template.description ?? "");
+type CompanionInteractionState = {
+  follower: boolean;
+  selectedIds: Id<GID.Character>[];
+  charName: string;
+  charSpecies: string;
+  charGender: string;
+  showNewCompanionModal: boolean;
+  tags: Record<string, string>;
+};
 
-  function doExecute() {
-    if (existingId !== undefined) {
-      // Enqueue forceRemove companion batches for each companion reward — routes through
-      // the full companion removal flow (including the activity-check dialog).
-      const chain = useChainStore.getState().chain;
-      const doc = useJumpDocStore.getState().doc;
-      const scenario = chain?.purchases.O[existingId] as Scenario | undefined;
-      if (scenario?.type === PurchaseType.Scenario && doc && scenario.template?.jumpdoc) {
-        const companionRewards = scenario.rewards.filter(
-          (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
-            r.type === RewardType.Companion,
-        );
-        const batches = buildScenarioCompanionRewardActions(
-          companionRewards,
-          doc,
-          scenario.template.jumpdoc,
-        ).map((b) => ({ ...b, forceRemove: true as const }));
-        if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
-      }
-      remove(existingId);
-      navigateTo();
-    } else {
-      const group = rewardGroups.length > 0 ? rewardGroups[selectedOutcome] : undefined;
-      const newId = addFromTemplate({
-        name: resolvedName,
-        description: resolvedDesc,
-        value: [],
-        templateId: action.docTemplateId,
-        docId: action.docId,
-        rewardGroup: group,
-        storedPrerequisites: storedPrereqs.length ? storedPrereqs : undefined,
-      });
-      // Enqueue Item/Perk and Companion rewards as annotation interactions.
-      const doc = useJumpDocStore.getState().doc;
-      if (doc) {
-        const purchaseRewards = (group?.rewards ?? []).filter(
-          (r): r is Extract<typeof r, { type: RewardType.Item | RewardType.Perk }> =>
-            r.type === RewardType.Item || r.type === RewardType.Perk,
-        );
-        const companionRewards = (group?.rewards ?? []).filter(
-          (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
-            r.type === RewardType.Companion,
-        );
-        const batches = [
-          ...buildScenarioRewardActions(purchaseRewards, doc, action.docId),
-          ...buildScenarioCompanionRewardActions(companionRewards, doc, action.docId),
-        ];
-        if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
-      }
-      navigateTo(String(newId));
-    }
-    onClose();
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+// Origin interaction
+// ─────────────────────────────────────────────────────────────────────────────
 
-  return (
-    <InteractionPreviewCard
-      typeName={action.typeName}
-      name={resolvedName}
-      accentColor={existingId !== undefined ? "#ef4444" : "#a855f7"}
-      description={resolvedDesc || undefined}
-      actions={[
+type OriginInteractionState = {
+  tags: Record<string, string>;
+  selections: Record<string, { idx: number; freeform: string }>;
+};
+
+type OriginOptionEntry = {
+  isFreeform: boolean;
+  displayName: string;
+  rawName: string | null;
+  costStr: string | undefined;
+};
+
+type OriginOptionGroup = {
+  categoryName: string;
+  catId: Id<TID.OriginCategory>;
+  options: OriginOptionEntry[];
+};
+
+function buildOriginOptionGroups(
+  optionIndices: PartialLookup<TID.OriginCategory, number[]>,
+  doc: JumpDoc,
+): OriginOptionGroup[] {
+  const groups: OriginOptionGroup[] = [];
+  for (const catIdStr in optionIndices) {
+    const catId = createId<TID.OriginCategory>(+catIdStr);
+    const indices = optionIndices[catId] ?? [];
+    const category = doc.originCategories.O[catId];
+    if (!category || !category.singleLine) continue;
+    const options: OriginOptionEntry[] = (indices as number[]).flatMap(i => {
+      const opt = (category as DocOriginCategory & { singleLine: true })
+        .options[i];
+      if (!opt) return [];
+      const isFreeform = opt.type === "freeform";
+      const currency = doc.currencies.O[opt.cost.currency];
+      const costStr = currency
+        ? `${opt.cost.amount} ${currency.abbrev}`
+        : undefined;
+      return [
         {
-          label: existingId !== undefined ? "Remove" : "Add",
-          variant: existingId !== undefined ? "danger" : "confirm",
-          onConfirm: doExecute,
+          isFreeform,
+          displayName: isFreeform
+            ? `Manually set ${category.name}`
+            : stripTemplating(opt.name),
+          rawName: isFreeform ? null : opt.name,
+          costStr,
         },
-      ]}
-      onClose={onClose}
-    >
-      {tags.length > 0 && (
-        <TagFieldsSection
-          tags={tags}
-          tagValues={tagValues}
-          choiceContext={action.template.choiceContext}
-          onChangeTag={(name, value) => setTagValues((v) => ({ ...v, [name]: value }))}
-        />
-      )}
-      {existingId === undefined && rewardGroups.length > 0 && (
-        <ScenarioOutcomeSelector
-          groups={rewardGroups}
-          selectedIndex={selectedOutcome}
-          onSelect={setSelectedOutcome}
-          doc={doc}
-        />
-      )}
-    </InteractionPreviewCard>
-  );
-}
-
-function buildScenarioInteraction(
-  action: ScenarioAction,
-  addFromTemplate: ReturnType<typeof useJumpDocScenarioActions>["addFromTemplate"],
-  remove: ReturnType<typeof useJumpDocScenarioActions>["remove"],
-  findByTemplate: ReturnType<typeof useJumpDocScenarioActions>["findByTemplate"],
-  navigateTo: (scrollTo?: string) => void,
-  forceRemove: boolean,
-  findPurchase: (docId: string, id: Id<TID.Purchase>) => Id<GID.Purchase> | undefined,
-  findDrawback: (docId: string, id: Id<TID.Drawback>) => Id<GID.Purchase> | undefined,
-  findOrigin: (docId: string, id: Id<TID.Origin>) => boolean,
-): AnnotationInteraction | null {
-  const existingId = findByTemplate(action.docId, action.docTemplateId);
-  if (forceRemove && existingId === undefined) return null;
-
-  const rewardGroups = action.template.rewardGroups ?? [];
-  const tags = extractTags([action.template.name, action.template.description ?? ""]);
-  const storedPrereqs = resolvePrereqsToStorage(action.prerequisites, action.docId);
-
-  // Prerequisite check: block add if any prereq is unmet.
-  if (!existingId && action.prerequisites.length > 0) {
-    const unmet = getUnmetPrereqs(
-      action.prerequisites,
-      action.docId,
-      findPurchase,
-      findDrawback,
-      findByTemplate,
-      findOrigin,
-    );
-    if (unmet.length > 0) {
-      const missing = unmet.filter((p) => p.positive).map((p) => p.name);
-      const incompatible = unmet.filter((p) => !p.positive).map((p) => p.name);
-      const parts: string[] = [];
-      if (missing.length) parts.push(`Requires: ${missing.join(", ")}`);
-      if (incompatible.length) parts.push(`Incompatible with: ${incompatible.join(", ")}`);
-      const errorMsg = parts.join(" · ");
-      const PreviewErr: AnnotationInteraction["Preview"] = ({ onClose }) => (
-        <InteractionPreviewCard
-          typeName={action.typeName}
-          name={action.name}
-          accentColor="#a855f7"
-          costStr={action.costStr}
-          errorMessage={errorMsg}
-          actions={[]}
-          onClose={onClose}
-        />
-      );
-      return {
-        name: action.name,
-        typeName: action.typeName,
-        color: "#a855f7",
-        forcePreview: true,
-        executeDefault: () => {},
-        Preview: PreviewErr,
-      };
-    }
+      ];
+    });
+    if (options.length > 0)
+      groups.push({ categoryName: category.name, catId, options });
   }
-
-  const doExecute = (name: string, description: string) => {
-    if (existingId !== undefined) {
-      // Enqueue forceRemove companion batches for each companion reward — routes through
-      // the full companion removal flow (including the activity-check dialog).
-      const chain = useChainStore.getState().chain;
-      const doc = useJumpDocStore.getState().doc;
-      const scenario = chain?.purchases.O[existingId] as Scenario | undefined;
-      if (scenario?.type === PurchaseType.Scenario && doc && scenario.template?.jumpdoc) {
-        const companionRewards = scenario.rewards.filter(
-          (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
-            r.type === RewardType.Companion,
-        );
-        const batches = buildScenarioCompanionRewardActions(
-          companionRewards,
-          doc,
-          scenario.template.jumpdoc,
-        ).map((b) => ({ ...b, forceRemove: true as const }));
-        if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
-      }
-      remove(existingId);
-      navigateTo();
-    } else {
-      // For single/zero outcomes, pick group[0] and resolve from store directly.
-      const group = rewardGroups.length > 0 ? rewardGroups[0] : undefined;
-      const newId = addFromTemplate({
-        name,
-        description,
-        value: [],
-        templateId: action.docTemplateId,
-        docId: action.docId,
-        rewardGroup: group,
-        storedPrerequisites: storedPrereqs.length ? storedPrereqs : undefined,
-      });
-      // Enqueue Item/Perk and Companion rewards as annotation interactions.
-      const doc = useJumpDocStore.getState().doc;
-      if (doc) {
-        const purchaseRewards = (group?.rewards ?? []).filter(
-          (r): r is Extract<typeof r, { type: RewardType.Item | RewardType.Perk }> =>
-            r.type === RewardType.Item || r.type === RewardType.Perk,
-        );
-        const companionRewards = (group?.rewards ?? []).filter(
-          (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
-            r.type === RewardType.Companion,
-        );
-        const batches = [
-          ...buildScenarioRewardActions(purchaseRewards, doc, action.docId),
-          ...buildScenarioCompanionRewardActions(companionRewards, doc, action.docId),
-        ];
-        if (batches.length > 0) useViewerActionStore.getState().enqueueActions(batches);
-      }
-      navigateTo(String(newId));
-    }
-  };
-
-  const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => (
-    <ScenarioInteractionPreview
-      action={action}
-      existingId={existingId}
-      addFromTemplate={addFromTemplate}
-      storedPrereqs={storedPrereqs}
-      remove={remove}
-      navigateTo={navigateTo}
-      onClose={onClose}
-    />
-  );
-
-  return {
-    name: action.name,
-    typeName: action.typeName,
-    color: "#a855f7",
-    forcePreview: existingId === undefined && (rewardGroups.length > 1 || tags.length > 0),
-    executeDefault: () => doExecute(action.template.name, action.template.description ?? ""),
-    Preview,
-  };
+  return groups;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Drawback / Scenario interaction builder (shared)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function buildDocItemInteraction(
-  action: DocItemAction,
-  currencies: Registry<LID.Currency, Currency> | undefined,
-  addFromTemplate: (data: {
-    name: string;
-    description: string;
-    value: Value;
-    templateId: never;
-    docId: string;
-    initialCost?: ModifiedCost;
-    alternativeCosts?: StoredAlternativeCost[];
-    storedPrerequisites?: StoredPurchasePrerequisite[];
-  }) => Id<GID.Purchase>,
-  remove: (id: Id<GID.Purchase>) => void,
-  findByTemplate: (docId: string, templateId: never) => Id<GID.Purchase> | undefined,
-  countByTemplate: (docId: string, templateId: never) => number,
-  navigateTo: (scrollTo?: string) => void,
-  forceRemove: boolean,
-  origins: Record<number, Origin[]> | null,
-  originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
-  findPurchase: (docId: string, id: Id<TID.Purchase>) => Id<GID.Purchase> | undefined,
-  findDrawbackForPrereq: (docId: string, id: Id<TID.Drawback>) => Id<GID.Purchase> | undefined,
-  findScenario: ReturnType<typeof useJumpDocScenarioActions>["findByTemplate"],
-  findOrigin: (docId: string, id: Id<TID.Origin>) => boolean,
-): AnnotationInteraction | null {
-  const existingId =
-    forceRemove || !action.template.allowMultiple
-      ? findByTemplate(action.docId, action.docTemplateId as never)
-      : undefined;
-  if (forceRemove && existingId === undefined) return null;
-  const tags = extractTags([action.template.name, action.template.description]);
-  const accentColor = action.collection === "drawback" ? "#ef4444" : "#a855f7";
-
-  // Alt cost logic (drawbacks only).
-  const qualifyingMandatoryAltCost =
-    action.collection === "drawback" && origins !== undefined
-      ? (() => {
-          const q = action.alternativeCosts.filter(
-            (ac) =>
-              ac.mandatory &&
-              checkResolvedAltCostPrereqs(
-                ac.prerequisites,
-                action.docId,
-                origins ?? null,
-                originCategories,
-                findPurchase ?? (() => undefined),
-                findDrawbackForPrereq ?? (() => undefined),
-              ),
-          );
-          if (!q.length) return undefined;
-          return q.find((ac) => ac.value.every((v) => v.amount === 0)) ?? q[0]!;
-        })()
-      : undefined;
-
-  const effectiveCostStr =
-    existingId === undefined && qualifyingMandatoryAltCost
-      ? `${altCostValueStr(qualifyingMandatoryAltCost.value)} ; altered`
-      : undefined;
-
-  const storedAltCosts =
-    action.collection === "drawback"
-      ? resolveAltCostsToStorage(action.alternativeCosts, action.docId, currencies)
-      : [];
-
-  const storedPrereqs =
-    action.collection === "drawback"
-      ? resolvePrereqsToStorage(action.prerequisites, action.docId)
-      : [];
-
-  // Prerequisite check for drawbacks: block add if any prereq is unmet.
-  if (action.collection === "drawback" && !existingId && action.prerequisites.length > 0) {
-    const unmet = getUnmetPrereqs(
-      action.prerequisites,
-      action.docId,
-      findPurchase ?? (() => undefined),
-      findDrawbackForPrereq ?? (() => undefined),
-      findScenario,
-      findOrigin,
-    );
-    if (unmet.length > 0) {
-      const missing = unmet.filter((p) => p.positive).map((p) => p.name);
-      const incompatible = unmet.filter((p) => !p.positive).map((p) => p.name);
-      const parts: string[] = [];
-      if (missing.length) parts.push(`Requires: ${missing.join(", ")}`);
-      if (incompatible.length) parts.push(`Incompatible with: ${incompatible.join(", ")}`);
-      const errorMsg = parts.join(" · ");
-      const PreviewErr: AnnotationInteraction["Preview"] = ({ onClose }) => (
-        <InteractionPreviewCard
-          typeName={action.typeName}
-          name={action.name}
-          accentColor={accentColor}
-          costStr={action.costStr}
-          errorMessage={errorMsg}
-          actions={[]}
-          onClose={onClose}
-        />
-      );
-      return {
-        name: action.name,
-        typeName: action.typeName,
-        color: accentColor,
-        forcePreview: true,
-        executeDefault: () => {},
-        Preview: PreviewErr,
-      };
-    }
-  }
-
-  const doExecute = (name: string, description: string) => {
-    if (existingId !== undefined) {
-      remove(existingId);
-      navigateTo();
-    } else {
-      const cost = "cost" in action ? action.cost : [];
-      const value: Value = cost.map(({ amount, currencyAbbrev }) => ({
-        amount,
-        currency: resolveJumpCurrency(currencyAbbrev, currencies),
-      }));
-
-      let initialCost: ModifiedCost | undefined;
-      if (qualifyingMandatoryAltCost) {
-        const resolvedValue: Value = qualifyingMandatoryAltCost.value.map(
-          ({ amount, currencyAbbrev }) => ({
-            amount,
-            currency: resolveJumpCurrency(currencyAbbrev, currencies),
-          }),
-        );
-        initialCost = { modifier: CostModifier.Custom, modifiedTo: resolvedValue };
-      }
-
-      // For drawback capstone boosters: resolve which currently-held purchases gain booster text.
-      const boosts =
-        action.collection === "drawback" && action.isBoosterFor.length > 0
-          ? action.isBoosterFor.flatMap(({ templateId, description: boostDesc }) => {
-              const pId = findPurchase?.(action.docId, templateId);
-              return pId !== undefined ? [{ purchaseId: pId, description: boostDesc }] : [];
-            })
-          : undefined;
-
-      const newId = addFromTemplate({
-        name,
-        description,
-        value,
-        templateId: action.docTemplateId as never,
-        docId: action.docId,
-        initialCost,
-        alternativeCosts: storedAltCosts.length ? storedAltCosts : undefined,
-        storedPrerequisites: storedPrereqs.length ? storedPrereqs : undefined,
-        ...(boosts?.length ? { boosts } : {}),
-      });
-      navigateTo(String(newId));
-    }
-  };
-
-  // For allowMultiple drawbacks, find an existing copy to offer as removal target.
-  const existingCount =
-    action.collection === "drawback" && action.template.allowMultiple
-      ? countByTemplate(action.docId, action.docTemplateId as never)
-      : 0;
-  const removeId =
-    existingCount > 0 ? findByTemplate(action.docId, action.docTemplateId as never) : undefined;
-
-  const doRemoveCopy = () => {
-    if (removeId !== undefined) {
-      remove(removeId);
-      navigateTo();
-    }
-  };
-
-  const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => (
-    <DocItemInteractionPreview
-      action={action}
-      existingId={existingId}
-      removeId={removeId}
-      copyCount={existingCount}
-      accentColor={accentColor}
-      effectiveCostStr={effectiveCostStr}
-      onExecute={doExecute}
-      onRemove={doRemoveCopy}
-      onClose={onClose}
-    />
-  );
-
-  return {
-    name: action.name,
-    typeName: action.typeName,
-    color: accentColor,
-    forcePreview: existingId === undefined && (tags.length > 0 || existingCount > 0),
-    executeDefault: () => doExecute(action.template.name, action.template.description),
-    Preview,
-  };
-}
-
-function buildCompanionInteraction(
-  action: CompanionAction,
-  selfCharId: Id<GID.Character>,
-  jumpId: Id<GID.Jump>,
-  origins: Record<Id<LID.OriginCategory>, Origin[]> | null,
-  originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
-  currencies: Registry<LID.Currency, Currency> | undefined,
-  budget: Budget | undefined,
-  addFromTemplate: ReturnType<typeof useJumpDocCompanionActions>["addFromTemplate"],
-  remove: ReturnType<typeof useJumpDocCompanionActions>["remove"],
-  findByTemplate: ReturnType<typeof useJumpDocCompanionActions>["findByTemplate"],
-  findPurchase: ReturnType<typeof useJumpDocPurchaseActions>["findByTemplate"],
-  findDrawback: ReturnType<typeof useJumpDocDrawbackActions>["findByTemplate"],
-  findScenario: ReturnType<typeof useJumpDocScenarioActions>["findByTemplate"],
-  navigateTo: (follower: boolean) => (scrollTo?: string) => void,
-  forceRemove: boolean,
-): AnnotationInteraction | null {
-  // Specific-character imports are unique — look up whether one already exists even without forceRemove.
-  const existingId =
-    forceRemove || action.template.specificCharacter
-      ? findByTemplate(action.docId, action.docTemplateId)
-      : undefined;
-  if (forceRemove && existingId === undefined) return null;
-
-  // Origin discount / access check (same logic as purchase interactions).
-  const hasOriginMatch = action.originNames.some(({ categoryName, originName }) => {
-    const categoryLid = resolveJumpOriginCategory(categoryName, originCategories);
-    if (categoryLid === undefined) return false;
-    return (origins?.[categoryLid] ?? []).some(
-      (o) => o.summary === originName || o.templateName === originName,
-    );
-  });
-
-  if (action.originBenefit === "access" && !hasOriginMatch) {
-    return buildAccessDeniedInteraction(action, "#f59e0b");
-  }
-
-  // Mandatory alt cost check.
-  const qualifyingMandatoryAltCost = (() => {
-    const q = action.alternativeCosts.filter(
-      (ac) =>
-        ac.mandatory &&
-        checkResolvedAltCostPrereqs(
-          ac.prerequisites,
-          action.docId,
-          origins as Record<number, Origin[]> | null,
-          originCategories,
-          findPurchase,
-          findDrawback,
-        ),
-    );
-    if (!q.length) return undefined;
-    return q.find((ac) => ac.value.every((v) => v.amount === 0)) ?? q[0]!;
-  })();
-
-  const qualifyingOptionalAltCosts = action.alternativeCosts.filter((ac) => {
-    if (ac.mandatory) return false;
-    if (
-      !checkResolvedAltCostPrereqs(
-        ac.prerequisites,
-        action.docId,
-        origins as Record<number, Origin[]> | null,
-        originCategories,
-        findPurchase,
-        findDrawback,
-      )
-    )
-      return false;
-    if (currencies && budget) {
-      for (const v of ac.value) {
-        if (v.amount === 0) continue;
-        const abbrev = v.currencyAbbrev;
-        for (const [idStr, c] of Object.entries(currencies.O) as [string, Currency | undefined][]) {
-          if (c?.abbrev !== abbrev) continue;
-          const currId = createId<LID.Currency>(+idStr);
-          if (c.hidden && (budget.currency[currId] ?? 0) <= 0) {
-            const hasCompanionStipend =
-              budget.companionStipend.currency === currId && budget.companionStipend.amount > 0;
-            if (!hasCompanionStipend) return false;
-          }
-          break;
-        }
-      }
-    }
-    return true;
-  });
-
-  const storedAltCosts = resolveAltCostsToStorage(
-    action.alternativeCosts,
-    action.docId,
-    currencies,
-  );
-
-  const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => (
-    <CompanionInteractionPreview
-      action={action}
-      selfCharId={selfCharId}
-      jumpId={jumpId}
-      existingId={existingId}
-      currencies={currencies}
-      hasOriginDiscount={hasOriginMatch && action.originBenefit !== "access"}
-      originBenefit={action.originBenefit}
-      qualifyingMandatoryAltCost={qualifyingMandatoryAltCost}
-      qualifyingOptionalAltCosts={qualifyingOptionalAltCosts}
-      storedAltCosts={storedAltCosts}
-      addFromTemplate={addFromTemplate}
-      remove={remove}
-      navigateTo={navigateTo}
-      onClose={onClose}
-    />
-  );
-
-  return {
-    name: action.name,
-    typeName: action.typeName,
-    color: "#f59e0b",
-    forcePreview: true,
-    executeDefault: () => {},
-    Preview,
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Currency exchange interaction builder
-// ─────────────────────────────────────────────────────────────────────────────
-
-type CurrencyExchangeAction = Extract<ViewerAnnotationAction, { collection: "currency-exchange" }>;
-
-function CurrencyExchangePreview({
-  action,
-  takenCount,
-  currencies,
-  addFromDoc,
-  removeDocExchange,
-  onClose,
+function OriginOptionSelector({
+  group,
+  selectedIdx,
+  freeformText,
+  onSelect,
+  onFreeformChange,
 }: {
-  action: CurrencyExchangeAction;
-  takenCount: number;
-  currencies: Registry<LID.Currency, Currency> | undefined;
-  addFromDoc: ReturnType<typeof useCurrencyExchanges>["addFromDoc"];
-  removeDocExchange: ReturnType<typeof useCurrencyExchanges>["removeDocExchange"];
-  onClose: () => void;
+  group: OriginOptionGroup;
+  selectedIdx: number;
+  freeformText: string;
+  onSelect: (i: number) => void;
+  onFreeformChange: (v: string) => void;
 }) {
-  const [count, setCount] = React.useState(takenCount);
+  const selectedOpt = group.options[selectedIdx];
+  const onlyFreeform =
+    group.options.length === 1 && group.options[0]!.isFreeform;
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-xs text-ghost font-medium uppercase tracking-wide">
+        {group.categoryName}
+      </p>
+      {onlyFreeform ? (
+        <input
+          type="text"
+          className="bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
+          placeholder="Enter value…"
+          value={freeformText}
+          onChange={e => onFreeformChange(e.target.value)}
+        />
+      ) : (
+        group.options.map((opt, i) => {
+          const { main, aux } = opt.rawName
+            ? originTemplateInfo(opt.rawName)
+            : { main: opt.displayName, aux: undefined };
+          return (
+            <>
+              <button
+                key={i}
+                type="button"
+                onClick={() => onSelect(i)}
+                className={`text-left flex items-center px-3 py-2 rounded border transition-colors ${
+                  i === selectedIdx
+                    ? "border-accent2-ring bg-accent2-tint text-ink"
+                    : "border-edge text-muted hover:border-trim hover:text-ink"
+                }`}
+              >
+                <span className="text-sm font-medium inline-flex items-center">
+                  {opt.isFreeform ? opt.displayName : main}
+                </span>
+                {opt.costStr && (
+                  <span className="text-xs text-ghost ml-2">
+                    [{opt.costStr}]
+                  </span>
+                )}
+                {aux && aux.length > 0 && (
+                  <div className="text-xs text-ghost flex flex-col gap-0.5">
+                    {aux.map((s, j) => (
+                      <p key={j}>{s}</p>
+                    ))}
+                  </div>
+                )}
+              </button>
+              {selectedOpt?.isFreeform && selectedIdx === i && (
+                <input
+                  key={`freeform-${i}`}
+                  type="text"
+                  className="bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
+                  placeholder="Enter value…"
+                  value={freeformText}
+                  onChange={e => onFreeformChange(e.target.value)}
+                />
+              )}
+            </>
+          );
+        })
+      )}
+    </div>
+  );
+}
 
-  const commit = () => {
-    const delta = count - takenCount;
-    const oCurrency = resolveJumpCurrency(action.oCurrencyAbbrev, currencies);
-    const tCurrency = resolveJumpCurrency(action.tCurrencyAbbrev, currencies);
+function OriginOptionGroups({
+  groups,
+  state,
+  onChange,
+}: {
+  groups: OriginOptionGroup[];
+  state: OriginInteractionState["selections"];
+  onChange: (catIdStr: string, idx: number, freeform: string) => void;
+}) {
+  return (
+    <div className={`flex flex-col ${groups.length > 1 ? "gap-3" : "gap-1"}`}>
+      {groups.map(g => {
+        const catIdStr = String(g.catId);
+        const { idx, freeform } = state[catIdStr] ?? { idx: 0, freeform: "" };
+        return (
+          <OriginOptionSelector
+            key={catIdStr}
+            group={g}
+            selectedIdx={idx}
+            freeformText={freeform}
+            onSelect={i => onChange(catIdStr, i, "")}
+            onFreeformChange={v => onChange(catIdStr, idx, v)}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
-    if (delta > 0) {
-      for (let i = 0; i < delta; i++) {
-        addFromDoc({
-          templateIndex: action.docExchangeIndex,
-          oCurrency,
-          tCurrency,
-          oamount: action.oamount,
-          tamount: action.tamount,
-        });
+export function originInteraction(
+  template: OriginTemplate | undefined,
+  optionIndices: PartialLookup<TID.OriginCategory, number[]>,
+  doc: JumpDoc,
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>,
+  costOverride?: SimpleValue<TID.Currency>,
+  companionTid?: Id<TID.Companion>,
+): AnnotationInteraction<OriginInteractionState> {
+  const groups = buildOriginOptionGroups(optionIndices, doc);
+  const tags = template
+    ? extractTags([template.name, template.description ?? ""])
+    : [];
+  const hasTags = tags.length > 0;
+
+  const optionsTypeName =
+    groups.length === 1 ? groups[0]!.categoryName : "Origin Options";
+  const typeName = template
+    ? (doc.originCategories.O[template.type]?.name ?? "Origin")
+    : optionsTypeName;
+
+  const alreadyPresent = (build: JumpDocBuildData) =>
+    template !== undefined &&
+    build.origins.some(o => o.template?.id == template.id);
+
+  const getCost = (build: JumpDocBuildData): SimpleValue<TID.Currency> => {
+    if (costOverride) return costOverride;
+    if (!template) return { amount: 0, currency: 0 as any };
+    const hasSynergy = template.synergies?.some(sid =>
+      build.origins.some(o => o.template?.id == sid),
+    );
+    if (!hasSynergy) return template.cost;
+    switch (template.synergyBenefit) {
+      case "free":
+        return { amount: 0, currency: 0 as any };
+      case "discounted": {
+        const threshold =
+          doc.currencies.O[template.cost.currency]?.discountFreeThreshold;
+        if (threshold != null && template.cost.amount <= threshold)
+          return { amount: 0, currency: 0 as any };
+        return {
+          amount: Math.floor(template.cost.amount / 2),
+          currency: template.cost.currency,
+        };
       }
-    } else if (delta < 0) {
-      for (let i = 0; i < -delta; i++) {
-        removeDocExchange({
-          templateIndex: action.docExchangeIndex,
-          oamount: action.oamount,
-          tamount: action.tamount,
-        });
-      }
+      default:
+        return template.cost;
     }
-    onClose();
   };
 
-  const accentColor = count < takenCount ? "#ef4444" : count > takenCount ? "#22c55e" : "#f97316";
+  const optionsCostStr = (
+    state: OriginInteractionState,
+  ): string | undefined => {
+    const totals: Partial<Record<number, number>> = {};
+    for (const catIdStr in optionIndices) {
+      const catId = createId<TID.OriginCategory>(+catIdStr);
+      const category = doc.originCategories.O[catId];
+      if (!category?.singleLine) continue;
+      const { idx } = state.selections[catIdStr] ?? { idx: 0 };
+      const availIndices = optionIndices[catId] ?? [];
+      const optionDocIdx = availIndices[idx];
+      if (optionDocIdx === undefined) continue;
+      const opt = (category as DocOriginCategory & { singleLine: true })
+        .options[optionDocIdx];
+      if (!opt) continue;
+      const currKey = opt.cost.currency as unknown as number;
+      totals[currKey] = (totals[currKey] ?? 0) + opt.cost.amount;
+    }
+    const parts = Object.entries(totals).map(([currIdStr, amount]) => {
+      const curr = doc.currencies.O[createId<TID.Currency>(+currIdStr)];
+      return `${amount} ${curr?.abbrev ?? "?"}`;
+    });
+    return parts.length > 0 ? parts.join(", ") : undefined;
+  };
 
-  return (
-    <InteractionPreviewCard
-      typeName={action.typeName}
-      name={action.name}
-      accentColor={accentColor}
-      description={`Trade ${action.oamount} ${action.oCurrencyAbbrev} for ${action.tamount} ${action.tCurrencyAbbrev}`}
-      actions={[
-        { label: "Apply", variant: count < takenCount ? "danger" : "confirm", onConfirm: commit },
-      ]}
-      onClose={onClose}
-    >
+  const error = (build: JumpDocBuildData) => {
+    if (!template) return undefined;
+    if (
+      template.synergyBenefit === "access" &&
+      template.synergies?.every(sid =>
+        build.origins.every(o => o.template?.id != sid),
+      )
+    ) {
+      const originList =
+        template.synergies
+          ?.map(sid => doc.origins.O[sid]?.name ?? "?")
+          .join(", ") ?? "";
+      return `This origin is restricted to holders of: ${originList}.`;
+    }
+    return undefined;
+  };
+
+  const executeOptions = (
+    mutators: ChainMutators,
+    state: OriginInteractionState,
+  ) => {
+    for (const catIdStr in optionIndices) {
+      const catId = createId<TID.OriginCategory>(+catIdStr);
+      const category = doc.originCategories.O[catId];
+      if (!category?.singleLine) continue;
+      const { idx, freeform } = state.selections[catIdStr] ?? {
+        idx: 0,
+        freeform: "",
+      };
+      const availIndices = optionIndices[catId] ?? [];
+      const optionDocIdx = availIndices[idx];
+      if (optionDocIdx === undefined) continue;
+      const opt = (category as DocOriginCategory & { singleLine: true })
+        .options[optionDocIdx];
+      if (!opt) continue;
+      const value =
+        opt.type === "freeform" ? freeform : resolveOriginTemplate(opt.name);
+      mutators.setFreeFormOrigin(
+        { categoryId: catId, value, cost: opt.cost },
+        jumpId,
+        charId,
+        doc,
+      );
+    }
+  };
+
+  const actions = (
+    _: JumpDocBuildData,
+  ): AnnotationAction<OriginInteractionState>[] => [
+    {
+      name: "Remove",
+      variant: "danger",
+      condition: build => alreadyPresent(build),
+      execute: (_, mutators) => {
+        mutators.removeOrigin(template!.id, jumpId, charId);
+        mutators.navigate({ sub: "" });
+        return [];
+      },
+    },
+    {
+      name: template
+        ? (build, state) => {
+            const cost = getCost(build);
+            const optStr = optionsCostStr(state);
+            const base = formatCostDisplay(
+              [cost!],
+              { modifier: CostModifier.Full },
+              doc.currencies,
+            );
+            return `Use Origin (${optStr ? `${base} + ${optStr}` : base})`;
+          }
+        : "Set Options",
+      condition: build => !alreadyPresent(build),
+      execute: (build, mutators, state) => {
+        if (template) {
+          mutators.addOriginFromTemplate(
+            {
+              template,
+              tags: state.tags,
+              cost: getCost(build)!,
+              freebie: companionTid,
+            },
+            jumpId,
+            charId,
+            doc,
+          );
+        }
+        executeOptions(mutators, state);
+        mutators.navigate({ sub: "", extraSearch: { origin: "1" } });
+        return [];
+      },
+    },
+  ];
+
+  const hasOptions = groups.length > 0;
+  const needsChoice = groups.some(
+    g => g.options.length >= 2 || g.options.some(o => o.isFreeform),
+  );
+
+  return {
+    initialize: () => ({
+      tags: {},
+      selections: Object.fromEntries(
+        groups.map(g => [String(g.catId), { idx: 0, freeform: "" }]),
+      ),
+    }),
+    error,
+    preview: props => {
+      if (alreadyPresent(props.buildData)) return undefined;
+      if (!hasTags && !hasOptions) return undefined;
+      return (
+        <>
+          {hasTags && (
+            <TagFieldsSection
+              tags={tags}
+              tagValues={props.state.tags}
+              choiceContext={template?.choiceContext}
+              onChangeTag={(name, value) =>
+                props.setState({ tags: { ...props.state.tags, [name]: value } })
+              }
+            />
+          )}
+          {hasOptions && (
+            <OriginOptionGroups
+              groups={groups}
+              state={props.state.selections}
+              onChange={(catIdStr, idx, freeform) =>
+                props.setState({
+                  selections: {
+                    ...props.state.selections,
+                    [catIdStr]: { idx, freeform },
+                  },
+                })
+              }
+            />
+          )}
+        </>
+      );
+    },
+    typeName,
+    name: template
+      ? hasTags
+        ? (_, state) => applyTags(template.name, state.tags)
+        : template.name
+      : `Set ${optionsTypeName}`,
+    description: template?.description || undefined,
+    costStr: (build, state) => {
+      if (alreadyPresent(build)) return undefined;
+      const cost = getCost(build);
+      const base = template
+        ? formatCostDisplay(
+            [cost!],
+            { modifier: CostModifier.Full },
+            doc.currencies,
+          )
+        : undefined;
+      const optStr = optionsCostStr(state);
+      if (base && optStr) return `${base} + ${optStr}`;
+      return base ?? optStr;
+    },
+    shortCostStr: build => {
+      if (alreadyPresent(build)) return undefined;
+      const cost = getCost(build);
+      return template
+        ? formatCostShort(
+            [cost],
+            { modifier: CostModifier.Full },
+            doc.currencies,
+          )
+        : undefined;
+    },
+    info: build => (alreadyPresent(build) ? "Already selected" : undefined),
+    actions,
+    forcePreview: build => !alreadyPresent(build) && (needsChoice || hasTags),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Origin randomizer interaction
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function randomizerInteraction(
+  categoryId: Id<TID.OriginCategory>,
+  doc: JumpDoc,
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>,
+): AnnotationInteraction<{}> {
+  const category = doc.originCategories.O[categoryId] as DocOriginCategory & {
+    singleLine: false;
+  };
+  const randomCost = category.random!.cost;
+
+  const costStr = randomCost
+    ? formatCostDisplay(
+        [randomCost],
+        { modifier: CostModifier.Full },
+        doc.currencies,
+      )
+    : undefined;
+  const shortCostStr = randomCost
+    ? formatCostShort(
+        [randomCost],
+        { modifier: CostModifier.Full },
+        doc.currencies,
+      )
+    : undefined;
+
+  const getAvailable = (bui_ld: JumpDocBuildData): OriginTemplate[] => {
+    const result: OriginTemplate[] = [];
+    for (const idStr in doc.origins.O) {
+      const tid = createId<TID.Origin>(+idStr);
+      const template = doc.origins.O[tid];
+      if (!template || template.type !== categoryId) continue;
+      result.push(template);
+    }
+    return result;
+  };
+
+  return {
+    initialize: () => ({}),
+    error: () => undefined,
+    preview: () => undefined,
+    typeName: "Randomizer",
+    name: category.name,
+    costStr,
+    shortCostStr,
+    actions: [
+      {
+        name: "Randomize",
+        condition: () => true,
+        execute: build => {
+          const available = getAvailable(build);
+          if (available.length === 0) return [];
+          const template =
+            available[Math.floor(Math.random() * available.length)]!;
+          return [
+            originInteraction(
+              template,
+              {},
+              doc,
+              jumpId,
+              charId,
+              template.cost,
+            ) as AnnotationInteraction<object>,
+          ];
+        },
+      },
+    ],
+    forcePreview: () => true,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Currency exchange interaction
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function currencyExchangeInteraction(
+  ann: Annotation<"currency-exchange">,
+  doc: JumpDoc,
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>,
+): AnnotationInteraction<{ count: number }> {
+  const oCurrencyAbbrev = doc.currencies.O[ann.oCurrency]?.abbrev ?? "?";
+  const tCurrencyAbbrev = doc.currencies.O[ann.tCurrency]?.abbrev ?? "?";
+
+  const takenCount = (build: JumpDocBuildData) =>
+    build.currencyExchanges
+      .filter(e => e.templateIndex === ann.docIndex)
+      .reduce((n, ex) => n + Math.floor(ex.oamount / ann.oamount), 0);
+
+  return {
+    initialize: build => ({ count: takenCount(build) }),
+    error: () => undefined,
+    typeName: "Currency Exchange",
+    name: `Exchange – ${ann.oamount} ${oCurrencyAbbrev} → ${ann.tamount} ${tCurrencyAbbrev}`,
+    description: `Trade ${ann.oamount} ${oCurrencyAbbrev} for ${ann.tamount} ${tCurrencyAbbrev}`,
+    preview: ({ state, setState }) => (
       <div className="px-2 pb-2 flex items-center gap-3">
         <span className="text-xs text-muted">Times taken:</span>
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setCount((n) => Math.max(0, n - 1))}
+            onClick={() => setState({ count: Math.max(0, state.count - 1) })}
             className="w-6 h-6 flex items-center justify-center rounded border border-edge text-sm hover:bg-accent/10 transition-colors"
           >
             −
           </button>
-          <span className="w-8 text-center text-sm tabular-nums">{count}</span>
+          <span className="w-8 text-center text-sm tabular-nums">
+            {state.count}
+          </span>
           <button
             type="button"
-            onClick={() => setCount((n) => n + 1)}
+            onClick={() => setState({ count: state.count + 1 })}
             className="w-6 h-6 flex items-center justify-center rounded border border-edge text-sm hover:bg-accent/10 transition-colors"
           >
             +
           </button>
         </div>
-        {takenCount > 0 && <span className="text-xs text-ghost">({takenCount} already taken)</span>}
       </div>
-    </InteractionPreviewCard>
-  );
-}
-
-function buildCurrencyExchangeInteraction(
-  action: CurrencyExchangeAction,
-  exchanges: CurrencyExchange[],
-  currencies: Registry<LID.Currency, Currency> | undefined,
-  addFromDoc: ReturnType<typeof useCurrencyExchanges>["addFromDoc"],
-  removeDocExchange: ReturnType<typeof useCurrencyExchanges>["removeDocExchange"],
-): AnnotationInteraction {
-  const takenCount = exchanges
-    .filter((e) => e.templateIndex === action.docExchangeIndex)
-    .reduce((n, ex) => n + Math.floor(ex.oamount / action.oamount), 0);
-
-  const Preview: AnnotationInteraction["Preview"] = ({ onClose }) => (
-    <CurrencyExchangePreview
-      action={action}
-      takenCount={takenCount}
-      currencies={currencies}
-      addFromDoc={addFromDoc}
-      removeDocExchange={removeDocExchange}
-      onClose={onClose}
-    />
-  );
-
-  return {
-    name: action.name,
-    typeName: action.typeName,
-    color: "#f97316",
-    forcePreview: true,
-    executeDefault: () => {},
-    Preview,
+    ),
+    actions: [
+      {
+        name: "Apply",
+        variant: "confirm",
+        condition: () => true,
+        execute: (build, mutators, state) => {
+          const current = takenCount(build);
+          const delta = state.count - current;
+          if (delta > 0) {
+            for (let i = 0; i < delta; i++) {
+              mutators.addCurrencyExchangeFromDoc(
+                {
+                  templateIndex: ann.docIndex,
+                  oCurrency: ann.oCurrency,
+                  tCurrency: ann.tCurrency,
+                  oamount: ann.oamount,
+                  tamount: ann.tamount,
+                },
+                jumpId,
+                charId,
+                doc,
+              );
+            }
+          } else if (delta < 0) {
+            for (let i = 0; i < -delta; i++) {
+              mutators.removeCurrencyExchangeFromDoc(
+                {
+                  templateIndex: ann.docIndex,
+                  oamount: ann.oamount,
+                  tamount: ann.tamount,
+                },
+                jumpId,
+                charId,
+              );
+            }
+          }
+          if (delta !== 0)
+            mutators.navigate({
+              sub: "drawbacks",
+              extraSearch: { exchange: "1" },
+            });
+          return [];
+        },
+      },
+    ],
+    forcePreview: () => true,
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Dialog wrapper (shown inside SweetAlert2)
-// ─────────────────────────────────────────────────────────────────────────────
+function buildFreebieInteractions(
+  importId: Id<TID.Companion>,
+  freebies: NonNullable<CompanionTemplate["freebies"]>,
+  doc: JumpDoc,
+  jumpId: Id<GID.Jump>,
+  companionCharIds: Id<GID.Character>[],
+): AnnotationInteraction<object>[] {
+  const freeOverride = {
+    cost: {
+      cost: [] as Value<TID.Currency>,
+      modifier: CostModifier.Free,
+    } as PossibleCost,
+    type: "import" as const,
+    source: importId,
+  };
+  const result: AnnotationInteraction<object>[] = [];
+  for (const companionCharId of companionCharIds) {
+    for (const freebie of freebies) {
+      if (freebie.type === "purchase") {
+        const tmpl = doc.availablePurchases.O[freebie.id];
+        if (tmpl)
+          result.push(
+            purchaseInteraction(
+              "purchase",
+              tmpl,
+              doc,
+              jumpId,
+              companionCharId,
+              freeOverride,
+            ) as AnnotationInteraction<object>,
+          );
+      } else if (freebie.type === "drawback") {
+        const tmpl = doc.availableDrawbacks.O[freebie.id];
+        if (tmpl)
+          result.push(
+            purchaseInteraction(
+              "drawback",
+              tmpl,
+              doc,
+              jumpId,
+              companionCharId,
+              freeOverride,
+            ) as AnnotationInteraction<object>,
+          );
+      } else {
+        result.push(
+          originInteraction(
+            doc.origins.O[freebie.id],
+            {},
+            doc,
+            jumpId,
+            companionCharId,
+            undefined,
+            importId,
+          ) as AnnotationInteraction<object>,
+        );
+      }
+    }
+  }
+  return result;
+}
 
-function InteractionDialog({
-  interactions,
-  onClose,
+function buildConfirmDeleteInteraction(
+  existingId: Id<GID.Purchase>,
+  charIdsToDelete: Id<GID.Character>[],
+  message: string,
+): AnnotationInteraction<object> {
+  return {
+    initialize: () => ({}),
+    error: () => undefined,
+    preview: () => undefined,
+    typeName: "Companion Import",
+    name: "Confirm Deletion",
+    description: message,
+    actions: [
+      {
+        name: "Confirm Delete",
+        variant: "danger",
+        condition: () => true,
+        execute: (build, mutators) => {
+          mutators.removeCharacters(charIdsToDelete);
+          mutators.removePurchase(existingId, build);
+          mutators.navigate({ sub: "companions" });
+          return [];
+        },
+      },
+      {
+        name: "Cancel",
+        variant: "warn",
+        condition: () => true,
+        execute: () => {
+          return [];
+        },
+      },
+    ],
+    forcePreview: () => true,
+  };
+}
+
+function CompanionCharField({
+  label,
+  value,
+  onChange,
 }: {
-  interactions: AnnotationInteraction[];
-  onClose: () => void;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
 }) {
-  let [activeIndex, setActiveIndex] = useState(0);
-  let Preview = interactions[activeIndex].Preview;
   return (
-    <div className="bg-surface rounded-xl border border-edge shadow-xl text-left w-max max-w-[90vw] md:max-w-[70vw] lg:max-w-[60vw] justify-items-center overflow-visible">
-      {interactions.length > 1 && (
-        <>
-          <p className="px-4 pt-3 pb-2 text-sm font-semibold text-ink border-b border-edge">
-            Multiple options — choose one:
-          </p>
-          <div className="flex flex-row flex-wrap justify-center gap-1 mx-2 mt-2 max-w-100">
-            {interactions.map(({ name }, i) => (
-              <button
-                onClick={() => setActiveIndex(i)}
-                className={`text-xs px-2 py-0.5 rounded-full border ${i == activeIndex ? "bg-accent2-tint text-accent2 border-accent2-ring" : "text-muted border-transparent hover:text-ink hover:border-edge hover:bg-tint"}`}
-              >
-                {stripTemplating(name)}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-      <div className="flex flex-col max-w-120 w-full">
-        <Preview key={activeIndex} onClose={onClose} />
-      </div>
-    </div>
+    <>
+      <span className="text-xs text-muted shrink-0 w-14 text-right">
+        {label}:
+      </span>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="flex-1 text-xs bg-tint border border-edge rounded px-1.5 py-0.5 text-ink focus:outline-none focus:border-accent"
+        placeholder={label.toLowerCase()}
+      />
+    </>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Handler component (renders null; mounts in JumpLayout)
-// ─────────────────────────────────────────────────────────────────────────────
+function CompanionPreviewInner({
+  template,
+  adding,
+  state,
+  setState,
+  selfCharId,
+}: {
+  template: CompanionTemplate;
+  adding: boolean;
+  state: CompanionInteractionState;
+  setState: (partial: Partial<CompanionInteractionState>) => void;
+  selfCharId: Id<GID.Character>;
+}) {
+  const allChars = useAllCharacters();
+  const tags = extractTags([template.name, template.description]);
+  const hasTags = tags.length > 0;
+  const selectableChars = allChars.filter(c => c.id !== selfCharId);
+  const selectedChars = state.selectedIds
+    .map(id => selectableChars.find(c => c.id === id))
+    .filter(
+      (c): c is { id: Id<GID.Character>; name: string } => c !== undefined,
+    );
+  const availableChars = selectableChars.filter(
+    c => !state.selectedIds.includes(c.id),
+  );
 
-export type AnnotationInteractionHandlerProps = {
-  jumpId: Id<GID.Jump>;
-  charId: Id<GID.Character>;
-  routeParams: RouteParams;
-};
+  return (
+    <>
+      {state.showNewCompanionModal && (
+        <NewCompanionModal
+          onDone={newId =>
+            setState({
+              selectedIds: [...state.selectedIds, newId],
+              showNewCompanionModal: false,
+            })
+          }
+          onCancel={() => setState({ showNewCompanionModal: false })}
+        />
+      )}
+      {hasTags && (
+        <TagFieldsSection
+          tags={tags}
+          tagValues={state.tags}
+          choiceContext={template.choiceContext}
+          onChangeTag={(name, value) =>
+            setState({ tags: { ...state.tags, [name]: value } })
+          }
+        />
+      )}
+      {adding && (
+        <div className="px-2 pb-1">
+          <SegmentedControl
+            value={state.follower ? "follower" : "companion"}
+            onChange={v => setState({ follower: v === "follower" })}
+            options={[
+              { value: "companion", label: "Companion" },
+              { value: "follower", label: "Follower" },
+            ]}
+          />
+        </div>
+      )}
+      {adding && template.specificCharacter && !state.follower && (
+        <div className="px-2 pb-2 grid grid-cols-[auto_1fr] gap-1.5 self-center items-center">
+          <CompanionCharField
+            label="Name"
+            value={state.charName}
+            onChange={v => setState({ charName: v })}
+          />
+          <CompanionCharField
+            label="Species"
+            value={state.charSpecies}
+            onChange={v => setState({ charSpecies: v })}
+          />
+          <CompanionCharField
+            label="Gender"
+            value={state.charGender}
+            onChange={v => setState({ charGender: v })}
+          />
+        </div>
+      )}
+      {adding && !template.specificCharacter && !state.follower && (
+        <div className="px-2 pb-2 flex flex-col gap-1.5">
+          <span className="text-xs text-muted font-medium">
+            Chosen Companions ({state.selectedIds.length} of {template.count}):
+          </span>
+          <CompanionMultiSelect
+            selected={selectedChars}
+            available={availableChars}
+            onAdd={id => setState({ selectedIds: [...state.selectedIds, id] })}
+            onRemove={id =>
+              setState({
+                selectedIds: state.selectedIds.filter(cid => cid !== id),
+              })
+            }
+            onNew={() => setState({ showNewCompanionModal: true })}
+            max={template.count}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+export function companionImportInteraction(
+  template: CompanionTemplate,
+  doc: JumpDoc,
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>,
+): AnnotationInteraction<CompanionInteractionState> {
+  const copies = (build: JumpDocBuildData) =>
+    build.companionImports[template.id as any] ?? [];
+  const getCost = (build: JumpDocBuildData) =>
+    computePossibleCosts(
+      { ...template, allowMultiple: !template.specificCharacter },
+      build,
+      doc,
+    );
+
+  const error = (build: JumpDocBuildData) => {
+    const prereqErrors = (template.prerequisites ?? [])
+      .map(p => getPrereqError(p, build, doc))
+      .filter(e => e) as string[];
+    let originError: string | undefined;
+    if (
+      template.originBenefit == "access" &&
+      template.origins?.every?.(o =>
+        build.origins.every(bo => bo.template?.id != o),
+      )
+    ) {
+      originError = `Restricted to holders of ${template.origins
+        ?.map(
+          (o, i) =>
+            `${i == (template.origins?.length ?? 0) - 1 && i > 0 ? "or " : ""}"${doc.origins.O[o].name}"`,
+        )
+        .join(", ")}.`;
+    }
+    if (prereqErrors.length > 0 || originError)
+      return `${prereqErrors.join(" ")} ${originError ?? ""}`;
+  };
+
+  const actions = (
+    _: JumpDocBuildData,
+  ): AnnotationAction<CompanionInteractionState>[] => [
+    {
+      name: "Remove",
+      variant: "danger",
+      condition: build => copies(build).length > 0,
+      execute: (build, mutators) => {
+        const existingId = copies(build)[0];
+        const storeState = useChainStore.getState();
+        const chain = storeState.chain;
+        const jumpAccess = storeState.calculatedData.jumpAccess;
+        const purchase = chain?.purchases.O[existingId];
+        if (purchase?.type === PurchaseType.Companion) {
+          const ci = purchase as CompanionImport;
+          const linkedChars = ci.importData.characters.filter(
+            cid =>
+              chain?.characters.O[cid]?.originalImportTID?.templateId ===
+              template.id,
+          );
+          if (linkedChars.length > 0) {
+            const isActive = (cid: Id<GID.Character>) => {
+              const access = jumpAccess?.[cid];
+              if (access && [...access].some(jid => jid !== (jumpId as number)))
+                return true;
+              if ((chain?.jumps.O[jumpId]?.purchases[cid]?.length ?? 0) > 0)
+                return true;
+              if ((chain?.jumps.O[jumpId]?.drawbacks[cid]?.length ?? 0) > 0)
+                return true;
+              return false;
+            };
+            const activeChars = linkedChars
+              .map(cid => ({
+                id: cid,
+                name: chain?.characters.O[cid]?.name ?? "",
+              }))
+              .filter(({ id }) => isActive(id));
+            if (activeChars.length > 0) {
+              const names = activeChars.map(c => c.name).join(", ");
+              return [
+                buildConfirmDeleteInteraction(
+                  existingId,
+                  linkedChars,
+                  `This will also delete: ${names}. They have activity elsewhere. Are you sure?`,
+                ),
+              ];
+            }
+            mutators.removeCharacters(linkedChars);
+          }
+        }
+        mutators.removePurchase(existingId, build);
+        return [];
+      },
+    },
+    {
+      name: build => {
+        const cost = getCost(build);
+        return `Add (${formatCostDisplay(cost.default.cost, cost.default, doc.currencies)})`;
+      },
+      condition: build =>
+        copies(build).length === 0 || !template.specificCharacter,
+      blocker: (_, state) =>
+        !state.follower &&
+        !template.specificCharacter &&
+        state.selectedIds.length === 0
+          ? "You must select or create at least one character in order to add them as a companion."
+          : undefined,
+      execute: (build, mutators, state) => {
+        if (state.follower) {
+          const newId = mutators.addFollower({ template }, jumpId, charId, doc);
+          if (newId !== undefined)
+            mutators.navigate({ sub: "purchases", scrollTo: newId });
+          return [];
+        }
+        if (template.specificCharacter) {
+          const newCharId = mutators.createCompanion({
+            template,
+            name: state.charName,
+            gender: state.charGender,
+            species: state.charSpecies,
+          });
+          const newId = mutators.addCompanionImport(
+            { template, companionIds: [newCharId] },
+            jumpId,
+            charId,
+            doc,
+          );
+          if (newId !== undefined)
+            mutators.navigate({ sub: "purchases", scrollTo: newId });
+          return buildFreebieInteractions(
+            template.id,
+            template.freebies ?? [],
+            doc,
+            jumpId,
+            [newCharId],
+          );
+        }
+        const newId = mutators.addCompanionImport(
+          { template, companionIds: state.selectedIds },
+          jumpId,
+          charId,
+          doc,
+        );
+        if (newId !== undefined)
+          mutators.navigate({ sub: "purchases", scrollTo: newId });
+        return buildFreebieInteractions(
+          template.id,
+          template.freebies ?? [],
+          doc,
+          jumpId,
+          state.selectedIds,
+        );
+      },
+    },
+  ];
+
+  return {
+    initialize: () => ({
+      follower: false,
+      selectedIds: [],
+      charName: template.characterInfo?.[0]?.name ?? "",
+      charSpecies: template.characterInfo?.[0]?.species ?? "",
+      charGender: template.characterInfo?.[0]?.gender ?? "",
+      showNewCompanionModal: false,
+      tags: {},
+    }),
+    error,
+    preview: props => (
+      <CompanionPreviewInner
+        template={template}
+        adding={copies(props.buildData).length === 0}
+        state={props.state}
+        setState={props.setState}
+        selfCharId={charId}
+      />
+    ),
+    typeName: "Companion Import",
+    name: template.name,
+    description: template.description || undefined,
+    costStr: build =>
+      formatCostDisplay(
+        getCost(build).default.cost,
+        getCost(build).default,
+        doc.currencies,
+      ),
+    shortCostStr: build =>
+      formatCostShort(
+        getCost(build).default.cost,
+        getCost(build).default,
+        doc.currencies,
+      ),
+    info: build =>
+      copies(build).length > 0
+        ? `${copies(build).length} cop${copies(build).length === 1 ? "y" : "ies"} already held`
+        : undefined,
+    actions,
+    forcePreview: () => true,
+  };
+}
+
+export function scenarioInteraction(
+  template: ScenarioTemplate,
+  doc: JumpDoc,
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>,
+): AnnotationInteraction<ScenarioInteractionState> {
+  const tags = extractTags([template.name, template.description]);
+  const hasTags = tags.length > 0;
+  const rewardGroups = template.rewardGroups ?? [];
+
+  const copies = (build: JumpDocBuildData) =>
+    build.scenarios[template.id as any] ?? [];
+
+  const error = (build: JumpDocBuildData) => {
+    let prereqErrors = (template.prerequisites ?? [])
+      .map(p => getPrereqError(p, build, doc))
+      .filter(err => err) as string[];
+    let originError: string | undefined = undefined;
+    if (
+      template.originBenefit == "access" &&
+      template.origins?.every?.(o =>
+        build.origins.every(bo => bo.template?.id != o),
+      )
+    ) {
+      originError = `Restricted to holders of ${template.origins
+        ?.map(
+          (o, i) =>
+            `${i == (template.origins?.length ?? 0) - 1 && i > 0 ? "or " : ""}"${doc.origins.O[o].name}"`,
+        )
+        .join(", ")}.`;
+    }
+    if (prereqErrors.length > 0 || originError)
+      return `${prereqErrors.join(" ")} ${originError ?? ""}`;
+  };
+
+  const actions = (
+    _: JumpDocBuildData,
+  ): AnnotationAction<ScenarioInteractionState>[] => [
+    {
+      name: "Remove",
+      variant: "danger",
+      condition: build => copies(build).length > 0,
+      execute: (build, mutators) => {
+        mutators.removePurchase(copies(build)[0], build);
+        mutators.navigate({ sub: "drawbacks" });
+        return [];
+      },
+    },
+    {
+      name: "Add",
+      condition: build => copies(build).length == 0 || template.allowMultiple,
+      execute: (_, mutators, { tags: tagValues, selectedOutcome }) => {
+        const newId = mutators.addScenarioFromTemplate(
+          {
+            template,
+            tags: tagValues,
+            rewardGroupIndex:
+              rewardGroups.length > 0 ? selectedOutcome : undefined,
+          },
+          jumpId,
+          charId,
+          doc,
+        );
+        if (newId !== undefined)
+          mutators.navigate({ sub: "drawbacks", scrollTo: newId });
+
+        const group = rewardGroups[selectedOutcome];
+        if (!group) return [];
+
+        const freeOverride = {
+          cost: {
+            cost: [] as Value<TID.Currency>,
+            modifier: CostModifier.Free,
+          } as PossibleCost,
+          type: "scenario" as const,
+          source: template.id,
+        };
+
+        const purchaseRewards = group.rewards
+          .filter(
+            (
+              r,
+            ): r is Extract<
+              typeof r,
+              { type: RewardType.Item | RewardType.Perk }
+            > => r.type === RewardType.Item || r.type === RewardType.Perk,
+          )
+          .flatMap(r => {
+            const tmpl = doc.availablePurchases.O[r.id];
+            return [
+              purchaseInteraction(
+                "purchase",
+                tmpl,
+                doc,
+                jumpId,
+                charId,
+                freeOverride,
+              ) as AnnotationInteraction<object>,
+            ];
+          });
+
+        const companionRewards = group.rewards
+          .filter(
+            (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
+              r.type === RewardType.Companion,
+          )
+          .flatMap(r => {
+            const tmpl = doc.availableCompanions.O[r.id];
+            if (!tmpl) return [];
+            return [
+              companionImportInteraction(
+                tmpl,
+                doc,
+                jumpId,
+                charId,
+              ) as AnnotationInteraction<object>,
+            ];
+          });
+
+        return [...purchaseRewards, ...companionRewards];
+      },
+    },
+  ];
+
+  return {
+    initialize: () => ({ tags: {}, selectedOutcome: 0 }),
+    error,
+    preview: props => {
+      const adding = copies(props.buildData).length === 0;
+      if (!hasTags && (!adding || rewardGroups.length === 0)) return undefined;
+      return (
+        <>
+          {hasTags && (
+            <TagFieldsSection
+              tags={tags}
+              tagValues={props.state.tags}
+              choiceContext={template.choiceContext}
+              onChangeTag={(name, value) =>
+                props.setState({ tags: { ...props.state.tags, [name]: value } })
+              }
+            />
+          )}
+          {adding && rewardGroups.length > 0 && (
+            <ScenarioOutcomeSelector
+              groups={rewardGroups}
+              selectedIndex={props.state.selectedOutcome}
+              onSelect={i => props.setState({ selectedOutcome: i })}
+              doc={doc}
+            />
+          )}
+        </>
+      );
+    },
+    typeName: "Scenario",
+    name: (_, { tags: tagValues }) =>
+      hasTags ? applyTags(template.name, tagValues) : template.name,
+    description: (_, { tags: tagValues }) =>
+      hasTags
+        ? applyTags(template.description, tagValues)
+        : template.description,
+    info: build =>
+      copies(build).length > 0
+        ? `${copies(build).length} cop${copies(build).length === 1 ? "y" : "ies"} already held`
+        : undefined,
+    actions,
+    forcePreview: build =>
+      hasTags || (copies(build).length === 0 && rewardGroups.length > 1),
+  };
+}
+
+function convertCurrencyId(
+  id: Id<TID.Currency>,
+  doc: JumpDoc,
+  currencies: Registry<LID.Currency, Currency>,
+): Id<LID.Currency> {
+  for (let currIdStr in currencies.O) {
+    if (currencies.O[+currIdStr as any].name == doc.currencies.O[id].name)
+      return +currIdStr as Id<LID.Currency>;
+  }
+  return DEFAULT_CURRENCY_ID;
+}
+
+function convertValue(
+  v: Value<TID.Currency>,
+  doc: JumpDoc,
+  currencies: Registry<LID.Currency, Currency>,
+): Value<LID.Currency> {
+  return v.map(({ amount, currency }) => ({
+    amount,
+    currency: convertCurrencyId(currency, doc, currencies),
+  }));
+}
+
+function convertSubtypeId(
+  id: Id<TID.PurchaseSubtype>,
+  doc: JumpDoc,
+  subtypes: Registry<LID.PurchaseSubtype, { name: string }>,
+): Id<LID.PurchaseSubtype> | undefined {
+  const name = doc.purchaseSubtypes.O[id]?.name;
+  if (!name) return undefined;
+  for (const lidStr in subtypes.O) {
+    if (subtypes.O[+lidStr as Id<LID.PurchaseSubtype>]?.name === name)
+      return +lidStr as Id<LID.PurchaseSubtype>;
+  }
+  return undefined;
+}
+
+function convertModifiedCost(
+  v: ModifiedCost<TID.Currency>,
+  doc: JumpDoc,
+  currencies: Registry<LID.Currency, Currency>,
+): ModifiedCost {
+  switch (v.modifier) {
+    case CostModifier.Full:
+    case CostModifier.Reduced:
+    case CostModifier.Free:
+      return v;
+    case CostModifier.Custom:
+      return {
+        modifier: CostModifier.Custom,
+        modifiedTo: convertValue(
+          v.modifiedTo as Value<TID.Currency>,
+          doc,
+          currencies,
+        ),
+      };
+  }
+}
+
+export function useChainMutators(): Omit<ChainMutators, "navigate"> {
+  const createCompanion = useCreateCompanion();
+  const removeCharacterFn = useRemoveCharacter();
+
+  return {
+    addPurchaseFromTemplate: useCallback(
+      (
+        { template, type, tags, cost, reward, freebie, customDuration },
+        jumpId,
+        charId,
+        doc,
+      ) => {
+        let newId: Id<GID.Purchase> | undefined;
+        setTracked("Add purchase", c => {
+          const jump = c.jumps.O[jumpId];
+          if (!jump) return;
+          c.budgetFlag += 1;
+          if (type == "purchase") {
+            let subtype = +Object.keys(jump.purchaseSubtypes.O).filter(
+              id =>
+                jump.purchaseSubtypes.O[+id as any].templateId ==
+                (template as BasicPurchaseTemplate).subtype,
+            )[0] as Id<LID.PurchaseSubtype>;
+            if (subtype === undefined) return;
+            newId = registryAdd(c.purchases, {
+              charId,
+              jumpId,
+              name: applyTags(template.name, tags),
+              description: applyTags(template.description, tags),
+              type: jump.purchaseSubtypes.O[subtype].type,
+              cost: convertModifiedCost(cost, doc, jump.currencies),
+              reward,
+              ...(freebie !== undefined ? { freebie } : {}),
+              value: convertValue(template.cost, doc, jump.currencies),
+              categories: [],
+              tags: [],
+              subtype,
+              template: {
+                id: template.id as any,
+                jumpdoc: "",
+                originalCost: cost,
+              },
+            });
+            if (!jump.purchases[charId]) jump.purchases[charId] = [];
+            jump.purchases[charId]!.push(newId);
+          } else {
+            newId = registryAdd(c.purchases, {
+              charId,
+              jumpId,
+              overrides: {},
+              name: applyTags(template.name, tags),
+              description: applyTags(template.description, tags),
+              type: PurchaseType.Drawback,
+              cost: convertModifiedCost(cost, doc, jump.currencies),
+              value: convertValue(template.cost, doc, jump.currencies),
+              template: {
+                id: template.id as any,
+                jumpdoc: "",
+                originalCost: cost,
+              },
+              ...(freebie !== undefined ? { freebie } : {}),
+              ...(customDuration !== undefined ? { customDuration } : {}),
+            });
+            if (!jump.drawbacks[charId]) jump.drawbacks[charId] = [];
+            jump.drawbacks[charId]!.push(newId);
+          }
+        });
+        return newId;
+      },
+      [],
+    ),
+    addOriginFromTemplate: useCallback(
+      ({ template, tags, cost, freebie }, jumpId, charId, doc) => {
+        setTracked("Add origin", c => {
+          const jump = c.jumps.O[jumpId];
+          if (!jump) return;
+
+          // Find the LID.OriginCategory that links to this template's TID category.
+          let categoryLid: Id<LID.OriginCategory> | undefined;
+          for (const lidStr in jump.originCategories.O) {
+            const cat =
+              jump.originCategories.O[+lidStr as Id<LID.OriginCategory>];
+            if (cat?.template?.id === template.type) {
+              categoryLid = +lidStr as Id<LID.OriginCategory>;
+              break;
+            }
+          }
+          if (categoryLid === undefined) return;
+
+          const chainCat = jump.originCategories.O[categoryLid];
+          const docCat = doc.originCategories.O[template.type];
+          const effectiveMax = chainCat?.multiple ? (docCat?.max ?? 1) : 1;
+
+          const origins = jump.origins[charId] as
+            | Record<Id<LID.OriginCategory>, import("../data/Jump").Origin[]>
+            | undefined;
+          const list = origins?.[categoryLid] ?? [];
+
+          // Evict the first entry if already at capacity.
+          if (list.length >= effectiveMax && list.length > 0) {
+            list.splice(0, 1);
+          }
+
+          const convertedCost = {
+            amount: cost.amount,
+            currency: convertCurrencyId(cost.currency, doc, jump.currencies),
+          };
+
+          const newOrigin: import("../data/Jump").Origin = {
+            summary: applyTags(template.name, tags),
+            ...(template.description
+              ? { description: applyTags(template.description, tags) }
+              : {}),
+            value: convertedCost,
+            template: {
+              jumpdoc: "",
+              id: template.id,
+              originalCost: { cost: [cost], modifier: CostModifier.Full },
+            },
+            ...(freebie !== undefined ? { freebie } : {}),
+          };
+
+          if (!jump.origins[charId]) (jump.origins as any)[charId] = {};
+          const categoryOrigins = jump.origins[charId] as any;
+          if (!categoryOrigins[categoryLid]) categoryOrigins[categoryLid] = [];
+          categoryOrigins[categoryLid].push(newOrigin);
+
+          c.budgetFlag += 1;
+        });
+        return template.id;
+      },
+      [],
+    ),
+    addScenarioFromTemplate: useCallback(
+      ({ template, tags, rewardGroupIndex }, jumpId, charId, doc) => {
+        let newId: Id<GID.Purchase> | undefined;
+        setTracked("Add scenario", c => {
+          const jump = c.jumps.O[jumpId];
+          if (!jump) return;
+          const initValue: Value = Object.keys(jump.currencies.O).map(cid => ({
+            currency: createId<LID.Currency>(+cid),
+            amount: 0,
+          }));
+          const rewardTemplates =
+            rewardGroupIndex != null
+              ? (template.rewardGroups?.[rewardGroupIndex]?.rewards ?? [])
+              : [];
+          const rewards: ScenarioReward[] = [];
+          for (const r of rewardTemplates) {
+            if (r.type === RewardType.Currency) {
+              rewards.push({
+                type: r.type,
+                value: r.value,
+                currency: convertCurrencyId(r.currency, doc, jump.currencies),
+              });
+            } else if (r.type === RewardType.Stipend) {
+              const subtype = convertSubtypeId(
+                r.subtype,
+                doc,
+                jump.purchaseSubtypes,
+              );
+              if (subtype == null) continue;
+              rewards.push({
+                type: r.type,
+                value: r.value,
+                currency: convertCurrencyId(r.currency, doc, jump.currencies),
+                subtype,
+              });
+            } else if (
+              r.type === RewardType.Item ||
+              r.type === RewardType.Perk
+            ) {
+              rewards.push({ type: r.type, id: r.id });
+            } else if (r.type === RewardType.Companion) {
+              rewards.push({
+                type: r.type,
+                id: r.id,
+                name: doc.availableCompanions.O[r.id]?.name ?? "",
+              });
+            }
+          }
+          newId = c.purchases.fId;
+          const scenario: Scenario = {
+            id: newId,
+            charId,
+            jumpId,
+            name: applyTags(template.name, tags),
+            description: applyTags(template.description, tags),
+            type: PurchaseType.Scenario,
+            cost: { modifier: CostModifier.Full },
+            value: initValue,
+            rewards,
+            template: { id: template.id as any, jumpdoc: "" },
+          };
+          c.purchases.O[newId] = scenario as never;
+          c.purchases.fId = createId<GID.Purchase>((newId as number) + 1);
+          if (!jump.scenarios[charId]) jump.scenarios[charId] = [];
+          jump.scenarios[charId]!.push(newId);
+          c.budgetFlag += 1;
+        });
+        return newId;
+      },
+      [],
+    ),
+    repricePurchase: useCallback((id, cost, doc) => {
+      setTracked("Reprice purchase", c => {
+        const p = c.purchases.O[id] as JumpPurchase | undefined;
+        if (!p) return;
+        const jump = c.jumps.O[p.jumpId];
+        if (!jump) return;
+        p.cost = convertModifiedCost(cost, doc, jump.currencies) as any;
+        if (p.template) (p.template as any).originalCost = cost;
+        c.budgetFlag += 1;
+      });
+    }, []),
+    repriceOrigin: useCallback((templateId, jumpId, charId, build, doc) => {
+      const template = doc.origins.O[templateId];
+      if (!template) return;
+      const hasSynergy = template.synergies?.some(sid =>
+        build.origins.some(o => o.template?.id === sid),
+      );
+      let newTidCost: SimpleValue<TID.Currency> = template.cost;
+      if (hasSynergy) {
+        switch (template.synergyBenefit) {
+          case "free":
+            newTidCost = { amount: 0, currency: template.cost.currency };
+            break;
+          case "discounted": {
+            const threshold =
+              doc.currencies.O[template.cost.currency]?.discountFreeThreshold;
+            newTidCost =
+              threshold != null && template.cost.amount <= threshold
+                ? { amount: 0, currency: template.cost.currency }
+                : {
+                    amount: Math.floor(template.cost.amount / 2),
+                    currency: template.cost.currency,
+                  };
+            break;
+          }
+        }
+      }
+      setTracked("Reprice origin", c => {
+        const jump = c.jumps.O[jumpId];
+        if (!jump) return;
+        const charOrigins = jump.origins[charId] as
+          | Record<Id<LID.OriginCategory>, import("../data/Jump").Origin[]>
+          | undefined;
+        if (!charOrigins) return;
+        for (const lidStr in charOrigins) {
+          const lid = createId<LID.OriginCategory>(+lidStr);
+          const list = charOrigins[lid];
+          if (!list) continue;
+          const origin = list.find(o => o.template?.id === templateId);
+          if (origin) {
+            origin.value = {
+              amount: newTidCost.amount,
+              currency: convertCurrencyId(
+                newTidCost.currency,
+                doc,
+                jump.currencies,
+              ),
+            };
+            if (origin.template)
+              (origin.template as any).originalCost = {
+                cost: [newTidCost],
+                modifier: CostModifier.Full,
+              };
+            c.budgetFlag += 1;
+            break;
+          }
+        }
+      });
+    }, []),
+    removePurchase: useCallback(
+      (id: Id<GID.Purchase>, build: JumpDocBuildData) => {
+        const isDrawback = Object.values(build.drawbacks).some(arr =>
+          arr?.includes(id),
+        );
+        const isScenario = Object.values(build.scenarios).some(arr =>
+          arr?.includes(id),
+        );
+        setTracked(
+          isDrawback
+            ? "Remove drawback"
+            : isScenario
+              ? "Remove scenario"
+              : "Remove purchase",
+          c => {
+            const p = c.purchases.O[id] as JumpPurchase | undefined;
+            if (!p) return;
+            const pJumpId = p.jumpId;
+            const pCharId = p.charId;
+            const jump = c.jumps.O[pJumpId];
+            if (!jump) return;
+            delete c.purchases.O[id];
+            if (isScenario) {
+              const list = jump.scenarios[pCharId];
+              if (list) {
+                const idx = list.indexOf(id);
+                if (idx !== -1) list.splice(idx, 1);
+              }
+            } else if (isDrawback) {
+              const list = jump.drawbacks[pCharId];
+              if (list) {
+                const idx = list.indexOf(id);
+                if (idx !== -1) list.splice(idx, 1);
+              }
+            } else {
+              const bp = p as BasicPurchase;
+              if (bp.subpurchases?.list)
+                for (const sub of bp.subpurchases.list)
+                  delete c.purchases.O[sub];
+              if (bp.purchaseGroup != null) {
+                const g = c.purchaseGroups[pCharId]?.O[bp.purchaseGroup];
+                if (g) {
+                  const gi = g.components.indexOf(id);
+                  if (gi !== -1) g.components.splice(gi, 1);
+                }
+              }
+              const list = jump.purchases[pCharId] as
+                | Id<GID.Purchase>[]
+                | undefined;
+              if (list) {
+                const idx = list.indexOf(id);
+                if (idx !== -1) list.splice(idx, 1);
+              }
+            }
+            c.budgetFlag += 1;
+          },
+        );
+      },
+      [],
+    ),
+    addCompanionImport: useCallback(
+      ({ template, companionIds }, jumpId, charId, doc) => {
+        let newId: Id<GID.Purchase> | undefined;
+        setTracked("Add companion import", c => {
+          const jump = c.jumps.O[jumpId];
+          if (!jump) return;
+          const allowances: Record<Id<LID.Currency>, number> = {} as any;
+          for (const tidStr in template.allowances) {
+            const tid = createId<TID.Currency>(+tidStr);
+            const lid = convertCurrencyId(tid, doc, jump.currencies);
+            allowances[lid] = (template.allowances as any)[tid] as number;
+          }
+          const stipend: Record<
+            Id<LID.Currency>,
+            Record<Id<LID.PurchaseSubtype>, number>
+          > = {} as any;
+          for (const tidCurrStr in template.stipend) {
+            const tidCurr = createId<TID.Currency>(+tidCurrStr);
+            const lidCurr = convertCurrencyId(tidCurr, doc, jump.currencies);
+            const inner = (template.stipend as any)[tidCurr];
+            const convertedInner: Record<
+              Id<LID.PurchaseSubtype>,
+              number
+            > = {} as any;
+            for (const tidSubStr in inner) {
+              const tidSub = createId<TID.PurchaseSubtype>(+tidSubStr);
+              const lidSub = convertSubtypeId(
+                tidSub,
+                doc,
+                jump.purchaseSubtypes,
+              );
+              if (lidSub == null) continue;
+              convertedInner[lidSub] = inner[tidSub];
+            }
+            stipend[lidCurr] = convertedInner;
+          }
+          newId = c.purchases.fId;
+          const purchase: CompanionImport = {
+            id: newId,
+            charId,
+            jumpId,
+            name: template.name,
+            description: template.description,
+            type: PurchaseType.Companion,
+            cost: { modifier: CostModifier.Full },
+            value: convertValue(template.cost, doc, jump.currencies),
+            template: { id: template.id, jumpdoc: "" },
+            importData: {
+              characters: companionIds,
+              allowances: allowances as any,
+              stipend: stipend as any,
+            },
+          };
+          c.purchases.O[newId] = purchase as never;
+          c.purchases.fId = createId<GID.Purchase>((newId as number) + 1);
+          if (!jump.purchases[charId]) jump.purchases[charId] = [];
+          jump.purchases[charId]!.push(newId);
+          c.budgetFlag += 1;
+        });
+        return newId;
+      },
+      [],
+    ),
+    createCompanion: useCallback(
+      ({ template, name, gender, species }) => {
+        return createCompanion({
+          name: name,
+          gender: gender,
+          age: 0,
+          backgroundSummary: template.name,
+          backgroundDescription: template.description,
+          personality: "",
+          species: species,
+        });
+      },
+      [createCompanion],
+    ),
+    addFollower: useCallback(({ template }, jumpId, charId, doc) => {
+      let newId: Id<GID.Purchase> | undefined;
+      setTracked("Add follower", c => {
+        const jump = c.jumps.O[jumpId];
+        if (!jump) return;
+        const subtypeEntry = Object.entries(jump.purchaseSubtypes.O).find(
+          ([, st]) => st?.type === PurchaseType.Item,
+        );
+        if (!subtypeEntry) return;
+        const subtype = createId<LID.PurchaseSubtype>(+subtypeEntry[0]);
+        newId = c.purchases.fId;
+        const purchase: BasicPurchase = {
+          id: newId,
+          charId,
+          jumpId,
+          name: template.name,
+          description: template.description,
+          type: PurchaseType.Item,
+          cost: { modifier: CostModifier.Full },
+          value: convertValue(template.cost, doc, jump.currencies),
+          template: { id: template.id as any, jumpdoc: "" },
+          subtype,
+          categories: [],
+          tags: [],
+          follower: true,
+        };
+        c.purchases.O[newId] = purchase as never;
+        c.purchases.fId = createId<GID.Purchase>((newId as number) + 1);
+        if (!jump.purchases[charId]) jump.purchases[charId] = [];
+        jump.purchases[charId]!.push(newId);
+        c.budgetFlag += 1;
+      });
+    }, []),
+    removeCharacters: useCallback(
+      ids => {
+        for (const id of ids) removeCharacterFn(id);
+      },
+      [removeCharacterFn],
+    ),
+    removeOrigin: useCallback((templateId, jumpId, charId) => {
+      setTracked("Remove origin", c => {
+        const jump = c.jumps.O[jumpId];
+        if (!jump) return;
+        const charOrigins = jump.origins[charId] as
+          | Record<Id<LID.OriginCategory>, import("../data/Jump").Origin[]>
+          | undefined;
+        if (!charOrigins) return;
+        for (const lidStr in charOrigins) {
+          const lid = createId<LID.OriginCategory>(+lidStr);
+          const list = charOrigins[lid];
+          if (!list) continue;
+          const idx = list.findIndex(o => o.template?.id === templateId);
+          if (idx !== -1) {
+            list.splice(idx, 1);
+            c.budgetFlag += 1;
+            break;
+          }
+        }
+      });
+    }, []),
+    addCurrencyExchangeFromDoc: useCallback(
+      (
+        { templateIndex, oCurrency, tCurrency, oamount, tamount },
+        jumpId,
+        charId,
+        doc,
+      ) => {
+        setTracked("Add currency exchange", c => {
+          const jump = c.jumps.O[jumpId];
+          if (!jump) return;
+          const oLid = convertCurrencyId(oCurrency, doc, jump.currencies);
+          const tLid = convertCurrencyId(tCurrency, doc, jump.currencies);
+          const existing = jump.currencyExchanges[charId]?.find(
+            ex => ex.templateIndex === templateIndex,
+          );
+          if (existing) {
+            existing.oamount += oamount;
+            existing.tamount += tamount;
+          } else {
+            if (!jump.currencyExchanges[charId])
+              jump.currencyExchanges[charId] = [];
+            jump.currencyExchanges[charId]!.push({
+              oCurrency: oLid,
+              tCurrency: tLid,
+              oamount,
+              tamount,
+              templateIndex,
+            });
+          }
+          c.budgetFlag += 1;
+        });
+      },
+      [],
+    ),
+    removeCurrencyExchangeFromDoc: useCallback(
+      ({ templateIndex, oamount, tamount }, jumpId, charId) => {
+        setTracked("Remove currency exchange", c => {
+          const list = c.jumps.O[jumpId]?.currencyExchanges[charId];
+          if (!list) return;
+          const idx = list.findIndex(e => e.templateIndex === templateIndex);
+          if (idx !== -1) {
+            list[idx].oamount -= oamount;
+            list[idx].tamount -= tamount;
+            if (list[idx].oamount <= 0) list.splice(idx, 1);
+          }
+          c.budgetFlag += 1;
+        });
+      },
+      [],
+    ),
+    setFreeFormOrigin: useCallback(
+      ({ categoryId, value, cost }, jumpId, charId, doc) => {
+        setTracked("Set origin", c => {
+          const jump = c.jumps.O[jumpId];
+          if (!jump) return;
+          let categoryLid: Id<LID.OriginCategory> | undefined;
+          for (const lidStr in jump.originCategories.O) {
+            const cat =
+              jump.originCategories.O[+lidStr as Id<LID.OriginCategory>];
+            if (cat?.template?.id === categoryId) {
+              categoryLid = +lidStr as Id<LID.OriginCategory>;
+              break;
+            }
+          }
+          if (categoryLid === undefined) return;
+          const convertedCost = {
+            amount: cost.amount,
+            currency: convertCurrencyId(cost.currency, doc, jump.currencies),
+          };
+          if (!jump.origins[charId]) jump.origins[charId] = {};
+          const charOrigins = jump.origins[charId];
+          if (!charOrigins[categoryLid]) charOrigins[categoryLid] = [];
+          const list = charOrigins[categoryLid]!;
+          const existing = list.find(o => !o.template);
+          if (existing) {
+            existing.summary = value;
+            existing.value = convertedCost;
+          } else {
+            list.push({ summary: value, value: convertedCost });
+          }
+          c.budgetFlag += 1;
+        });
+      },
+      [],
+    ),
+  };
+}
 
 export function AnnotationInteractionHandler({
   jumpId,
   charId,
-  routeParams,
+  doc,
 }: AnnotationInteractionHandlerProps) {
-  const pendingAction = useViewerActionStore((s) => s.pendingAction);
-  const forceRemove = useViewerActionStore((s) => s.forceRemove);
-  const setPendingAction = useViewerActionStore((s) => s.setPendingAction);
-  const pendingNewCompanion = useViewerActionStore((s) => s.pendingNewCompanion);
-  const setPendingNewCompanion = useViewerActionStore((s) => s.setPendingNewCompanion);
-  const activeTargetCharId = useViewerActionStore((s) => s.activeTargetCharId);
-  const dequeueNext = useViewerActionStore((s) => s.dequeueNext);
+  const addListener = useViewerActionStore(s => s.addListener);
+  const removeListener = useViewerActionStore(s => s.removeListener);
+  const listeners = useViewerActionStore(s => s.listeners);
+  const interactionQueue = useViewerActionStore(s => s.interactionQueue);
+  const enqueueInteractions = useViewerActionStore(s => s.enqueueInteractions);
+  const removeInteractions = useViewerActionStore(s => s.removeInteractions);
 
-  // When a freebie batch is active, route all annotation actions to the companion character.
-  const effectiveCharId = activeTargetCharId ?? charId;
+  const { startUpdate, finalizeUpdate } = useUpdateStack();
+  const currentAction = useRef<undefined | string>(undefined);
 
-  const { origins, setOrigins } = useJumpOrigins(jumpId, effectiveCharId);
-  const originCategories = useJumpOriginCategories(jumpId);
-  const currencies = useJumpCurrencies(jumpId);
-  const budget = useBudget(effectiveCharId, jumpId);
-  const purchaseSubtypes = usePurchaseSubtypes(jumpId);
-  const {
-    addFromTemplate,
-    removePurchase,
-    findByTemplate,
-    countByTemplate,
-    getModifiersUpdater,
-    findReverseIncompatibilities,
-  } = useJumpDocPurchaseActions(jumpId, effectiveCharId);
-  const {
-    addFromTemplate: addDrawback,
-    remove: removeDrawback,
-    findByTemplate: findDrawback,
-    countByTemplate: countDrawbackByTemplate,
-  } = useJumpDocDrawbackActions(jumpId, effectiveCharId);
-  const {
-    addFromTemplate: addScenario,
-    remove: removeScenario,
-    findByTemplate: findScenario,
-  } = useJumpDocScenarioActions(jumpId, effectiveCharId);
-  // Companion imports always attach to the player character, even when processing freebies.
-  const {
-    addFromTemplate: addCompanion,
-    remove: removeCompanion,
-    findByTemplate: findCompanion,
-  } = useJumpDocCompanionActions(jumpId, charId);
-  const { exchanges, addFromDoc, removeDocExchange } = useCurrencyExchanges(jumpId, charId);
-  const navigate = useNavigate();
+  const allListeners = useMemo(
+    () => [
+      createPrereqRemovalListener(),
+      createRepricePurchasesListener(),
+      createBoosterTextListener(),
+      createScenarioRewardListener(),
+      createOriginSynergyListener(jumpId, charId),
+      createOriginStipendListener(jumpId, charId),
+      createDurationListener(jumpId, doc),
+    ],
+    [jumpId, charId, doc],
+  );
 
-  // Refs so the effect closure always reads the latest values without re-firing.
-  const originsRef = useRef(origins);
-  originsRef.current = origins;
-  const categoriesRef = useRef(originCategories);
-  categoriesRef.current = originCategories;
-  const currenciesRef = useRef(currencies);
-  currenciesRef.current = currencies;
-  const budgetRef = useRef(budget);
-  budgetRef.current = budget;
-  const setOriginsRef = useRef(setOrigins);
-  setOriginsRef.current = setOrigins;
-  const purchaseSubtypesRef = useRef(purchaseSubtypes);
-  purchaseSubtypesRef.current = purchaseSubtypes;
-  const addFromTemplateRef = useRef(addFromTemplate);
-  addFromTemplateRef.current = addFromTemplate;
-  const removePurchaseRef = useRef(removePurchase);
-  removePurchaseRef.current = removePurchase;
-  const findByTemplateRef = useRef(findByTemplate);
-  findByTemplateRef.current = findByTemplate;
-  const countByTemplateRef = useRef(countByTemplate);
-  countByTemplateRef.current = countByTemplate;
-  const findReverseIncompatibilitiesRef = useRef(findReverseIncompatibilities);
-  findReverseIncompatibilitiesRef.current = findReverseIncompatibilities;
-  const getModifiersUpdaterRef = useRef(getModifiersUpdater);
-  getModifiersUpdaterRef.current = getModifiersUpdater;
-  const addDrawbackRef = useRef(addDrawback);
-  addDrawbackRef.current = addDrawback;
-  const removeDrawbackRef = useRef(removeDrawback);
-  removeDrawbackRef.current = removeDrawback;
-  const findDrawbackRef = useRef(findDrawback);
-  findDrawbackRef.current = findDrawback;
-  const countDrawbackByTemplateRef = useRef(countDrawbackByTemplate);
-  countDrawbackByTemplateRef.current = countDrawbackByTemplate;
-  const addScenarioRef = useRef(addScenario);
-  addScenarioRef.current = addScenario;
-  const removeScenarioRef = useRef(removeScenario);
-  removeScenarioRef.current = removeScenario;
-  const findScenarioRef = useRef(findScenario);
-  findScenarioRef.current = findScenario;
-  const addCompanionRef = useRef(addCompanion);
-  addCompanionRef.current = addCompanion;
-  const removeCompanionRef = useRef(removeCompanion);
-  removeCompanionRef.current = removeCompanion;
-  const findCompanionRef = useRef(findCompanion);
-  findCompanionRef.current = findCompanion;
-  const exchangesRef = useRef(exchanges);
-  exchangesRef.current = exchanges;
-  const addFromDocRef = useRef(addFromDoc);
-  addFromDocRef.current = addFromDoc;
-  const removeDocExchangeRef = useRef(removeDocExchange);
-  removeDocExchangeRef.current = removeDocExchange;
-  const navigateRef = useRef(navigate);
-  navigateRef.current = navigate;
-  const routeParamsRef = useRef(routeParams);
-  routeParamsRef.current = routeParams;
-  const forceRemoveRef = useRef(forceRemove);
-  forceRemoveRef.current = forceRemove;
-  const effectiveCharIdRef = useRef(effectiveCharId);
-  effectiveCharIdRef.current = effectiveCharId;
-  const dequeueNextRef = useRef(dequeueNext);
-  dequeueNextRef.current = dequeueNext;
+  const [currentInteractions, setCurrentInteractions] = useState<
+    AnnotationInteraction<object>[]
+  >([]);
+
+  const chain = useChain();
+  const buildData = useViewerActionStore(s => s.buildData);
+  const storeBuildData = useViewerActionStore(s => s.setBuildData);
+
+  const rawNavigate = useNavigate();
+  const { chainId } = useParams({ strict: false });
+  const suppressNavigateRef = useRef(false);
+
+  const navigate = useCallback<ChainMutators["navigate"]>(
+    target => {
+      if (suppressNavigateRef.current || !chainId) return;
+      suppressNavigateRef.current = true;
+      const p = {
+        chainId,
+        charId: String(charId as number),
+        jumpId: String(jumpId as number),
+      };
+      const scrollSearch =
+        target.sub !== "" && target.scrollTo !== undefined
+          ? { scrollTo: String(target.scrollTo as number) }
+          : {};
+      if (target.sub === "") {
+        rawNavigate({
+          to: "/chain/$chainId/char/$charId/jump/$jumpId/" as any,
+          params: p as any,
+          search: target.extraSearch ?? ({} as any),
+        });
+      } else if (target.sub === "purchases") {
+        rawNavigate({
+          to: "/chain/$chainId/char/$charId/jump/$jumpId/purchases",
+          params: p,
+          search: scrollSearch as any,
+        });
+      } else if (target.sub === "companions") {
+        rawNavigate({
+          to: "/chain/$chainId/char/$charId/jump/$jumpId/companions",
+          params: p,
+          search: scrollSearch as any,
+        });
+      } else {
+        rawNavigate({
+          to: "/chain/$chainId/char/$charId/jump/$jumpId/drawbacks",
+          params: p,
+          search: {
+            ...scrollSearch,
+            ...(target.sub === "drawbacks" ? (target.extraSearch ?? {}) : {}),
+          } as any,
+        });
+      }
+    },
+    [chainId, charId, jumpId, rawNavigate],
+  );
+
+  const baseChainMutators = useChainMutators();
+  const mutators: ChainMutators = useMemo(
+    () => ({ ...baseChainMutators, navigate }),
+    [baseChainMutators, navigate],
+  );
 
   useEffect(() => {
-    if (!pendingAction?.length) return;
+    allListeners.forEach(l => addListener(l));
+    return () => allListeners.forEach(l => removeListener(l));
+  }, [allListeners]);
 
-    // Build interactions from the pending actions.
-    const origins = originsRef.current as Record<number, Origin[]> | null;
-    const categories = categoriesRef.current;
-    const currencies = currenciesRef.current;
-    const fr = forceRemoveRef.current;
-
-    // Pre-collect origin and origin-option actions so they can be combined or
-    // pooled before the main flatMap processes everything else in order.
-    type OriginOptionAction = Extract<ViewerAnnotationAction, { collection: "origin-option" }>;
-    const originActions: OriginAction[] = [];
-    const originOptionActions: OriginOptionAction[] = [];
-    for (const action of pendingAction) {
-      if (action.collection === "origin") originActions.push(action);
-      else if (action.collection === "origin-option") originOptionActions.push(action);
+  useEffect(() => {
+    if (interactionQueue.length === 0) {
+      suppressNavigateRef.current = false;
+      finalizeUpdate(currentAction.current ?? "");
+      currentAction.current = undefined;
     }
+  }, [interactionQueue.length]);
 
-    // Decide the combined rendering strategy:
-    //  • 1 origin + options   → 1 combined card (origin info + option groups)
-    //  • N≥2 origins + options → N combined cards as tabs (each origin + same option groups)
-    //  • 0 origins + ≥2 options → 1 pooled card (grouped by category)
-    //  • everything else → handled per-action in the flatMap below
-    const hasOptions = originOptionActions.length > 0;
-    const singleOriginWithOptions = originActions.length === 1 && hasOptions;
-    const multiOriginWithOptions = originActions.length >= 2 && hasOptions;
-    const pureOptionPool = originActions.length === 0 && originOptionActions.length >= 2;
+  const budgetFlag = useChainStore(c => c.chain?.budgetFlag ?? 0);
 
-    const sharedArgs = [
-      origins,
-      categories,
-      currencies,
-      purchaseSubtypesRef.current,
-      jumpId,
-      effectiveCharIdRef.current,
-      setOriginsRef.current,
-      getModifiersUpdaterRef.current,
-      navigateRef.current,
-      routeParamsRef.current,
-      fr,
-    ] as const;
-
-    // For N≥2 origins + options: build one combined interaction per origin up front.
-    const multiOriginResults: AnnotationInteraction[] = multiOriginWithOptions
-      ? originActions.flatMap((oa) => {
-          const r = buildCombinedOriginWithOptionsInteraction(
-            oa,
-            originOptionActions,
-            ...sharedArgs,
-          );
-          return r ? [r] : [];
-        })
-      : [];
-
-    // For 1 origin + options or pure option pool: a single group result.
-    let groupResult: AnnotationInteraction | null = null;
-    if (singleOriginWithOptions) {
-      groupResult = buildCombinedOriginWithOptionsInteraction(
-        originActions[0]!,
-        originOptionActions,
-        ...sharedArgs,
-      );
-    } else if (pureOptionPool) {
-      groupResult = buildPooledOriginOptionInteraction(
-        originOptionActions,
-        origins,
-        categories,
-        currencies,
-        setOriginsRef.current,
-        navigateRef.current,
-        routeParamsRef.current,
-        fr,
-      );
-    }
-
-    let groupInserted = false;
-    let multiInserted = false;
-
-    const interactions: AnnotationInteraction[] = pendingAction.flatMap((action) => {
-      let result: AnnotationInteraction | null = null;
-      if (action.collection === "origin") {
-        if (singleOriginWithOptions) {
-          if (!groupInserted) {
-            groupInserted = true;
-            return groupResult ? [groupResult] : [];
-          }
-          return [];
-        }
-        if (multiOriginWithOptions) {
-          // Insert all combined-origin cards at the first origin's position.
-          if (!multiInserted) {
-            multiInserted = true;
-            return multiOriginResults;
-          }
-          return [];
-        }
-        result = buildOriginInteraction(
-          action,
-          origins,
-          categories,
-          currencies,
-          purchaseSubtypesRef.current,
-          jumpId,
-          charId,
-          setOriginsRef.current,
-          getModifiersUpdaterRef.current,
-          navigateRef.current,
-          routeParamsRef.current,
-          fr,
-        );
-      } else if (action.collection === "origin-randomizer")
-        result = buildOriginRandomizerInteraction(
-          action,
-          origins,
-          categories,
-          currencies,
-          purchaseSubtypesRef.current,
-          jumpId,
-          charId,
-          setOriginsRef.current,
-          navigateRef.current,
-          routeParamsRef.current,
-          fr,
-        );
-      else if (action.collection === "origin-option") {
-        // Options are always embedded in origin cards when any origin is present.
-        if (singleOriginWithOptions || multiOriginWithOptions) return [];
-        if (groupResult !== null) {
-          // Insert pooled card at the first option's position; skip the rest.
-          if (!groupInserted) {
-            groupInserted = true;
-            return [groupResult];
-          }
-          return [];
-        }
-        // Single option with no pooling — handle individually.
-        result = buildOriginOptionInteraction(
-          action,
-          origins,
-          categories,
-          currencies,
-          setOriginsRef.current,
-          navigateRef.current,
-          routeParamsRef.current,
-          fr,
-        );
-      } else if (action.collection === "purchase")
-        result = buildPurchaseInteraction(
-          action,
-          originsRef.current as Record<number, Origin[]> | null,
-          categoriesRef.current,
-          purchaseSubtypesRef.current,
-          currenciesRef.current,
-          budgetRef.current,
-          addFromTemplateRef.current,
-          removePurchaseRef.current,
-          findByTemplateRef.current,
-          countByTemplateRef.current,
-          findDrawbackRef.current,
-          findScenarioRef.current,
-          () => true, // TODO
-          navigateRef.current,
-          routeParamsRef.current,
-          fr,
-          findReverseIncompatibilitiesRef.current,
-        );
-      else if (action.collection === "drawback") {
-        const rp = routeParamsRef.current;
-        result = buildDocItemInteraction(
-          action,
-          currenciesRef.current,
-          addDrawbackRef.current as never,
-          removeDrawbackRef.current,
-          findDrawbackRef.current as never,
-          countDrawbackByTemplateRef.current as never,
-          (scrollTo) =>
-            navigateRef.current({
-              to: "/chain/$chainId/char/$charId/jump/$jumpId/drawbacks",
-              params: rp,
-              search: { scrollTo },
-            }),
-          fr,
-          originsRef.current as Record<number, Origin[]> | null,
-          categoriesRef.current,
-          findByTemplateRef.current,
-          findDrawbackRef.current,
-          findScenarioRef.current,
-          () => true, // TODO
-        );
-      } else if (action.collection === "scenario") {
-        const rp = routeParamsRef.current;
-        result = buildScenarioInteraction(
-          action,
-          addScenarioRef.current,
-          removeScenarioRef.current,
-          findScenarioRef.current,
-          (scrollTo) =>
-            navigateRef.current({
-              to: "/chain/$chainId/char/$charId/jump/$jumpId/drawbacks",
-              params: rp,
-              search: { scrollTo },
-            }),
-          fr,
-          findByTemplateRef.current,
-          findDrawbackRef.current,
-          () => true, // TODO
-        );
-      } else if (action.collection === "currency-exchange") {
-        result = buildCurrencyExchangeInteraction(
-          action,
-          exchangesRef.current,
-          currenciesRef.current,
-          addFromDocRef.current,
-          removeDocExchangeRef.current,
-        );
-      } else if (action.collection === "companion") {
-        const rp = routeParamsRef.current;
-        result = buildCompanionInteraction(
-          action,
-          charId,
-          jumpId,
-          originsRef.current as Record<number, Origin[]> | null,
-          categoriesRef.current,
-          currenciesRef.current,
-          budgetRef.current,
-          addCompanionRef.current,
-          removeCompanionRef.current,
-          findCompanionRef.current,
-          findByTemplateRef.current,
-          findDrawbackRef.current,
-          findScenarioRef.current,
-          (follower) => (scrollTo) =>
-            navigateRef.current({
-              to: follower
-                ? "/chain/$chainId/char/$charId/jump/$jumpId/purchases"
-                : "/chain/$chainId/char/$charId/jump/$jumpId/companions",
-              params: rp,
-              search: scrollTo ? { scrollTo } : undefined,
-            }),
-          fr,
-        );
-      }
-      return result ? [result] : [];
+  useEffect(() => {
+    if (!chain) return;
+    let newBuildData = computeBuildData(chain, jumpId, charId, doc);
+    storeBuildData(newBuildData);
+    listeners.forEach(l => {
+      if (l.condition(newBuildData))
+        l.action(newBuildData, chain, doc, mutators);
     });
+  }, [!!chain, budgetFlag]);
 
-    // Clear the store immediately to avoid double-handling.
-    setPendingAction(null);
+  useEffect(() => {
+    if (!chain || !doc) return;
+    const build = computeBuildData(chain, jumpId, charId, doc);
+    setTracked("Backfill originalCost", c => {
+      const jump = c.jumps.O[jumpId];
+      if (!jump) return;
+      for (const gid of [
+        ...(jump.purchases[charId] ?? []),
+        ...(jump.drawbacks[charId] ?? []),
+      ]) {
+        const p = c.purchases.O[gid] as JumpPurchase | undefined;
+        if (!p?.template?.id) continue;
+        if ((p.template as any).originalCost) continue;
+        const isDrawback = p.type === PurchaseType.Drawback;
+        const tid = p.template.id;
+        const template = isDrawback
+          ? doc.availableDrawbacks.O[tid as Id<TID.Drawback>]
+          : doc.availablePurchases.O[tid as Id<TID.Purchase>];
+        if (!template) continue;
+        const { default: defaultCost } = computePossibleCosts(
+          template,
+          build,
+          doc,
+        );
+        const floatingDiscountOption = !!(p as BasicPurchase)
+          .usesFloatingDiscount;
+        (p.template as any).originalCost = {
+          ...defaultCost,
+          floatingDiscountOption: floatingDiscountOption || undefined,
+        };
+      }
+    });
+  }, []);
 
-    if (interactions.length === 0) return;
+  useEffect(() => {
+    if (!chain || !buildData || currentInteractions.length) return;
 
-    // Origin-option interactions always appear last in the tab list.
-    interactions.sort((a, b) => (a.isOriginOption ? 1 : 0) - (b.isOriginOption ? 1 : 0));
+    let j = 0;
+    for (; j < interactionQueue.length; j++) {
+      let { interactions, character } = interactionQueue[j] ?? {
+        interactions: [],
+      };
+      let currentBuildData =
+        character === undefined || character == charId
+          ? buildData
+          : computeBuildData(chain, jumpId, character, doc);
+      let errors = Object.fromEntries(
+        interactions.map((i, index) => [index, i.error(currentBuildData)]),
+      );
+      if (interactions.length > 1)
+        interactions = interactions.filter((_, index) => !errors[index]);
 
-    // Filter out error-state interactions when non-error ones are also present.
-    const nonErrorInteractions = interactions.filter((i) => !i.isError);
-    const visibleInteractions =
-      nonErrorInteractions.length > 0 && nonErrorInteractions.length < interactions.length
-        ? nonErrorInteractions
-        : interactions;
+      if (interactions.length == 0) continue;
 
-    // Single action with no required preview: execute immediately, then advance the queue.
-    if (visibleInteractions.length === 1 && !visibleInteractions[0]!.forcePreview) {
-      visibleInteractions[0]!.executeDefault();
-      dequeueNextRef.current();
-      return;
+      let showPreview = false;
+      if (interactions.length > 1) showPreview = true;
+      else if (interactions[0].forcePreview(buildData)) showPreview = true;
+      else {
+        let actions = (
+          typeof interactions[0].actions == "function"
+            ? interactions[0].actions(currentBuildData)
+            : interactions[0].actions
+        ).filter(a => a.condition(currentBuildData));
+        if (actions.length == 0) continue;
+        else if (actions.length == 1) {
+          if (!currentAction.current) {
+            currentAction.current =
+              typeof actions[0].name == "function"
+                ? actions[0].name(
+                    currentBuildData,
+                    interactions[0].initialize(currentBuildData),
+                  )
+                : actions[0].name;
+            startUpdate(currentAction.current);
+          }
+          actions[0]
+            .execute(
+              currentBuildData,
+              mutators,
+              interactions[0].initialize(currentBuildData),
+            )
+            .forEach(a => enqueueInteractions([a]));
+        } else if (actions.length > 1) showPreview = true;
+      }
+
+      if (showPreview) {
+        setCurrentInteractions(interactions);
+      }
     }
 
-    // Show the SweetAlert2 popup (always in the main window).
+    removeInteractions(j);
+  }, [interactionQueue.length, currentInteractions.length]);
+
+  useEffect(() => {
+    if (!currentInteractions.length || !buildData) return;
+    if (!currentAction.current) {
+      currentAction.current = "JumpDoc interaction";
+      startUpdate(currentAction.current);
+    }
+
     MySwal.close();
     MySwal.fire({
-      html: <InteractionDialog interactions={visibleInteractions} onClose={() => MySwal.close()} />,
+      html: (
+        <InteractionDialog
+          interactions={currentInteractions}
+          build={buildData}
+          mutators={mutators}
+          onClose={() => MySwal.close()}
+        />
+      ),
       showConfirmButton: false,
       showCancelButton: false,
       allowOutsideClick: true,
@@ -3540,29 +3635,15 @@ export function AnnotationInteractionHandler({
       padding: 0,
       background: "transparent",
       backdrop: true,
-      didClose: () => dequeueNextRef.current(),
+      didClose: () => setCurrentInteractions([]),
       customClass: {
-        popup: "!bg-transparent !shadow-none !border-0 !p-0 !overflow-visible !w-auto !max-w-none",
+        popup:
+          "!bg-transparent !shadow-none !border-0 !p-0 !overflow-visible !w-auto !max-w-none",
         htmlContainer: "!m-0 !p-0 !overflow-visible",
         container: "!p-4",
       },
     });
-  }, [pendingAction]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (pendingNewCompanion) {
-    return (
-      <NewCompanionModal
-        onDone={(newCharId) => {
-          pendingNewCompanion.onDone(newCharId);
-          setPendingNewCompanion(null);
-        }}
-        onCancel={() => {
-          pendingNewCompanion.onCancel();
-          setPendingNewCompanion(null);
-        }}
-      />
-    );
-  }
+  }, [currentInteractions, !!buildData]);
 
   return null;
 }

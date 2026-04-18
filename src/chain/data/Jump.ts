@@ -1,6 +1,16 @@
 import { Duration } from "@/utilities/units";
 import { PurchaseType, SimpleValue, Value } from "./Purchase";
-import { createId, GID, Id, LID, PartialIndex, PartialLookup, Registry, TID } from "./types";
+import {
+  createId,
+  GID,
+  Id,
+  LID,
+  PartialIndex,
+  PartialLookup,
+  Registry,
+  TID,
+} from "./types";
+import { PossibleCost } from "../components/AnnotationInteractionHandler";
 
 /** The default (primary) currency ID — always key 0 in a jump's currency registry. */
 export const DEFAULT_CURRENCY_ID = createId<LID.Currency>(0);
@@ -41,7 +51,7 @@ export interface OriginCategory {
   multiple: boolean;
   default?: string;
 
-  template?: { jumpdoc: string; id: Id<TID.Origin> };
+  template?: { jumpdoc: string; id: Id<TID.OriginCategory> };
 
   /** When true (and singleLine is false), origins in this category discount purchases. */
   providesDiscounts?: boolean;
@@ -50,7 +60,9 @@ export interface OriginCategory {
 
 export type SubtypePlacement = "normal" | "route" | "section";
 
-export interface PurchaseSubtype<T extends LID.Currency | TID.Currency = LID.Currency> {
+export interface PurchaseSubtype<
+  T extends LID.Currency | TID.Currency = LID.Currency,
+> {
   name: string;
   stipend: Value<T>;
   type: PurchaseType.Item | PurchaseType.Perk;
@@ -58,6 +70,9 @@ export interface PurchaseSubtype<T extends LID.Currency | TID.Currency = LID.Cur
   allowSubpurchases: boolean;
   placement: SubtypePlacement;
   floatingDiscountThresholds?: SimpleValue<T>[];
+
+  templateId?: Id<TID.PurchaseSubtype>;
+
   /**
    * JumpDoc-only: how floating discounts are granted.
    * - "free"   — any purchase in this subtype may use a floating discount.
@@ -74,7 +89,12 @@ export interface Origin {
   summary: string;
   description?: string;
 
-  template?: { jumpdoc: string; id: Id<TID.Origin> };
+  template?: {
+    jumpdoc: string;
+    id: Id<TID.Origin>;
+    originalCost?: PossibleCost;
+  };
+  freebie?: Id<TID.Companion>; //TODO
 }
 
 export interface NarrativeBlurb {
@@ -90,6 +110,8 @@ export type Jump = {
   id: Id<GID.Jump>;
   parentJump?: Id<GID.Jump>;
   duration: Duration;
+  /** Duration last set by the duration listener; used to detect actual changes and suppress redundant toasts. */
+  originalDuration?: Duration;
 
   drawbackLimit?: number | null;
   originStipend?: SimpleValue;
@@ -107,7 +129,11 @@ export type Jump = {
   bankDeposits: PartialLookup<GID.Character, number>;
   currencyExchanges: PartialLookup<GID.Character, CurrencyExchange[]>;
 
-  supplementPurchases: PartialLookup<GID.Character, GID.Supplement, Id<GID.Purchase>[]>;
+  supplementPurchases: PartialLookup<
+    GID.Character,
+    GID.Supplement,
+    Id<GID.Purchase>[]
+  >;
   supplementInvestments: PartialLookup<GID.Character, GID.Supplement, number>;
 
   notes: PartialLookup<GID.Character, string>;

@@ -1,4 +1,10 @@
-import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
 import {
   closestCenter,
   DndContext,
@@ -17,13 +23,30 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { BookOpen, ChevronRight, ExternalLink, GripVertical, Plus, Trash2, X } from "lucide-react";
+import {
+  BookOpen,
+  ChevronRight,
+  ExternalLink,
+  GripVertical,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import React, { memo, useEffect, useRef, useState } from "react";
 
 import type { Budget } from "@/chain/data/CalculatedData";
 import type { Currency, Jump, PurchaseSubtype } from "@/chain/data/Jump";
-import { CompanionAccess, type ChainSupplement } from "@/chain/data/ChainSupplement";
-import { createId, type GID, type Id, type LID, type Lookup } from "@/chain/data/types";
+import {
+  CompanionAccess,
+  type ChainSupplement,
+} from "@/chain/data/ChainSupplement";
+import {
+  createId,
+  type GID,
+  type Id,
+  type LID,
+  type Lookup,
+} from "@/chain/data/types";
 import {
   useAddJump,
   useAddJumpFromDoc,
@@ -48,7 +71,6 @@ import type { JumpDoc } from "@/chain/data/JumpDoc";
 import { loadJumpDoc, type JumpDocSummary } from "@/api/jumpdocs";
 import { JumpDocGallery } from "@/app/components/JumpDocGallery";
 import { JumpDocViewer } from "@/chain/components/JumpDocViewer";
-import { AnnotationInteractionHandler } from "@/chain/components/AnnotationInteractionHandler";
 import { ElectronChainNav } from "@/chain/components/ElectronChainNav";
 import { useViewerActionStore } from "@/chain/state/ViewerActionStore";
 import { NewWindowPortal } from "@/ui/NewWindowPortal";
@@ -65,11 +87,15 @@ import {
   synchronizeBank,
 } from "@/chain/state/calculations";
 
-export const Route = createFileRoute("/chain/$chainId/char/$charId/jump/$jumpId")({
+export const Route = createFileRoute(
+  "/chain/$chainId/char/$charId/jump/$jumpId",
+)({
   component: JumpLayout,
   validateSearch: (search: Record<string, unknown>) => {
     const hv =
-      search.hideViewer === true || search.hideViewer === "true" || search.hideViewer === "1";
+      search.hideViewer === true ||
+      search.hideViewer === "true" ||
+      search.hideViewer === "1";
     return hv ? { hideViewer: true as const } : ({} as { hideViewer?: true });
   },
 });
@@ -139,7 +165,8 @@ function buildTabs(
   for (const [id, sup] of Object.entries(supplements)) {
     if (!sup) continue;
     const suppGid = createId<GID.Supplement>(+id);
-    const hasActualAccess = supplementAccess?.[suppGid]?.has(jumpGid as number) ?? false;
+    const hasActualAccess =
+      supplementAccess?.[suppGid]?.has(jumpGid as number) ?? false;
 
     // Potential access: Imports companion in range, or Available companion (always shown dimmed).
     const jumpInRange = sup.singleJump
@@ -218,13 +245,25 @@ function getJumpNavTarget(
 ): { to: string; params: Record<string, string> } {
   const base = { chainId, charId, jumpId: newJumpId };
   if (activeTabKey === "purchases")
-    return { to: "/chain/$chainId/char/$charId/jump/$jumpId/purchases", params: base };
+    return {
+      to: "/chain/$chainId/char/$charId/jump/$jumpId/purchases",
+      params: base,
+    };
   if (activeTabKey === "drawbacks")
-    return { to: "/chain/$chainId/char/$charId/jump/$jumpId/drawbacks", params: base };
+    return {
+      to: "/chain/$chainId/char/$charId/jump/$jumpId/drawbacks",
+      params: base,
+    };
   if (activeTabKey === "companions")
-    return { to: "/chain/$chainId/char/$charId/jump/$jumpId/companions", params: base };
+    return {
+      to: "/chain/$chainId/char/$charId/jump/$jumpId/companions",
+      params: base,
+    };
   if (activeTabKey === "config")
-    return { to: "/chain/$chainId/char/$charId/jump/$jumpId/config", params: base };
+    return {
+      to: "/chain/$chainId/char/$charId/jump/$jumpId/config",
+      params: base,
+    };
   if (activeTabKey.startsWith("supp/")) {
     const supplementId = activeTabKey.slice(5);
     return {
@@ -251,37 +290,49 @@ function BudgetDisplay({
   subtypes: Lookup<LID.PurchaseSubtype, PurchaseSubtype>;
   compact?: boolean;
 }) {
-  const pillClass = "text-xs tabular-nums bg-surface/20 text-surface rounded px-3 py-1.5";
-  const stipendPillClass = "text-xs tabular-nums bg-surface/15 text-surface/90 rounded px-3 py-1.5";
+  const pillClass =
+    "text-xs tabular-nums bg-surface/20 text-surface rounded px-3 py-1.5";
+  const stipendPillClass =
+    "text-xs tabular-nums bg-surface/15 text-surface/90 rounded px-3 py-1.5";
   return (
-    <div className={`flex flex-wrap gap-1 ${compact && "max-w-100 md:max-w-150"}`}>
-      {(Object.entries(budget.currency) as [string, number][]).map(([cIdStr, amount]) => {
-        const curr = currencies[cIdStr as any] as Currency | undefined;
-        if (!curr) return null;
-        if (amount == 0 && curr.hidden) return null;
-        return (
-          <span key={cIdStr} className={pillClass}>
-            {amount} {curr.abbrev}
-          </span>
-        );
-      })}
+    <div
+      className={`flex flex-wrap gap-1 ${compact && "max-w-100 md:max-w-150"}`}
+    >
+      {(Object.entries(budget.currency) as [string, number][]).map(
+        ([cIdStr, amount]) => {
+          const curr = currencies[cIdStr as any] as Currency | undefined;
+          if (!curr) return null;
+          if (amount == 0 && curr.hidden) return null;
+          return (
+            <span key={cIdStr} className={pillClass}>
+              {amount} {curr.abbrev}
+            </span>
+          );
+        },
+      )}
       {budget.companionStipend.amount > 0 && (
         <span key={`companion`} className={stipendPillClass}>
           {`Companion Import Stipend: `}
-          {budget.companionStipend.amount} {currencies[budget.companionStipend.currency].abbrev}
+          {budget.companionStipend.amount}{" "}
+          {currencies[budget.companionStipend.currency].abbrev}
         </span>
       )}
       {budget.originStipend.amount > 0 && (
         <span key={`companion`} className={stipendPillClass}>
           {`Stipend for Origins: `}
-          {budget.originStipend.amount} {currencies[budget.originStipend.currency].abbrev}
+          {budget.originStipend.amount}{" "}
+          {currencies[budget.originStipend.currency].abbrev}
         </span>
       )}
-      {(Object.entries(budget.stipends) as [string, Record<string, number>][]).flatMap(
-        ([stIdStr, currAmounts]) => {
-          const subtype = (subtypes as any)[stIdStr] as PurchaseSubtype | undefined;
-          if (!subtype || !currAmounts) return [];
-          return (Object.entries(currAmounts) as [string, number][]).map(([cIdStr, amount]) => {
+      {(
+        Object.entries(budget.stipends) as [string, Record<string, number>][]
+      ).flatMap(([stIdStr, currAmounts]) => {
+        const subtype = (subtypes as any)[stIdStr] as
+          | PurchaseSubtype
+          | undefined;
+        if (!subtype || !currAmounts) return [];
+        return (Object.entries(currAmounts) as [string, number][]).map(
+          ([cIdStr, amount]) => {
             const curr = (currencies as any)[cIdStr] as Currency | undefined;
             if (!curr) return null;
             return (
@@ -290,29 +341,34 @@ function BudgetDisplay({
                 {amount} {curr.abbrev}
               </span>
             );
-          });
-        },
-      )}
+          },
+        );
+      })}
       {(
         Object.entries(budget.remainingDiscounts) as [
           string,
           { value: { amount: number; currency: number }; n: number }[],
         ][]
       ).flatMap(([stIdStr, entries]) => {
-        const subtype = (subtypes as any)[stIdStr] as PurchaseSubtype | undefined;
+        const subtype = (subtypes as any)[stIdStr] as
+          | PurchaseSubtype
+          | undefined;
         if (!subtype || !entries?.length) return [];
         const total = entries.reduce((sum, e) => sum + e.n, 0);
         const results: React.ReactNode[] = [];
         for (const entry of entries) {
           if (entry.n < 0) {
-            const curr = (currencies as any)[entry.value.currency] as Currency | undefined;
+            const curr = (currencies as any)[entry.value.currency] as
+              | Currency
+              | undefined;
             if (!curr) continue;
             results.push(
               <span
                 key={`${stIdStr}-err-${entry.value.currency}-${entry.value.amount}`}
                 className="text-xs tabular-nums bg-surface/20 text-surface rounded px-3 py-1.5"
               >
-                Too many {entry.value.amount} {curr.abbrev} {subtype.name} Discounts
+                Too many {entry.value.amount} {curr.abbrev} {subtype.name}{" "}
+                Discounts
               </span>,
             );
           }
@@ -338,7 +394,12 @@ function JumpLayout() {
   const { chainId, charId, jumpId } = Route.useParams();
   const { hideViewer } = Route.useSearch();
   return (
-    <JumpLayoutInner chainId={chainId} charId={charId} jumpId={jumpId} hideViewer={!!hideViewer} />
+    <JumpLayoutInner
+      chainId={chainId}
+      charId={charId}
+      jumpId={jumpId}
+      hideViewer={!!hideViewer}
+    />
   );
 }
 
@@ -355,7 +416,7 @@ function JumpLayoutInner({
 }) {
   const jumpNumbers = useJumpNumbers();
   const chain = useChain();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const pathname = useRouterState({ select: s => s.location.pathname });
 
   const charGid = createId<GID.Character>(+charId);
   const jumpGid = createId<GID.Jump>(+jumpId);
@@ -365,6 +426,7 @@ function JumpLayoutInner({
 
   useEffect(() => {
     if (!jumpNumbers) return;
+
     const cleanups = [
       synchronizeRetainedDrawbacks(charGid, jumpGid),
       synchronizeChainDrawbacks(charGid, jumpGid),
@@ -377,7 +439,16 @@ function JumpLayoutInner({
         : []),
       synchronizeBudget(charGid, jumpGid),
     ];
-    return () => cleanups.forEach((f) => f());
+
+    let currentChunk = false;
+    for (let i of chain?.jumpList ?? []) {
+      if (currentChunk && chain?.jumps?.O?.[+i as any].parentJump === undefined)
+        continue;
+      synchronizeBank(charGid, +i as any)();
+      if (+i == jumpGid) currentChunk = true;
+    }
+
+    return () => cleanups.forEach(f => f());
   }, [charGid, jumpGid, suppGid, !jumpNumbers]);
 
   const deduplicateJumpPurchases = useDeduplicateJumpPurchases();
@@ -387,7 +458,8 @@ function JumpLayoutInner({
 
   const { char } = useCharacter(charGid);
   const accessibleJumps = useJumpAccess(charGid);
-  const hasJumpAccess = accessibleJumps == null || accessibleJumps.has(jumpGid as number);
+  const hasJumpAccess =
+    accessibleJumps == null || accessibleJumps.has(jumpGid as number);
   const supplementAccess = useSupplementAccess(charGid);
   const { settings: chainSettings } = useChainSettingsConfig();
   const budget = useBudget(charGid, jumpGid);
@@ -467,7 +539,9 @@ function JumpLayoutInner({
         {sidebar}
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="max-w-sm w-full border border-edge rounded-lg bg-surface px-6 py-5 flex flex-col gap-2">
-            <p className="text-sm font-semibold text-ink">Character not found</p>
+            <p className="text-sm font-semibold text-ink">
+              Character not found
+            </p>
             <p className="text-sm text-muted">
               No character with ID {charId} exists in this chain.
             </p>
@@ -483,32 +557,37 @@ function JumpLayoutInner({
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="max-w-sm w-full border border-edge rounded-lg bg-surface px-6 py-5 flex flex-col gap-2">
             <p className="text-sm font-semibold text-ink">Jump not found</p>
-            <p className="text-sm text-muted">No jump with ID {jumpId} exists in this chain.</p>
+            <p className="text-sm text-muted">
+              No jump with ID {jumpId} exists in this chain.
+            </p>
           </div>
         </div>
       </div>
     );
 
   // Determine whether the current tab is restricted and what warning to show.
-  const activeTab = tabs.find((t) => t.key === activeTabKey);
+  const activeTab = tabs.find(t => t.key === activeTabKey);
   const isActiveTabDimmed = activeTab?.dimmed ?? false;
-  let accessWarning: { title: string; body: string; detail?: string } | null = null;
+  let accessWarning: { title: string; body: string; detail?: string } | null =
+    null;
   if (isActiveTabDimmed) {
     if (activeTabKey.startsWith("supp/")) {
       const suppId = activeTabKey.slice(5);
       const suppName =
-        (supplements as Record<string, ChainSupplement | undefined>)[suppId]?.name ??
-        "this supplement";
+        (supplements as Record<string, ChainSupplement | undefined>)[suppId]
+          ?.name ?? "this supplement";
       accessWarning = {
         title: `No access to ${suppName}`,
         body: `${char?.name ?? "This character"} hasn't been imported into ${suppName} for this jump.`,
-        detail: "A primary jumper needs to purchase a supplement import that includes them.",
+        detail:
+          "A primary jumper needs to purchase a supplement import that includes them.",
       };
     } else {
       accessWarning = {
         title: "No access to this jump",
         body: `${char?.name ?? "This character"} hasn't been imported into this jump.`,
-        detail: "To bring them here, another jumper needs to purchase an import for them.",
+        detail:
+          "To bring them here, another jumper needs to purchase an import for them.",
       };
     }
   }
@@ -539,7 +618,9 @@ function JumpLayoutInner({
               <div className="flex items-center gap-2 min-w-0">
                 <h1 className="text-base font-semibold text-surface leading-tight flex-1 min-w-0 truncate">
                   {jump?.name || (
-                    <span className="font-normal opacity-60 italic">Unnamed Jump</span>
+                    <span className="font-normal opacity-60 italic">
+                      Unnamed Jump
+                    </span>
                   )}
                 </h1>
                 {budget && jump && (
@@ -562,7 +643,11 @@ function JumpLayoutInner({
                 )}
                 {jumpdocId && (!viewerOpen || viewerPopped) && (
                   <button
-                    title={viewerPopped ? "Bring JumpDoc back to panel" : "Show JumpDoc panel"}
+                    title={
+                      viewerPopped
+                        ? "Bring JumpDoc back to panel"
+                        : "Show JumpDoc panel"
+                    }
                     onClick={() => {
                       setViewerOpen(true);
                       setViewerPopped(false);
@@ -579,7 +664,9 @@ function JumpLayoutInner({
             {accessWarning ? (
               <div className="flex-1 flex items-center justify-center p-8">
                 <div className="max-w-sm w-full border border-danger/40 rounded-lg bg-danger/10 px-6 py-5 flex flex-col gap-2">
-                  <p className="text-sm font-semibold text-danger">{accessWarning.title}</p>
+                  <p className="text-sm font-semibold text-danger">
+                    {accessWarning.title}
+                  </p>
                   <p className="text-sm text-ink">{accessWarning.body}</p>
                   {accessWarning.detail && (
                     <p className="text-sm text-muted">{accessWarning.detail}</p>
@@ -594,23 +681,20 @@ function JumpLayoutInner({
         </div>
       </div>
 
-      {/* Handles annotation clicks from the JumpDoc viewer (inline or popped-out). */}
-      <AnnotationInteractionHandler
-        jumpId={jumpGid}
-        charId={charGid}
-        routeParams={{ chainId, charId, jumpId }}
-      />
-
       {/* JumpDoc panel — mounted once, persists across tab navigation */}
       {jumpdocId && (
         <>
           {/* Pop-out portal — renders the viewer in a separate browser window */}
           {viewerPopped && (
-            <NewWindowPortal title="JumpDoc" onClose={() => setViewerPopped(false)}>
+            <NewWindowPortal
+              title="JumpDoc"
+              onClose={() => setViewerPopped(false)}
+            >
               <JumpDocViewer
                 docId={jumpdocId}
                 jumpId={jumpGid}
                 charId={charGid}
+                key={`${jumpId}_${charId}`}
                 expanded={true}
                 onClose={() => setViewerPopped(false)}
                 budgetSlot={
@@ -638,9 +722,10 @@ function JumpLayoutInner({
               docId={jumpdocId}
               jumpId={jumpGid}
               charId={charGid}
+              key={`${jumpId}_${charId}`}
               onClose={() => setViewerOpen(false)}
               expanded={viewerExpanded}
-              onToggleExpand={() => setViewerExpanded((v) => !v)}
+              onToggleExpand={() => setViewerExpanded(v => !v)}
               onPopOut={() => {
                 setViewerPopped(true);
                 setViewerOpen(false);
@@ -671,7 +756,13 @@ function JumpLayoutInner({
 type JumpBlock = { jump: Jump; supplements: Jump[] };
 
 /** Floating overlay shown while dragging — a visual copy of the dragged block. */
-function JumpBlockOverlay({ block, jumpNum }: { block: JumpBlock; jumpNum: number | undefined }) {
+function JumpBlockOverlay({
+  block,
+  jumpNum,
+}: {
+  block: JumpBlock;
+  jumpNum: number | undefined;
+}) {
   return (
     <div className="rounded-md shadow-xl ring-2 ring-accent bg-surface opacity-95 cursor-grabbing">
       <div className="flex items-center gap-1.5 px-2 py-1.5">
@@ -685,8 +776,11 @@ function JumpBlockOverlay({ block, jumpNum }: { block: JumpBlock; jumpNum: numbe
       </div>
       {block.supplements.length > 0 && (
         <div className="ml-4 border-l border-edge">
-          {block.supplements.map((sup) => (
-            <div key={sup.id as number} className="px-3 py-1 text-xs text-muted truncate">
+          {block.supplements.map(sup => (
+            <div
+              key={sup.id as number}
+              className="px-3 py-1 text-xs text-muted truncate"
+            >
               {sup.name || "[unnamed supplement]"}
             </div>
           ))}
@@ -700,7 +794,11 @@ function JumpBlockOverlay({ block, jumpNum }: { block: JumpBlock; jumpNum: numbe
 // Memoized content component — never re-renders during drag since none of these
 // props change while the pointer is moving. DnD listeners/attributes live on
 // the outer SortableJumpBlock div so they never touch this component's props.
-function formatDuration(d: { days: number; months: number; years: number }): string {
+function formatDuration(d: {
+  days: number;
+  months: number;
+  years: number;
+}): string {
   const { days, months, years } = d;
   if (years >= 100) {
     const c = Math.round(years / 100);
@@ -773,7 +871,7 @@ const JumpBlockContent = memo(function JumpBlockContent({
 
       {supplements.length > 0 && (
         <div className="ml-5 border-l border-edge">
-          {supplements.map((sup) => {
+          {supplements.map(sup => {
             const supId = sup.id as number;
             const { to: supTo, params: supParams } = getJumpNavTarget(
               chainId,
@@ -782,7 +880,8 @@ const JumpBlockContent = memo(function JumpBlockContent({
               activeTabKey,
             );
             const supActive = currentJumpId === supId;
-            const supAccessible = accessibleJumps == null || accessibleJumps.has(supId);
+            const supAccessible =
+              accessibleJumps == null || accessibleJumps.has(supId);
             return (
               <Link
                 key={supId}
@@ -833,7 +932,14 @@ function SortableJumpBlock({
   const { jump, supplements } = block;
   const id = jump.id as number;
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
     id,
   });
 
@@ -846,11 +952,13 @@ function SortableJumpBlock({
     return (
       <div ref={setNodeRef} style={style} data-jump-id={id}>
         <div className="rounded-md border-2 border-dashed border-accent-ring bg-accent-tint px-2 py-1.5">
-          <span className="invisible text-sm select-none">{jump.name || "Jump"}</span>
+          <span className="invisible text-sm select-none">
+            {jump.name || "Jump"}
+          </span>
         </div>
         {supplements.length > 0 && (
           <div className="ml-4">
-            {supplements.map((sup) => (
+            {supplements.map(sup => (
               <div key={sup.id as number} className="px-3 py-1">
                 <span className="invisible text-xs select-none">
                   {sup.name || "[unnamed supplement]"}
@@ -928,7 +1036,8 @@ const ChainSidebar = memo(function ChainSidebar({
   useEffect(() => {
     if (!addMenuOpen) return;
     const handler = (e: MouseEvent) => {
-      if (!addMenuRef.current?.contains(e.target as Node)) setAddMenuOpen(false);
+      if (!addMenuRef.current?.contains(e.target as Node))
+        setAddMenuOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -936,14 +1045,16 @@ const ChainSidebar = memo(function ChainSidebar({
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 500, tolerance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 500, tolerance: 5 },
+    }),
   );
 
   const currentCharId = charId ? +charId : null;
   const currentJumpId = jumpId ? +jumpId : null;
 
   // Derive active tab key so sidebar links preserve the current tab.
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const pathname = useRouterState({ select: s => s.location.pathname });
   const activeTabKey = getActiveTabKey(pathname, jumpId);
 
   // Scroll the active jump into view when navigating here from outside the sidebar.
@@ -977,7 +1088,7 @@ const ChainSidebar = memo(function ChainSidebar({
     for (const block of jumpTree) {
       if (
         (block.jump.id as number) === currentJumpId ||
-        block.supplements.some((s) => (s.id as number) === currentJumpId)
+        block.supplements.some(s => (s.id as number) === currentJumpId)
       ) {
         currentBlockEnd =
           block.supplements.length > 0
@@ -995,14 +1106,18 @@ const ChainSidebar = memo(function ChainSidebar({
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     setActiveId(null);
     if (!over || active.id === over.id) return;
-    const oldIdx = jumpTree.findIndex(({ jump }) => (jump.id as number) === active.id);
-    const newIdx = jumpTree.findIndex(({ jump }) => (jump.id as number) === over.id);
+    const oldIdx = jumpTree.findIndex(
+      ({ jump }) => (jump.id as number) === active.id,
+    );
+    const newIdx = jumpTree.findIndex(
+      ({ jump }) => (jump.id as number) === over.id,
+    );
     if (oldIdx === -1 || newIdx === -1) return;
     const reordered = arrayMove(jumpTree, oldIdx, newIdx);
     reorderJumps(
       reordered.map(({ jump, supplements }) => [
         jump.id as Id<GID.Jump>,
-        ...supplements.map((s) => s.id as Id<GID.Jump>),
+        ...supplements.map(s => s.id as Id<GID.Jump>),
       ]),
     );
   };
@@ -1013,7 +1128,12 @@ const ChainSidebar = memo(function ChainSidebar({
       : null;
 
   const goWithChar = (newCharId: number) => {
-    const { to, params } = getJumpNavTarget(chainId, String(newCharId), jumpId, activeTabKey);
+    const { to, params } = getJumpNavTarget(
+      chainId,
+      String(newCharId),
+      jumpId,
+      activeTabKey,
+    );
     navigate({ to, params } as never);
   };
 
@@ -1023,7 +1143,10 @@ const ChainSidebar = memo(function ChainSidebar({
       <button
         type="button"
         className={`${forceCollapsed ? "" : "md:hidden"} fixed left-0 top-1/3 z-20 flex items-center bg-accent2-tint border border-l-0 border-accent2/80 rounded-r-md px-1 py-3 text-ghost hover:text-accent2 shadow-sm`}
-        style={{ opacity: mobileOpen ? 0 : 1, pointerEvents: mobileOpen ? "none" : "auto" }}
+        style={{
+          opacity: mobileOpen ? 0 : 1,
+          pointerEvents: mobileOpen ? "none" : "auto",
+        }}
         onClick={() => setMobileOpen(true)}
       >
         <ChevronRight size={13} />
@@ -1065,11 +1188,11 @@ const ChainSidebar = memo(function ChainSidebar({
           <select
             className="rounded pl-2 pr-6 focus:outline-none disabled:opacity-50"
             value={currentCharId ?? ""}
-            onChange={(e) => goWithChar(+e.target.value)}
+            onChange={e => goWithChar(+e.target.value)}
             disabled={characters.length === 0}
           >
             {characters.length === 0 && <option value="">Loading…</option>}
-            {characters.map((char) => (
+            {characters.map(char => (
               <option key={char!.id} value={char!.id as number}>
                 {char!.name}
               </option>
@@ -1084,8 +1207,12 @@ const ChainSidebar = memo(function ChainSidebar({
           noScrollX
           className="flex-1 min-h-0"
           contentProps={{ className: "py-1 px-3" }}
-          trackYProps={{ style: { background: "transparent", width: 5, right: 2 } }}
-          thumbYProps={{ style: { background: "var(--color-trim)", borderRadius: 4 } }}
+          trackYProps={{
+            style: { background: "transparent", width: 5, right: 2 },
+          }}
+          thumbYProps={{
+            style: { background: "var(--color-trim)", borderRadius: 4 },
+          }}
         >
           <div className="py-1 pl-3 pr-3">
             <DndContext
@@ -1094,15 +1221,21 @@ const ChainSidebar = memo(function ChainSidebar({
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
-              <SortableContext items={topLevelIds} strategy={verticalListSortingStrategy}>
-                {jumpTree.map((block) => (
+              <SortableContext
+                items={topLevelIds}
+                strategy={verticalListSortingStrategy}
+              >
+                {jumpTree.map(block => (
                   <SortableJumpBlock
                     key={block.jump.id as number}
                     block={block}
                     chainId={chainId}
                     charIdForNav={charId}
                     currentJumpId={currentJumpId}
-                    jumpNum={(jumpNumbers?.[block.jump.id] ?? 0) + (startAtZero ? -1 : 0)}
+                    jumpNum={
+                      (jumpNumbers?.[block.jump.id] ?? 0) +
+                      (startAtZero ? -1 : 0)
+                    }
                     activeTabKey={activeTabKey}
                     accessibleJumps={accessibleJumps}
                     onNavigate={() => {
@@ -1123,10 +1256,14 @@ const ChainSidebar = memo(function ChainSidebar({
             </DndContext>
 
             {characters.length === 0 && (
-              <p className="text-xs text-ghost text-center mt-6 px-3">Loading…</p>
+              <p className="text-xs text-ghost text-center mt-6 px-3">
+                Loading…
+              </p>
             )}
             {characters.length > 0 && jumpTree.length === 0 && (
-              <p className="text-xs text-ghost text-center mt-6 px-3 italic">No jumps yet.</p>
+              <p className="text-xs text-ghost text-center mt-6 px-3 italic">
+                No jumps yet.
+              </p>
             )}
           </div>
         </Scrollbar>
@@ -1167,15 +1304,22 @@ const ChainSidebar = memo(function ChainSidebar({
                       },
                       preConfirm: () => ({
                         name: (
-                          document.getElementById("swal-jump-name") as HTMLInputElement
+                          document.getElementById(
+                            "swal-jump-name",
+                          ) as HTMLInputElement
                         ).value.trim(),
                         url: (
-                          document.getElementById("swal-jump-url") as HTMLInputElement
+                          document.getElementById(
+                            "swal-jump-url",
+                          ) as HTMLInputElement
                         ).value.trim(),
                       }),
                     });
                     if (!result.isConfirmed) return;
-                    const { name, url } = result.value as { name: string; url: string };
+                    const { name, url } = result.value as {
+                      name: string;
+                      url: string;
+                    };
                     const newId = addJump(name, url, currentBlockEnd);
                     const { to, params } = getJumpNavTarget(
                       chainId,
@@ -1205,7 +1349,7 @@ const ChainSidebar = memo(function ChainSidebar({
             <button
               title="Add jump"
               className="w-full flex items-center justify-center gap-1 text-xs text-muted hover:text-ink border border-edge rounded px-2 py-1 transition-colors"
-              onClick={() => setAddMenuOpen((o) => !o)}
+              onClick={() => setAddMenuOpen(o => !o)}
             >
               <Plus size={12} />
               Add
@@ -1226,7 +1370,10 @@ const ChainSidebar = memo(function ChainSidebar({
                 confirmButtonText: "Delete jump",
                 cancelButtonText: "Cancel",
                 buttonsStyling: false,
-                customClass: { confirmButton: "swal-btn-danger", cancelButton: "swal-btn" },
+                customClass: {
+                  confirmButton: "swal-btn-danger",
+                  cancelButton: "swal-btn",
+                },
               });
               if (!result.isConfirmed) return;
 
@@ -1234,7 +1381,7 @@ const ChainSidebar = memo(function ChainSidebar({
 
               // Find the nearest remaining jump for navigation (excluding the deleted one)
               let navTargetId: Id<GID.Jump> | null = null;
-              const currentIdx = jumpList.findIndex((id) => id === jumpGid);
+              const currentIdx = jumpList.findIndex(id => id === jumpGid);
               for (let i = currentIdx + 1; i < jumpList.length; i++) {
                 if (jumpList[i] !== +jumpGid) {
                   navTargetId = jumpList[i];
@@ -1261,7 +1408,11 @@ const ChainSidebar = memo(function ChainSidebar({
                 );
                 navigate({ to, params } as never);
               } else {
-                navigate({ to: "/chain/$chainId", params: { chainId }, search: {} });
+                navigate({
+                  to: "/chain/$chainId",
+                  params: { chainId },
+                  search: {},
+                });
               }
             }}
           >
@@ -1277,7 +1428,12 @@ const ChainSidebar = memo(function ChainSidebar({
           onAdd={(doc, publicUid) => {
             setShowInteractiveModal(false);
             const newId = addJumpFromDoc(doc, publicUid, currentBlockEnd);
-            const { to, params } = getJumpNavTarget(chainId, charId, String(newId), "overview");
+            const { to, params } = getJumpNavTarget(
+              chainId,
+              charId,
+              String(newId),
+              "overview",
+            );
             navigate({ to, params } as never);
           }}
         />
@@ -1311,7 +1467,7 @@ function InteractiveJumpModal({
     >
       <div
         className="bg-canvas w-full max-w-4xl max-h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-edge shrink-0">
@@ -1327,7 +1483,11 @@ function InteractiveJumpModal({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-4 min-h-0">
-          <JumpDocGallery onSelect={handleSelect} pageSize={15} minCardWidth={100} />
+          <JumpDocGallery
+            onSelect={handleSelect}
+            pageSize={15}
+            minCardWidth={100}
+          />
         </div>
       </div>
     </div>

@@ -7,6 +7,8 @@ type EditableSectionProps = {
   isEmpty?: boolean;
   /** When true the card mounts already in edit mode. */
   initiallyEditing?: boolean;
+  /** When this number changes, force the section open (does not enter edit mode). */
+  forceOpenNonce?: number;
   /** Content rendered in view mode. */
   viewContent: ReactNode;
   /** Content rendered in edit mode. */
@@ -43,6 +45,7 @@ export function EditableSection({
   title,
   isEmpty = false,
   initiallyEditing = false,
+  forceOpenNonce,
   viewContent,
   editContent,
   onEnterEdit,
@@ -55,6 +58,10 @@ export function EditableSection({
 }: EditableSectionProps) {
   const [isOpen, setIsOpen] = useState(!isEmpty || initiallyEditing);
   const [isEditing, setIsEditing] = useState(initiallyEditing);
+
+  useEffect(() => {
+    if (forceOpenNonce !== undefined && forceOpenNonce > 0) setIsOpen(true);
+  }, [forceOpenNonce]);
 
   // Call onEnterEdit on mount when starting in edit mode (e.g. newly-added cards).
   const onEnterEditRef = useRef(onEnterEdit);

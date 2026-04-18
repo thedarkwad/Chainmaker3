@@ -10,7 +10,11 @@ import { Checkbox } from "@/ui/Checkbox";
 import { BoolSegment } from "@/ui/SegmentedControl";
 import { OriginBenefitSection } from "./OriginBenefitSection";
 import { TemplateCard } from "./TemplateCard";
-import { DescriptionArea, BoostedEditor, ChoiceContextEditor } from "./JumpDocFields";
+import {
+  DescriptionArea,
+  BoostedEditor,
+  ChoiceContextEditor,
+} from "./JumpDocFields";
 import { AlternativeCostEditor } from "./AlternativeCostEditor";
 import { RareFieldsGroup } from "./RareFieldsGroup";
 import { CostDropdown } from "@/ui/CostDropdown";
@@ -37,7 +41,7 @@ import {
   useJumpDocOrigin,
 } from "@/jumpdoc/state/hooks";
 import type { PurchasePrerequisite } from "@/chain/data/JumpDoc";
-import { PickerModal, PickerGroup } from "./PickerModal";
+import { PickerModal, PickerGroup, PickerItem } from "./PickerModal";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
 import { CostModifier, PurchaseType } from "@/chain/data/Purchase";
@@ -74,9 +78,10 @@ export function PurchaseSubtypeSection({
   const toolKey = `purchase-${subtypeId}`;
   const color = sub.type === PurchaseType.Perk ? "#38bdf8" : "#f59e0b";
 
-  const displayedIds = singleId !== undefined
-    ? purchaseIds.filter((id) => (id as number) === singleId)
-    : purchaseIds;
+  const displayedIds =
+    singleId !== undefined
+      ? purchaseIds.filter(id => (id as number) === singleId)
+      : purchaseIds;
 
   return (
     <CollapsibleSection
@@ -107,14 +112,18 @@ export function PurchaseSubtypeSection({
             hideModifier
             defaultCurrency={sub.defaultCurrency}
             freeLabel="None"
-            onChange={(v) => modifySub("Set Stipend", (s) => { s.stipend = v; })}
+            onChange={v =>
+              modifySub("Set Stipend", s => {
+                s.stipend = v;
+              })
+            }
           />
         </div>
       )}
       {displayedIds.length === 0 && (
         <p className="text-xs text-ghost italic px-1 py-1">No entries yet.</p>
       )}
-      {displayedIds.map((id) => (
+      {displayedIds.map(id => (
         <PurchaseCard
           key={id}
           id={id}
@@ -159,7 +168,11 @@ const PurchaseCard = memo(function PurchaseCard({
   isScrollTarget: boolean;
   isAnyScrollTarget: boolean;
   onAddBoundsRequest: SectionSharedProps<TID.Purchase>["onAddBoundsRequest"];
-  capstoneBoosterItems: { id: number; name: string; kind: "purchase" | "drawback" }[];
+  capstoneBoosterItems: {
+    id: number;
+    name: string;
+    kind: "purchase" | "drawback";
+  }[];
   discountGroups: OriginGroup[];
   defaultCurrency?: Id<TID.Currency>;
 }) {
@@ -178,16 +191,16 @@ const PurchaseCard = memo(function PurchaseCard({
 
   // Exclude this purchase from its own booster list.
   const availableBoosterItems = capstoneBoosterItems.filter(
-    (b) => !(b.kind === "purchase" && b.id === (id as number)),
+    b => !(b.kind === "purchase" && b.id === (id as number)),
   );
 
   const key = `purchase-${id}`;
   const fullCost = { modifier: CostModifier.Full } as const;
 
-  const selectedOriginIds = new Set(purchase.origins.map((o) => o));
+  const selectedOriginIds = new Set(purchase.origins ?? []);
   const selectedDiscountOrigins = discountGroups
-    .flatMap((g) => g.origins)
-    .filter((o) => selectedOriginIds.has(o.id));
+    .flatMap(g => g.origins)
+    .filter(o => selectedOriginIds.has(o.id));
 
   return (
     <TemplateCard
@@ -200,14 +213,14 @@ const PurchaseCard = memo(function PurchaseCard({
       addBoundsTarget={addBoundsTarget}
       isScrollTarget={isScrollTarget}
       isAnyScrollTarget={isAnyScrollTarget}
-      cardRef={(el) => registerRef(key, el)}
-      onNameCommit={(v) =>
-        modify("Rename Purchase", (t) => {
+      cardRef={el => registerRef(key, el)}
+      onNameCommit={v =>
+        modify("Rename Purchase", t => {
           t.name = v;
         })
       }
       onAddBound={() => onAddBoundsRequest(toolKey, id)}
-      onRemoveBound={(i) => removeBound(id, i)}
+      onRemoveBound={i => removeBound(id, i)}
       onDelete={() => removePurchase(id)}
       onBecomeScrollTarget={() => descriptionRef.current?.focus()}
       headerExtra={
@@ -219,8 +232,8 @@ const PurchaseCard = memo(function PurchaseCard({
               currencies={currencies}
               hideModifier
               defaultCurrency={defaultCurrency}
-              onChange={(v) =>
-                modify("Set Purchase Cost", (t) => {
+              onChange={v =>
+                modify("Set Purchase Cost", t => {
                   t.cost = v;
                 })
               }
@@ -232,7 +245,7 @@ const PurchaseCard = memo(function PurchaseCard({
                 Undiscounted
               </span>
             ) : (
-              selectedDiscountOrigins.map((o) => (
+              selectedDiscountOrigins.map(o => (
                 <span
                   key={o.id}
                   className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap"
@@ -246,8 +259,8 @@ const PurchaseCard = memo(function PurchaseCard({
     >
       <DescriptionArea
         value={purchase.description}
-        onCommit={(v) =>
-          modify("Set Purchase Description", (t) => {
+        onCommit={v =>
+          modify("Set Purchase Description", t => {
             t.description = v;
           })
         }
@@ -258,8 +271,8 @@ const PurchaseCard = memo(function PurchaseCard({
         name={purchase.name}
         description={purchase.description}
         choiceContext={purchase.choiceContext}
-        onCommit={(v) =>
-          modify("Set Choice Context", (t) => {
+        onCommit={v =>
+          modify("Set Choice Context", t => {
             t.choiceContext = v;
           })
         }
@@ -272,18 +285,19 @@ const PurchaseCard = memo(function PurchaseCard({
         discountGroups={discountGroups}
         onToggleOrigin={(id, willBeSelected) =>
           willBeSelected
-            ? modify("Add Origin to Purchase", (t) => {
+            ? modify("Add Origin to Purchase", t => {
+                if (!t.origins) t.origins = [];
                 t.origins.push(id);
               })
-            : modify("Remove Origin from Purchase", (t) => {
-                t.origins = t.origins.filter(
-                  (o) => o !== id,
-                );
+            : modify("Remove Origin from Purchase", t => {
+                if (!t.origins) t.origins = [];
+
+                t.origins = t.origins.filter(o => o !== id);
                 if (t.origins.length === 0) t.originBenefit = undefined;
               })
         }
-        onBenefitChange={(v) =>
-          modify("Set Origin Benefit", (t) => {
+        onBenefitChange={v =>
+          modify("Set Origin Benefit", t => {
             t.originBenefit = v;
           })
         }
@@ -292,8 +306,8 @@ const PurchaseCard = memo(function PurchaseCard({
       {/* Duration segmented control */}
       <BoolSegment
         value={purchase.temporary}
-        onChange={(v) =>
-          modify("Set Temporary", (t) => {
+        onChange={v =>
+          modify("Set Temporary", t => {
             t.temporary = v;
           })
         }
@@ -305,8 +319,8 @@ const PurchaseCard = memo(function PurchaseCard({
       <div className="flex items-center gap-4 flex-wrap">
         <Checkbox
           checked={purchase.capstoneBooster}
-          onChange={(v) =>
-            modify("Toggle Capstone Booster", (t) => {
+          onChange={v =>
+            modify("Toggle Capstone Booster", t => {
               t.capstoneBooster = v;
             })
           }
@@ -315,8 +329,8 @@ const PurchaseCard = memo(function PurchaseCard({
         </Checkbox>
         <Checkbox
           checked={purchase.allowMultiple}
-          onChange={(v) =>
-            modify("Toggle Allow Multiple", (t) => {
+          onChange={v =>
+            modify("Toggle Allow Multiple", t => {
               t.allowMultiple = v;
             })
           }
@@ -347,18 +361,26 @@ const PurchaseCard = memo(function PurchaseCard({
                         boosted={purchase.boosted}
                         capstoneBoosterItems={availableBoosterItems}
                         onAdd={(boosterId, boosterKind) =>
-                          modify("Add Boosted Version", (t) => {
-                            t.boosted.push({ description: "", booster: boosterId, boosterKind });
+                          modify("Add Boosted Version", t => {
+                            t.boosted.push({
+                              description: "",
+                              booster: boosterId,
+                              boosterKind,
+                            });
                           })
                         }
-                        onRemove={(boosterId) =>
-                          modify("Remove Boosted Version", (t) => {
-                            t.boosted = t.boosted.filter((b) => b.booster !== boosterId);
+                        onRemove={boosterId =>
+                          modify("Remove Boosted Version", t => {
+                            t.boosted = t.boosted.filter(
+                              b => b.booster !== boosterId,
+                            );
                           })
                         }
                         onCommitDescription={(boosterId, desc) =>
-                          modify("Set Boosted Description", (t) => {
-                            const entry = t.boosted.find((b) => b.booster === boosterId);
+                          modify("Set Boosted Description", t => {
+                            const entry = t.boosted.find(
+                              b => b.booster === boosterId,
+                            );
                             if (entry) entry.description = desc;
                           })
                         }
@@ -370,13 +392,13 @@ const PurchaseCard = memo(function PurchaseCard({
             : []),
           {
             key: "altCosts",
-            isActive: !!(purchase.alternativeCosts?.length),
+            isActive: !!purchase.alternativeCosts?.length,
             dormant: () => (
               <button
                 type="button"
                 className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
                 onClick={() =>
-                  modify("Add Alternative Cost", (t) => {
+                  modify("Add Alternative Cost", t => {
                     if (!t.alternativeCosts) t.alternativeCosts = [];
                     t.alternativeCosts.push({
                       value: [{ amount: 0, currency: firstCurrencyId }],
@@ -393,19 +415,19 @@ const PurchaseCard = memo(function PurchaseCard({
               <AlternativeCostEditor
                 alternativeCosts={purchase.alternativeCosts}
                 showDiscountToggle
-                onAdd={(cost) =>
-                  modify("Add Alternative Cost", (t) => {
+                onAdd={cost =>
+                  modify("Add Alternative Cost", t => {
                     if (!t.alternativeCosts) t.alternativeCosts = [];
                     t.alternativeCosts.push(cost);
                   })
                 }
-                onRemove={(i) =>
-                  modify("Remove Alternative Cost", (t) => {
+                onRemove={i =>
+                  modify("Remove Alternative Cost", t => {
                     t.alternativeCosts?.splice(i, 1);
                   })
                 }
                 onModify={(i, updated) =>
-                  modify("Update Alternative Cost", (t) => {
+                  modify("Update Alternative Cost", t => {
                     if (t.alternativeCosts) t.alternativeCosts[i] = updated;
                   })
                 }
@@ -414,7 +436,7 @@ const PurchaseCard = memo(function PurchaseCard({
           },
           {
             key: "prereqs",
-            isActive: !!(purchase.prerequisites?.length),
+            isActive: !!purchase.prerequisites?.length,
             dormant: () => (
               <>
                 <button
@@ -426,7 +448,7 @@ const PurchaseCard = memo(function PurchaseCard({
                 </button>
                 {prereqPickerOpen && (
                   <PurchasePrerequisitePickerModal
-                    onSelect={(prereq) => {
+                    onSelect={prereq => {
                       addPrereq(prereq);
                       setPrereqPickerOpen(false);
                     }}
@@ -474,7 +496,11 @@ export function PurchasePrerequisiteEditor({
           </p>
           <div className="flex flex-col gap-1">
             {list.map((prereq, i) => (
-              <PurchasePrereqChip key={i} prereq={prereq} onRemove={() => onRemove(i)} />
+              <PurchasePrereqChip
+                key={i}
+                prereq={prereq}
+                onRemove={() => onRemove(i)}
+              />
             ))}
           </div>
         </>
@@ -491,7 +517,10 @@ export function PurchasePrerequisiteEditor({
       </button>
       {pickerOpen && (
         <PurchasePrerequisitePickerModal
-          onSelect={(prereq) => { onAdd(prereq); setPickerOpen(false); }}
+          onSelect={prereq => {
+            onAdd(prereq);
+            setPickerOpen(false);
+          }}
           onClose={() => setPickerOpen(false)}
         />
       )}
@@ -507,48 +536,142 @@ function PurchasePrereqChip({
   onRemove: () => void;
 }) {
   if (prereq.type === "purchase")
-    return <PurchasePrereqChipInner id={prereq.id} positive={prereq.positive} label="purchase" onRemove={onRemove} />;
+    return (
+      <PurchasePrereqChipInner
+        id={prereq.id}
+        positive={prereq.positive}
+        label="purchase"
+        onRemove={onRemove}
+      />
+    );
   if (prereq.type === "scenario")
-    return <ScenarioPrereqChipInner id={prereq.id} positive={prereq.positive} label="scenario" onRemove={onRemove} />;
+    return (
+      <ScenarioPrereqChipInner
+        id={prereq.id}
+        positive={prereq.positive}
+        label="scenario"
+        onRemove={onRemove}
+      />
+    );
   if (prereq.type === "drawback")
-    return <DrawbackPrereqChipInner id={prereq.id} positive={prereq.positive} label="drawback" onRemove={onRemove} />;
+    return (
+      <DrawbackPrereqChipInner
+        id={prereq.id}
+        positive={prereq.positive}
+        label="drawback"
+        onRemove={onRemove}
+      />
+    );
   else
-    return <OriginPrereqChipInner id={prereq.id} positive={prereq.positive} label="origin" onRemove={onRemove} />;
-
+    return (
+      <OriginPrereqChipInner
+        id={prereq.id}
+        positive={prereq.positive}
+        label="origin"
+        onRemove={onRemove}
+      />
+    );
 }
 
 function PurchasePrereqChipInner({
-  id, positive, label, onRemove,
-}: { id: Id<TID.Purchase>; positive: boolean; label: string; onRemove: () => void }) {
+  id,
+  positive,
+  label,
+  onRemove,
+}: {
+  id: Id<TID.Purchase>;
+  positive: boolean;
+  label: string;
+  onRemove: () => void;
+}) {
   const item = useJumpDocPurchase(id);
-  return <PrereqChipPill name={item?.name ?? "(deleted)"} label={label} positive={positive} onRemove={onRemove} />;
+  return (
+    <PrereqChipPill
+      name={item?.name ?? "(deleted)"}
+      label={label}
+      positive={positive}
+      onRemove={onRemove}
+    />
+  );
 }
 
 function DrawbackPrereqChipInner({
-  id, positive, label, onRemove,
-}: { id: Id<TID.Drawback>; positive: boolean; label: string; onRemove: () => void }) {
+  id,
+  positive,
+  label,
+  onRemove,
+}: {
+  id: Id<TID.Drawback>;
+  positive: boolean;
+  label: string;
+  onRemove: () => void;
+}) {
   const item = useJumpDocDrawback(id);
-  return <PrereqChipPill name={item?.name ?? "(deleted)"} label={label} positive={positive} onRemove={onRemove} />;
+  return (
+    <PrereqChipPill
+      name={item?.name ?? "(deleted)"}
+      label={label}
+      positive={positive}
+      onRemove={onRemove}
+    />
+  );
 }
 
 function OriginPrereqChipInner({
-  id, positive, label, onRemove,
-}: { id: Id<TID.Origin>; positive: boolean; label: string; onRemove: () => void }) {
+  id,
+  positive,
+  label,
+  onRemove,
+}: {
+  id: Id<TID.Origin>;
+  positive: boolean;
+  label: string;
+  onRemove: () => void;
+}) {
   const item = useJumpDocOrigin(id);
-  return <PrereqChipPill name={item?.name ?? "(deleted)"} label={label} positive={positive} onRemove={onRemove} />;
+  return (
+    <PrereqChipPill
+      name={item?.name ?? "(deleted)"}
+      label={label}
+      positive={positive}
+      onRemove={onRemove}
+    />
+  );
 }
 
-
 function ScenarioPrereqChipInner({
-  id, positive, label, onRemove,
-}: { id: Id<TID.Scenario>; positive: boolean; label: string; onRemove: () => void }) {
+  id,
+  positive,
+  label,
+  onRemove,
+}: {
+  id: Id<TID.Scenario>;
+  positive: boolean;
+  label: string;
+  onRemove: () => void;
+}) {
   const item = useJumpDocScenario(id);
-  return <PrereqChipPill name={item?.name ?? "(deleted)"} label={label} positive={positive} onRemove={onRemove} />;
+  return (
+    <PrereqChipPill
+      name={item?.name ?? "(deleted)"}
+      label={label}
+      positive={positive}
+      onRemove={onRemove}
+    />
+  );
 }
 
 function PrereqChipPill({
-  name, label, positive, onRemove,
-}: { name: string; label: string; positive: boolean; onRemove: () => void }) {
+  name,
+  label,
+  positive,
+  onRemove,
+}: {
+  name: string;
+  label: string;
+  positive: boolean;
+  onRemove: () => void;
+}) {
   return (
     <span
       className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] max-w-full ${
@@ -571,7 +694,6 @@ function PrereqChipPill({
   );
 }
 
-//todo: add origin
 export function PurchasePrerequisitePickerModal({
   onSelect,
   onClose,
@@ -579,15 +701,28 @@ export function PurchasePrerequisitePickerModal({
   onSelect: (prereq: PurchasePrerequisite) => void;
   onClose: () => void;
 }) {
-  const { drawbacks, purchases, scenarios } = useJumpDocPrerequisiteItems();
+  const { origins, drawbacks, purchases, scenarios } =
+    useJumpDocPrerequisiteItems();
   const [filter, setFilter] = useState("");
   const lc = filter.toLowerCase();
 
-  const filteredDrawbacks = drawbacks.filter((d) => d.name.toLowerCase().includes(lc));
-  const filteredPurchases = purchases.filter((p) => p.name.toLowerCase().includes(lc));
-  const filteredScenarios = scenarios.filter((s) => s.name.toLowerCase().includes(lc));
+  const filteredOrigins = origins.filter(o =>
+    o.name.toLowerCase().includes(lc),
+  );
+  const filteredDrawbacks = drawbacks.filter(d =>
+    d.name.toLowerCase().includes(lc),
+  );
+  const filteredPurchases = purchases.filter(p =>
+    p.name.toLowerCase().includes(lc),
+  );
+  const filteredScenarios = scenarios.filter(s =>
+    s.name.toLowerCase().includes(lc),
+  );
 
-  const purchasesBySubtype = new Map<string, { subtypeName: string; items: typeof filteredPurchases }>();
+  const purchasesBySubtype = new Map<
+    string,
+    { subtypeName: string; items: typeof filteredPurchases }
+  >();
   for (const p of filteredPurchases) {
     const key = String(p.subtypeId as number);
     if (!purchasesBySubtype.has(key))
@@ -595,13 +730,38 @@ export function PurchasePrerequisitePickerModal({
     purchasesBySubtype.get(key)!.items.push(p);
   }
 
-  const isEmpty = drawbacks.length === 0 && purchases.length === 0 && scenarios.length === 0;
-  const hasMatches = filteredDrawbacks.length > 0 || filteredPurchases.length > 0 || filteredScenarios.length > 0;
+  const originsByCategory = new Map<
+    string,
+    { categoryName: string; items: typeof filteredOrigins }
+  >();
+  for (const o of filteredOrigins) {
+    const key = String(o.categoryId as number);
+    if (!originsByCategory.has(key))
+      originsByCategory.set(key, { categoryName: o.categoryName, items: [] });
+    originsByCategory.get(key)!.items.push(o);
+  }
 
-  function twoActionRow(name: string, onRequires: () => void, onIncompatible: () => void) {
+  const isEmpty =
+    origins.length === 0 &&
+    drawbacks.length === 0 &&
+    purchases.length === 0 &&
+    scenarios.length === 0;
+  const hasMatches =
+    filteredOrigins.length > 0 ||
+    filteredDrawbacks.length > 0 ||
+    filteredPurchases.length > 0 ||
+    filteredScenarios.length > 0;
+
+  function twoActionRow(
+    name: string,
+    onRequires: () => void,
+    onIncompatible: () => void,
+  ) {
     return (
       <div className="flex items-center gap-1 px-1 py-1 rounded hover:bg-tint transition-colors">
-        <span className="text-sm text-ink flex-1 truncate">{name || "(unnamed)"}</span>
+        <span className="text-sm text-ink flex-1 truncate">
+          {name || "(unnamed)"}
+        </span>
         <button
           type="button"
           onClick={onRequires}
@@ -627,11 +787,38 @@ export function PurchasePrerequisitePickerModal({
       onFilterChange={setFilter}
       onClose={onClose}
     >
-      {isEmpty && <p className="text-xs text-ghost px-1 py-1">No items defined yet.</p>}
+      {isEmpty && (
+        <p className="text-xs text-ghost px-1 py-1">No items defined yet.</p>
+      )}
+
+      {filteredOrigins.length > 0 && (
+        <PickerGroup label="Origins">
+          {[...originsByCategory.entries()].map(
+            ([key, { categoryName, items }]) => (
+              <div key={key}>
+                {originsByCategory.size > 1 && (
+                  <p className="text-[10px] font-semibold text-muted uppercase tracking-wider px-1 pt-1 pb-0.5">
+                    {categoryName}
+                  </p>
+                )}
+                {items.map(o =>
+                  twoActionRow(
+                    o.name,
+                    () =>
+                      onSelect({ type: "origin", id: o.id, positive: true }),
+                    () =>
+                      onSelect({ type: "origin", id: o.id, positive: false }),
+                  ),
+                )}
+              </div>
+            ),
+          )}
+        </PickerGroup>
+      )}
 
       {filteredDrawbacks.length > 0 && (
         <PickerGroup label="Drawbacks">
-          {filteredDrawbacks.map((d) =>
+          {filteredDrawbacks.map(d =>
             twoActionRow(
               d.name,
               () => onSelect({ type: "drawback", id: d.id, positive: true }),
@@ -643,28 +830,32 @@ export function PurchasePrerequisitePickerModal({
 
       {filteredPurchases.length > 0 && (
         <PickerGroup label="Purchases">
-          {[...purchasesBySubtype.entries()].map(([key, { subtypeName, items }]) => (
-            <div key={key}>
-              {purchasesBySubtype.size > 1 && (
-                <p className="text-[10px] font-semibold text-muted uppercase tracking-wider px-1 pt-1 pb-0.5">
-                  {subtypeName}
-                </p>
-              )}
-              {items.map((p) =>
-                twoActionRow(
-                  p.name,
-                  () => onSelect({ type: "purchase", id: p.id, positive: true }),
-                  () => onSelect({ type: "purchase", id: p.id, positive: false }),
-                ),
-              )}
-            </div>
-          ))}
+          {[...purchasesBySubtype.entries()].map(
+            ([key, { subtypeName, items }]) => (
+              <div key={key}>
+                {purchasesBySubtype.size > 1 && (
+                  <p className="text-[10px] font-semibold text-muted uppercase tracking-wider px-1 pt-1 pb-0.5">
+                    {subtypeName}
+                  </p>
+                )}
+                {items.map(p =>
+                  twoActionRow(
+                    p.name,
+                    () =>
+                      onSelect({ type: "purchase", id: p.id, positive: true }),
+                    () =>
+                      onSelect({ type: "purchase", id: p.id, positive: false }),
+                  ),
+                )}
+              </div>
+            ),
+          )}
         </PickerGroup>
       )}
 
       {filteredScenarios.length > 0 && (
         <PickerGroup label="Scenarios">
-          {filteredScenarios.map((s) =>
+          {filteredScenarios.map(s =>
             twoActionRow(
               s.name,
               () => onSelect({ type: "scenario", id: s.id, positive: true }),
@@ -674,7 +865,9 @@ export function PurchasePrerequisitePickerModal({
         </PickerGroup>
       )}
 
-      {!isEmpty && !hasMatches && <p className="text-xs text-ghost px-1">No matches.</p>}
+      {!isEmpty && !hasMatches && (
+        <p className="text-xs text-ghost px-1">No matches.</p>
+      )}
     </PickerModal>
   );
 }

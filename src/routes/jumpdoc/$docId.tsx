@@ -12,7 +12,7 @@ import { PortalNav } from "@/app/components/PortalNav";
 import { useTheme } from "@/providers/ThemeProvider";
 import { useCurrentUser } from "@/app/state/auth";
 import { saveJumpDoc, autosaveJumpDoc, forceReplaceJumpDoc, loadJumpDoc } from "@/api/jumpdocs";
-import type { JumpDoc } from "@/chain/data/JumpDoc";
+import { type JumpDoc, preprocessJumpDoc } from "@/chain/data/JumpDoc";
 
 export const Route = createFileRoute("/jumpdoc/$docId")({
   component: JumpDocLoader,
@@ -59,7 +59,7 @@ function JumpDocLoader() {
         docMongoIdRef.current = result.docMongoId;
         editsRef.current = result.edits;
         isPendingRef.current = (result as { isPending?: boolean }).isPending ?? false;
-        useJumpDocStore.getState().setDoc(result.contents as JumpDoc);
+        useJumpDocStore.getState().setDoc(preprocessJumpDoc(result.contents as JumpDoc));
         useJumpDocMetaStore.getState().setMeta({
           docMongoId: result.docMongoId,
           published: result.published,

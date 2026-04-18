@@ -11,7 +11,7 @@ export const BodyModPresets: Record<DefaultBodyMods, Omit<ChainSupplement, "id">
   Essential: {
     name: "Essential Body Mod",
     singleJump: false,
-    initialJump: 0,
+    initialJump: 1,
     investmentRatio: 100,
     maxInvestment: 100,
     initialStipend: 100,
@@ -40,7 +40,7 @@ export const BodyModPresets: Record<DefaultBodyMods, Omit<ChainSupplement, "id">
   SB: {
     name: "Body Mod",
     singleJump: true,
-    initialJump: 0,
+    initialJump: 1,
     investmentRatio: 0,
     maxInvestment: 0,
     initialStipend: 1000,
@@ -63,7 +63,7 @@ export const BodyModPresets: Record<DefaultBodyMods, Omit<ChainSupplement, "id">
   Quicksilver: {
     name: "Quicksilver's Body Mod",
     singleJump: true,
-    initialJump: 0,
+    initialJump: 1,
     investmentRatio: 0,
     maxInvestment: 0,
     initialStipend: 600,
@@ -84,7 +84,7 @@ export const WarehouseModPresets: Record<DefaultWarehouseMods, Omit<ChainSupplem
   Quicksilver: {
     name: "Cosmic Warehouse",
     singleJump: true,
-    initialJump: 0,
+    initialJump: 1,
     investmentRatio: 0,
     maxInvestment: 0,
     initialStipend: 150,
@@ -102,7 +102,7 @@ export const WarehouseModPresets: Record<DefaultWarehouseMods, Omit<ChainSupplem
   PersonalReality: {
     name: "Personal Reality",
     singleJump: false,
-    initialJump: 0,
+    initialJump: 1,
     investmentRatio: 4,
     maxInvestment: 1000,
     initialStipend: 500,
@@ -130,7 +130,7 @@ export const WarehouseModPresets: Record<DefaultWarehouseMods, Omit<ChainSupplem
   Backpack: {
     name: "Cosmic Backpack",
     singleJump: true,
-    initialJump: 0,
+    initialJump: 1,
     investmentRatio: 0,
     maxInvestment: 0,
     initialStipend: 1000,

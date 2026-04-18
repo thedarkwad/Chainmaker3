@@ -109,7 +109,7 @@ function convertSupplement(oS: OldChainSupplement): ChainSupplement {
     id: createId(oS.id),
     name: oS.name,
     singleJump: false,
-    initialJump: 0,
+    initialJump: 1,
     investmentRatio: oS.investmentRatio,
     maxInvestment: oS.maxInvestment,
     initialStipend: oS.initialStipend,

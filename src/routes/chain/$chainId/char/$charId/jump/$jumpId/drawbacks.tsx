@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle, ArrowRight, Plus, X } from "lucide-react";
 import { AddButton } from "@/ui/FormPrimitives";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 
 import { createId, type GID, type Id, type LID } from "@/chain/data/types";
 import type { CurrencyExchange, Currency } from "@/chain/data/Jump";
@@ -28,6 +29,7 @@ import { CollapsibleSection } from "@/ui/CollapsibleSection";
 export const Route = createFileRoute("/chain/$chainId/char/$charId/jump/$jumpId/drawbacks")({
   validateSearch: (search: Record<string, unknown>) => ({
     scrollTo: typeof search.scrollTo === "string" ? search.scrollTo : undefined,
+    exchange: typeof search.exchange === "string" ? search.exchange : undefined,
   }),
   component: DrawbacksTab,
 });
@@ -141,9 +143,11 @@ function ExchangeChip({
 function CurrencyExchangeSection({
   jumpId,
   charId,
+  forceOpenNonce,
 }: {
   jumpId: Id<GID.Jump>;
   charId: Id<GID.Character>;
+  forceOpenNonce?: number;
 }) {
   const currencies = useCurrencies(jumpId);
   const { exchanges, addExchange, removeExchange, updateExchange } = useCurrencyExchanges(
@@ -161,6 +165,7 @@ function CurrencyExchangeSection({
     <CollapsibleSection
       title={title}
       defaultOpen={exchanges.length > 0}
+      forceOpenNonce={forceOpenNonce}
       action={
         <button
           type="button"
@@ -234,8 +239,18 @@ function BankBar({ charId, jumpId }: { charId: Id<GID.Character>; jumpId: Id<GID
 
 function DrawbacksTab() {
   const { chainId, charId, jumpId } = Route.useParams();
+  const { exchange } = Route.useSearch();
+  const navigate = useNavigate();
   const jumpGid = createId<GID.Jump>(+jumpId);
   const charGid = createId<GID.Character>(+charId);
+  const [exchangeNonce, setExchangeNonce] = useState(0);
+
+  useEffect(() => {
+    if (exchange !== undefined) {
+      setExchangeNonce((n) => n + 1);
+      navigate({ to: ".", search: (s) => ({ ...s, exchange: undefined }), replace: true });
+    }
+  }, [exchange]);
 
   const chainSettings = useChainSettingsConfig();
 
@@ -309,7 +324,7 @@ function DrawbacksTab() {
       )}
 
       {/* ── Currency Exchanges ── */}
-      <CurrencyExchangeSection jumpId={jumpGid} charId={charGid} />
+      <CurrencyExchangeSection jumpId={jumpGid} charId={charGid} forceOpenNonce={exchangeNonce} />
 
       {/* ── Drawbacks ── */}
       <CollapsibleSection

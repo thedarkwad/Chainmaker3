@@ -27,10 +27,16 @@ import {
   useJumpDocOriginsGrouped,
   useModifyJumpDocOriginCategory,
   useJumpDocOriginRandom,
+  useAddJumpDocPrereq,
+  useRemoveJumpDocPrereq,
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
 import type { DocOriginCategory, OriginStipendEntry } from "@/chain/data/JumpDoc";
+import {
+  PurchasePrerequisiteEditor,
+  PurchasePrerequisitePickerModal,
+} from "./PurchasesSection";
 import { OriginBenefitSection } from "./OriginBenefitSection";
 import { RandomToggle } from "./BasicsSection";
 import { DEFAULT_CURRENCY_ID } from "@/chain/data/Jump";
@@ -251,6 +257,9 @@ const OriginCard = memo(function OriginCard({
   const subtypeIds = useJumpDocPurchaseSubtypeIdsSorted();
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [showSynergySection, setShowSynergySection] = useState(!!origin?.synergies?.length);
+  const [prereqPickerOpen, setPrereqPickerOpen] = useState(false);
+  const addPrereq = useAddJumpDocPrereq("origin", id as number);
+  const removePrereq = useRemoveJumpDocPrereq("origin", id as number);
   if (!origin) return null;
 
   const key = `origin-${id}`;
@@ -314,6 +323,34 @@ const OriginCard = memo(function OriginCard({
       />
       <RareFieldsGroup
         fields={[
+          {
+            key: "prerequisites",
+            isActive: !!origin.prerequisites?.length,
+            dormant: () => (
+              <>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                  onClick={() => setPrereqPickerOpen(true)}
+                >
+                  <Plus size={8} /> add prereq / incompatibility
+                </button>
+                {prereqPickerOpen && (
+                  <PurchasePrerequisitePickerModal
+                    onSelect={(prereq) => { addPrereq(prereq); setPrereqPickerOpen(false); }}
+                    onClose={() => setPrereqPickerOpen(false)}
+                  />
+                )}
+              </>
+            ),
+            active: () => (
+              <PurchasePrerequisiteEditor
+                prerequisites={origin.prerequisites}
+                onAdd={addPrereq}
+                onRemove={removePrereq}
+              />
+            ),
+          },
           {
             key: "stipend",
             isActive: !!origin.originStipend?.length,

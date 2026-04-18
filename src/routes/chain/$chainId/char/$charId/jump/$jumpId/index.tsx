@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createId, type GID, type Id, type LID } from "@/chain/data/types";
@@ -21,6 +21,9 @@ import { NarrativeCard } from "@/chain/components/NarrativeCard";
 import { convertWhitespace } from "@/utilities/miscUtilities";
 
 export const Route = createFileRoute("/chain/$chainId/char/$charId/jump/$jumpId/")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    origin: typeof search.origin === "string" ? search.origin : undefined,
+  }),
   component: OverviewTab,
 });
 
@@ -169,7 +172,7 @@ function OriginEntryRow({
   );
 }
 
-function OriginsCard({ jumpId, charId }: { jumpId: Id<GID.Jump>; charId: Id<GID.Character> }) {
+function OriginsCard({ jumpId, charId, forceOpenNonce }: { jumpId: Id<GID.Jump>; charId: Id<GID.Character>; forceOpenNonce?: number }) {
   const originCategories = useJumpOriginCategories(jumpId);
   const { origins, setOrigins } = useJumpOrigins(jumpId, charId);
   const currencies = useCurrencies(jumpId);
@@ -312,6 +315,7 @@ function OriginsCard({ jumpId, charId }: { jumpId: Id<GID.Jump>; charId: Id<GID.
       separated
       title="Insertion"
       isEmpty={false}
+      forceOpenNonce={forceOpenNonce}
       viewContent={viewContent}
       editContent={editContent}
       onEnterEdit={() => {
@@ -403,8 +407,18 @@ function AltFormsSection({ jumpId, charId }: { jumpId: Id<GID.Jump>; charId: Id<
 
 function OverviewTab() {
   const { charId, jumpId } = Route.useParams();
+  const { origin } = Route.useSearch();
+  const navigate = useNavigate();
   const jumpGid = createId<GID.Jump>(+jumpId);
   const charGid = createId<GID.Character>(+charId);
+  const [insertionNonce, setInsertionNonce] = useState(0);
+
+  useEffect(() => {
+    if (origin !== undefined) {
+      setInsertionNonce((n) => n + 1);
+      navigate({ to: ".", search: (s) => ({ ...s, origin: undefined }), replace: true });
+    }
+  }, [origin]);
 
   const { useNarrative, useAltForms } = useJumpSettings(jumpGid, charGid);
 
@@ -413,7 +427,7 @@ function OverviewTab() {
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-2 items-start">
         {/* Left column */}
         <div className="flex flex-col gap-2">
-          <OriginsCard jumpId={jumpGid} charId={charGid} />
+          <OriginsCard jumpId={jumpGid} charId={charGid} forceOpenNonce={insertionNonce} />
           {useNarrative && <NarrativeCard jumpId={jumpGid} charId={charGid} />}
         </div>
 

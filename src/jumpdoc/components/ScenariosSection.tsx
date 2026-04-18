@@ -9,7 +9,10 @@ import { PickerModal, PickerGroup, PickerItem } from "./PickerModal";
 import { CollapsibleSection } from "@/ui/CollapsibleSection";
 import { TemplateCard } from "./TemplateCard";
 import { RareFieldsGroup } from "./RareFieldsGroup";
-import { PurchasePrerequisiteEditor, PurchasePrerequisitePickerModal } from "./PurchasesSection";
+import {
+  PurchasePrerequisiteEditor,
+  PurchasePrerequisitePickerModal,
+} from "./PurchasesSection";
 import {
   BlurInput,
   DescriptionArea,
@@ -43,6 +46,7 @@ import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
 import type { ScenarioRewardTemplate } from "@/chain/data/JumpDoc";
 import { PurchaseType, RewardType } from "@/chain/data/Purchase";
+import { DurationModActiveRow } from "./DrawbacksSection";
 
 export function ScenariosSection({
   onAddBoundsRequest,
@@ -52,13 +56,18 @@ export function ScenariosSection({
   open,
   forceOpenNonce,
   singleId,
-}: SectionSharedProps<TID.Scenario> & { open?: boolean; forceOpenNonce?: number; singleId?: number }) {
+}: SectionSharedProps<TID.Scenario> & {
+  open?: boolean;
+  forceOpenNonce?: number;
+  singleId?: number;
+}) {
   const scenarioIds = useJumpDocScenarioIds();
   const addScenario = useAddJumpDocScenario();
 
-  const displayedIds = singleId !== undefined
-    ? scenarioIds.filter((id) => (id as number) === singleId)
-    : scenarioIds;
+  const displayedIds =
+    singleId !== undefined
+      ? scenarioIds.filter(id => (id as number) === singleId)
+      : scenarioIds;
 
   return (
     <CollapsibleSection
@@ -82,7 +91,7 @@ export function ScenariosSection({
       {displayedIds.length === 0 && (
         <p className="text-xs text-ghost px-1 py-0.5">No scenarios yet.</p>
       )}
-      {displayedIds.map((id) => (
+      {displayedIds.map(id => (
         <ScenarioCard
           key={id as number}
           id={id}
@@ -137,20 +146,20 @@ const ScenarioCard = memo(function ScenarioCard({
       addBoundsTarget={addBoundsTarget}
       isScrollTarget={isScrollTarget}
       isAnyScrollTarget={isAnyScrollTarget}
-      cardRef={(el) => registerRef(key, el)}
-      onNameCommit={(v) =>
-        modify("Rename Scenario", (t) => {
+      cardRef={el => registerRef(key, el)}
+      onNameCommit={v =>
+        modify("Rename Scenario", t => {
           t.name = v;
         })
       }
       onAddBound={() => onAddBoundsRequest("scenario", id)}
-      onRemoveBound={(i) => removeBound(id, i)}
+      onRemoveBound={i => removeBound(id, i)}
       onDelete={() => removeScenario(id)}
     >
       <DescriptionArea
         value={scenario.description}
-        onCommit={(v) =>
-          modify("Set Scenario Description", (t) => {
+        onCommit={v =>
+          modify("Set Scenario Description", t => {
             t.description = v;
           })
         }
@@ -161,8 +170,35 @@ const ScenarioCard = memo(function ScenarioCard({
       <RareFieldsGroup
         fields={[
           {
+            key: "durationMod",
+            isActive: !!scenario.durationMod,
+            dormant: () => (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                onClick={() =>
+                  modify("Set Duration Mod", t => {
+                    t.durationMod = { type: "inc", years: 1 };
+                  })
+                }
+              >
+                <Plus size={10} /> duration mod
+              </button>
+            ),
+            active: () => (
+              <DurationModActiveRow
+                value={scenario.durationMod!}
+                onChange={v =>
+                  modify("Set Duration Mod", t => {
+                    t.durationMod = v;
+                  })
+                }
+              />
+            ),
+          },
+          {
             key: "prereqs",
-            isActive: !!(scenario.prerequisites?.length),
+            isActive: !!scenario.prerequisites?.length,
             dormant: () => (
               <>
                 <button
@@ -174,7 +210,7 @@ const ScenarioCard = memo(function ScenarioCard({
                 </button>
                 {prereqPickerOpen && (
                   <PurchasePrerequisitePickerModal
-                    onSelect={(prereq) => {
+                    onSelect={prereq => {
                       addPrereq(prereq);
                       setPrereqPickerOpen(false);
                     }}
@@ -211,7 +247,8 @@ function OutcomesEditor({ id }: { id: Id<TID.Scenario> }) {
   const groups = scenario?.rewardGroups ?? [];
 
   // Keep active index in bounds after deletions
-  const clampedActive = activeIndex !== null && activeIndex < groups.length ? activeIndex : null;
+  const clampedActive =
+    activeIndex !== null && activeIndex < groups.length ? activeIndex : null;
 
   function handleAdd() {
     addOutcome();
@@ -220,7 +257,7 @@ function OutcomesEditor({ id }: { id: Id<TID.Scenario> }) {
 
   function handleRemove(i: number) {
     removeOutcome(i);
-    setActiveIndex((prev) => {
+    setActiveIndex(prev => {
       if (prev === null) return null;
       if (prev === i) return null;
       if (prev > i) return prev - 1;
@@ -231,7 +268,9 @@ function OutcomesEditor({ id }: { id: Id<TID.Scenario> }) {
   return (
     <div className="flex flex-col gap-2 pt-1 border-t border-line">
       <div className="flex items-center gap-1 flex-wrap">
-        <span className="text-xs text-muted font-semibold shrink-0">Outcomes</span>
+        <span className="text-xs text-muted font-semibold shrink-0">
+          Outcomes
+        </span>
         {groups.map((g, i) => (
           <button
             key={i}
@@ -272,7 +311,11 @@ function OutcomesEditor({ id }: { id: Id<TID.Scenario> }) {
 // OutcomeEditor — expanded editor for a single reward group
 // ─────────────────────────────────────────────────────────────────────────────
 
-type RewardGroup = { title: string; context: string; rewards: ScenarioRewardTemplate[] };
+type RewardGroup = {
+  title: string;
+  context: string;
+  rewards: ScenarioRewardTemplate[];
+};
 type ModifyOutcome = (
   actionName: string,
   groupIndex: number,
@@ -297,14 +340,21 @@ function OutcomeEditor({
   const [companionPickerOpen, setCompanionPickerOpen] = useState(false);
 
   function addCurrencyReward() {
-    onModify("Add Currency Reward", groupIndex, (g) => {
-      g.rewards.push({ type: RewardType.Currency, value: 0, currency: firstCurrencyId });
+    onModify("Add Currency Reward", groupIndex, g => {
+      g.rewards.push({
+        type: RewardType.Currency,
+        value: 0,
+        currency: firstCurrencyId,
+      });
     });
   }
 
   function addStipendReward() {
-    const subtypeId = firstPerkSubtypeId ?? firstItemSubtypeId ?? (0 as Id<TID.PurchaseSubtype>);
-    onModify("Add Stipend Reward", groupIndex, (g) => {
+    const subtypeId =
+      firstPerkSubtypeId ??
+      firstItemSubtypeId ??
+      (0 as Id<TID.PurchaseSubtype>);
+    onModify("Add Stipend Reward", groupIndex, g => {
       g.rewards.push({
         type: RewardType.Stipend,
         value: 0,
@@ -318,39 +368,42 @@ function OutcomeEditor({
     purchaseId: Id<TID.Purchase>,
     rewardType: RewardType.Perk | RewardType.Item,
   ) {
-    onModify("Add Purchase Reward", groupIndex, (g) => {
+    onModify("Add Purchase Reward", groupIndex, g => {
       g.rewards.push({ type: rewardType, id: purchaseId });
     });
     setPickerOpen(false);
   }
 
   function handleCompanionSelected(companionId: Id<TID.Companion>) {
-    onModify("Add Companion Reward", groupIndex, (g) => {
+    onModify("Add Companion Reward", groupIndex, g => {
       g.rewards.push({ type: RewardType.Companion, id: companionId });
     });
     setCompanionPickerOpen(false);
   }
 
   function removeReward(rewardIndex: number) {
-    onModify("Remove Reward", groupIndex, (g) => {
+    onModify("Remove Reward", groupIndex, g => {
       g.rewards.splice(rewardIndex, 1);
     });
   }
 
   function updateReward(rewardIndex: number, updated: ScenarioRewardTemplate) {
-    onModify("Update Reward", groupIndex, (g) => {
+    onModify("Update Reward", groupIndex, g => {
       g.rewards[rewardIndex] = updated;
     });
   }
 
   return (
-    <div className="flex flex-col gap-2 pl-2 border-l-2 border-violet-400/30" key={groupIndex}>
+    <div
+      className="flex flex-col gap-2 pl-2 border-l-2 border-violet-400/30"
+      key={groupIndex}
+    >
       {/* Title + delete */}
       <div className="flex items-center gap-1">
         <BlurInput
           value={group.title}
-          onCommit={(v) =>
-            onModify("Set Outcome Title", groupIndex, (g) => {
+          onCommit={v =>
+            onModify("Set Outcome Title", groupIndex, g => {
               g.title = v;
             })
           }
@@ -372,8 +425,8 @@ function OutcomeEditor({
         key={groupIndex}
         value={group.context}
         placeholder="Context / additional description (optional)"
-        onCommit={(v) =>
-          onModify("Set Outcome Context", groupIndex, (g) => {
+        onCommit={v =>
+          onModify("Set Outcome Context", groupIndex, g => {
             g.context = v;
           })
         }
@@ -381,7 +434,9 @@ function OutcomeEditor({
 
       {/* Add buttons */}
       <div className="flex items-center gap-1 flex-wrap">
-        <div className="text-xs text-ghost font-medium self-center">Add Reward:</div>
+        <div className="text-xs text-ghost font-medium self-center">
+          Add Reward:
+        </div>
         <button
           type="button"
           onClick={addCurrencyReward}
@@ -420,20 +475,28 @@ function OutcomeEditor({
               <CurrencyRewardRow
                 key={i}
                 reward={reward}
-                onChange={(r) => updateReward(i, r)}
+                onChange={r => updateReward(i, r)}
                 onRemove={() => removeReward(i)}
               />
             ) : reward.type === RewardType.Stipend ? (
               <StipendRewardRow
                 key={i}
                 reward={reward}
-                onChange={(r) => updateReward(i, r)}
+                onChange={r => updateReward(i, r)}
                 onRemove={() => removeReward(i)}
               />
             ) : reward.type === RewardType.Companion ? (
-              <CompanionRewardRow key={i} reward={reward} onRemove={() => removeReward(i)} />
+              <CompanionRewardRow
+                key={i}
+                reward={reward}
+                onRemove={() => removeReward(i)}
+              />
             ) : (
-              <PurchaseRewardRow key={i} reward={reward} onRemove={() => removeReward(i)} />
+              <PurchaseRewardRow
+                key={i}
+                reward={reward}
+                onRemove={() => removeReward(i)}
+              />
             ),
           )}
         </div>
@@ -459,14 +522,21 @@ function OutcomeEditor({
 // Reward row components
 // ─────────────────────────────────────────────────────────────────────────────
 
-type CurrencyReward = { type: RewardType.Currency; value: number; currency: Id<TID.Currency> };
+type CurrencyReward = {
+  type: RewardType.Currency;
+  value: number;
+  currency: Id<TID.Currency>;
+};
 type StipendReward = {
   type: RewardType.Stipend;
   value: number;
   currency: Id<TID.Currency>;
   subtype: Id<TID.PurchaseSubtype>;
 };
-type PurchaseReward = { type: RewardType.Perk | RewardType.Item; id: Id<TID.Purchase> };
+type PurchaseReward = {
+  type: RewardType.Perk | RewardType.Item;
+  id: Id<TID.Purchase>;
+};
 
 function CurrencyRewardRow({
   reward,
@@ -479,15 +549,17 @@ function CurrencyRewardRow({
 }) {
   return (
     <div className="flex items-center gap-1 bg-accent2-tint border border-accent2/40 p-1 rounded-sm w-fit">
-      <span className="text-xs font-medium text-accent2 shrink-0">Currency:</span>
+      <span className="text-xs font-medium text-accent2 shrink-0">
+        Currency:
+      </span>
       <BlurNumberInput
         value={reward.value}
-        onCommit={(v) => onChange({ ...reward, value: v })}
+        onCommit={v => onChange({ ...reward, value: v })}
         className="w-14 py-0 text-xs"
       />
       <CurrencySelect
         value={reward.currency}
-        onChange={(id) => onChange({ ...reward, currency: id })}
+        onChange={id => onChange({ ...reward, currency: id })}
       />
       <button
         type="button"
@@ -511,20 +583,22 @@ function StipendRewardRow({
 }) {
   return (
     <div className="flex items-center gap-1 bg-accent2-tint border border-accent2/40 p-1 rounded-sm w-fit">
-      <span className="text-xs font-medium text-accent2 shrink-0">Stipend:</span>
+      <span className="text-xs font-medium text-accent2 shrink-0">
+        Stipend:
+      </span>
       <BlurNumberInput
         value={reward.value}
-        onCommit={(v) => onChange({ ...reward, value: v })}
+        onCommit={v => onChange({ ...reward, value: v })}
         className="w-14 text-xs"
         min={-99999}
       />
       <CurrencySelect
         value={reward.currency}
-        onChange={(id) => onChange({ ...reward, currency: id })}
+        onChange={id => onChange({ ...reward, currency: id })}
       />
       <PurchaseSubtypeSelect
         value={reward.subtype}
-        onChange={(id) => onChange({ ...reward, subtype: id })}
+        onChange={id => onChange({ ...reward, subtype: id })}
       />
       <button
         type="button"
@@ -537,13 +611,23 @@ function StipendRewardRow({
   );
 }
 
-function PurchaseRewardRow({ reward, onRemove }: { reward: PurchaseReward; onRemove: () => void }) {
+function PurchaseRewardRow({
+  reward,
+  onRemove,
+}: {
+  reward: PurchaseReward;
+  onRemove: () => void;
+}) {
   const purchase = useJumpDocPurchase(reward.id);
   const typeLabel = reward.type === RewardType.Perk ? "Perk:" : "Item:";
   return (
     <div className="flex items-center gap-1 bg-accent2-tint border border-accent2/40 px-1 py-2 rounded-sm w-fit">
-      <span className="text-xs text-accent2 shrink-0 font-medium">{typeLabel}</span>
-      <span className="text-xs flex-1 truncate">{purchase?.name || `#${reward.id}`}</span>
+      <span className="text-xs text-accent2 shrink-0 font-medium">
+        {typeLabel}
+      </span>
+      <span className="text-xs flex-1 truncate">
+        {purchase?.name || `#${reward.id}`}
+      </span>
       <button
         type="button"
         onClick={onRemove}
@@ -557,12 +641,22 @@ function PurchaseRewardRow({ reward, onRemove }: { reward: PurchaseReward; onRem
 
 type CompanionReward = { type: RewardType.Companion; id: Id<TID.Companion> };
 
-function CompanionRewardRow({ reward, onRemove }: { reward: CompanionReward; onRemove: () => void }) {
+function CompanionRewardRow({
+  reward,
+  onRemove,
+}: {
+  reward: CompanionReward;
+  onRemove: () => void;
+}) {
   const companion = useJumpDocCompanion(reward.id);
   return (
     <div className="flex items-center gap-1 bg-accent2-tint border border-accent2/40 px-1 py-2 rounded-sm w-fit">
-      <span className="text-xs text-accent2 shrink-0 font-medium">Companion Import:</span>
-      <span className="text-xs flex-1 truncate">{companion?.name || `#${reward.id}`}</span>
+      <span className="text-xs text-accent2 shrink-0 font-medium">
+        Companion Import:
+      </span>
+      <span className="text-xs flex-1 truncate">
+        {companion?.name || `#${reward.id}`}
+      </span>
       <button
         type="button"
         onClick={onRemove}
@@ -582,7 +676,10 @@ function PurchasePickerModal({
   onSelect,
   onClose,
 }: {
-  onSelect: (id: Id<TID.Purchase>, rewardType: RewardType.Perk | RewardType.Item) => void;
+  onSelect: (
+    id: Id<TID.Purchase>,
+    rewardType: RewardType.Perk | RewardType.Item,
+  ) => void;
   onClose: () => void;
 }) {
   const purchases = useJumpDocPurchasesWithRewardType();
@@ -592,37 +689,47 @@ function PurchasePickerModal({
 
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [newType, setNewType] = useState<PurchaseType.Perk | PurchaseType.Item>(PurchaseType.Perk);
+  const [newType, setNewType] = useState<PurchaseType.Perk | PurchaseType.Item>(
+    PurchaseType.Perk,
+  );
   const [filter, setFilter] = useState("");
 
-  const filtered = purchases.filter((p) => p.name.toLowerCase().includes(filter.toLowerCase()));
-  const perks = filtered.filter((p) => p.rewardType === RewardType.Perk);
-  const items = filtered.filter((p) => p.rewardType === RewardType.Item);
+  const filtered = purchases.filter(p =>
+    p.name.toLowerCase().includes(filter.toLowerCase()),
+  );
+  const perks = filtered.filter(p => p.rewardType === RewardType.Perk);
+  const items = filtered.filter(p => p.rewardType === RewardType.Item);
 
   function handleCreate() {
-    const subtypeId = newType === PurchaseType.Perk ? firstPerkSubtypeId : firstItemSubtypeId;
+    const subtypeId =
+      newType === PurchaseType.Perk ? firstPerkSubtypeId : firstItemSubtypeId;
     const newId = addPurchase(subtypeId!, undefined, {
       desc: newDescription,
       title: newName.trim(),
       currency: 0 as Id<TID.Currency>,
       amount: 0,
     });
-    onSelect(newId, newType === PurchaseType.Perk ? RewardType.Perk : RewardType.Item);
+    onSelect(
+      newId,
+      newType === PurchaseType.Perk ? RewardType.Perk : RewardType.Item,
+    );
   }
 
   const createNewFooter = (
     <div className="px-3 py-3 flex flex-col gap-2">
-      <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">Create new</p>
+      <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">
+        Create new
+      </p>
       <input
         type="text"
         placeholder="Name…"
         value={newName}
-        onChange={(e) => setNewName(e.target.value)}
+        onChange={e => setNewName(e.target.value)}
         className="bg-surface border border-edge rounded px-2 py-1 text-sm text-ink focus:outline-none focus:border-accent-ring transition-colors"
       />
       <DescriptionArea
         value={newDescription}
-        onCommit={(v) => setNewDescription(v)}
+        onCommit={v => setNewDescription(v)}
         className="bg-surface"
         maxHeight="20rem"
       />
@@ -666,11 +773,13 @@ function PurchasePickerModal({
       footer={createNewFooter}
     >
       {purchases.length === 0 && (
-        <p className="text-xs text-ghost px-1 py-1">No purchases defined yet.</p>
+        <p className="text-xs text-ghost px-1 py-1">
+          No purchases defined yet.
+        </p>
       )}
       {perks.length > 0 && (
         <PickerGroup label="Perks">
-          {perks.map((p) => (
+          {perks.map(p => (
             <PickerItem
               key={p.id as number}
               name={p.name}
@@ -682,7 +791,7 @@ function PurchasePickerModal({
       )}
       {items.length > 0 && (
         <PickerGroup label="Items">
-          {items.map((p) => (
+          {items.map(p => (
             <PickerItem
               key={p.id as number}
               name={p.name}
@@ -716,7 +825,9 @@ function CompanionPickerModal({
   const [newSpecies, setNewSpecies] = useState("");
   const [filter, setFilter] = useState("");
 
-  const filtered = companions.filter((c) => c.name.toLowerCase().includes(filter.toLowerCase()));
+  const filtered = companions.filter(c =>
+    c.name.toLowerCase().includes(filter.toLowerCase()),
+  );
 
   function handleCreate() {
     const newId = addCompanion(
@@ -731,17 +842,19 @@ function CompanionPickerModal({
 
   const createNewFooter = (
     <div className="px-3 py-3 flex flex-col gap-2">
-      <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">Create new</p>
+      <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">
+        Create new
+      </p>
       <input
         type="text"
         placeholder="Import name…"
         value={newName}
-        onChange={(e) => setNewName(e.target.value)}
+        onChange={e => setNewName(e.target.value)}
         className="bg-surface border border-edge rounded px-2 py-1 text-sm text-ink focus:outline-none focus:border-accent-ring transition-colors"
       />
       <DescriptionArea
         value={newDescription}
-        onCommit={(v) => setNewDescription(v)}
+        onCommit={v => setNewDescription(v)}
         className="bg-surface"
         maxHeight="20rem"
         placeholder="Description (optional)"
@@ -750,7 +863,7 @@ function CompanionPickerModal({
         type="text"
         placeholder="Character name..."
         value={newCharName}
-        onChange={(e) => setNewCharName(e.target.value)}
+        onChange={e => setNewCharName(e.target.value)}
         className="bg-surface border border-edge rounded px-2 py-1 text-sm text-ink focus:outline-none focus:border-accent-ring transition-colors"
       />
       <div className="flex gap-2">
@@ -758,14 +871,14 @@ function CompanionPickerModal({
           type="text"
           placeholder="Gender (if known/applicable)"
           value={newGender}
-          onChange={(e) => setNewGender(e.target.value)}
+          onChange={e => setNewGender(e.target.value)}
           className="flex-1 bg-surface border border-edge rounded px-2 py-1 text-sm text-ink focus:outline-none focus:border-accent-ring transition-colors"
         />
         <input
           type="text"
           placeholder="Species..."
           value={newSpecies}
-          onChange={(e) => setNewSpecies(e.target.value)}
+          onChange={e => setNewSpecies(e.target.value)}
           className="flex-1 bg-surface border border-edge rounded px-2 py-1 text-sm text-ink focus:outline-none focus:border-accent-ring transition-colors"
         />
       </div>
@@ -789,11 +902,13 @@ function CompanionPickerModal({
       footer={createNewFooter}
     >
       {companions.length === 0 && (
-        <p className="text-xs text-ghost px-1 py-1">No companion imports defined yet.</p>
+        <p className="text-xs text-ghost px-1 py-1">
+          No companion imports defined yet.
+        </p>
       )}
       {filtered.length > 0 && (
         <PickerGroup label="Companion Imports">
-          {filtered.map((c) => (
+          {filtered.map(c => (
             <PickerItem
               key={c.id as number}
               name={c.name}
