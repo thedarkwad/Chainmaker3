@@ -8,7 +8,10 @@ import { Plus, X } from "lucide-react";
 import { CostDropdown } from "@/ui/CostDropdown";
 import { CostModifier } from "@/chain/data/Purchase";
 import { PickerModal, PickerGroup, PickerItem } from "./PickerModal";
-import type { AlternativeCost, AlternativeCostPrerequisite } from "@/chain/data/JumpDoc";
+import type {
+  AlternativeCost,
+  AlternativeCostPrerequisite,
+} from "@/chain/data/JumpDoc";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
 import {
@@ -59,9 +62,9 @@ export function AlternativeCostEditor({
             Alternative Costs
           </span>
           <Tip>
-            Do NOT use if the different costs have different effects, e.g. if a perk has an
-            upgradabe version! In those cases create a duplicate annotation with the same bounding
-            rectangle. <br />
+            Do NOT use if the different costs have different effects, e.g. if a
+            perk has an upgradabe version! In those cases create a duplicate
+            annotation with the same bounding rectangle. <br />
             <br /> Go{" "}
             <a
               href="/guide#handling-user-choices"
@@ -81,7 +84,7 @@ export function AlternativeCostEditor({
           currencies={currencies}
           showDiscountToggle={showDiscountToggle}
           onRemove={() => onRemove(i)}
-          onChange={(updated) => onModify(i, updated)}
+          onChange={updated => onModify(i, updated)}
         />
       ))}
       <button
@@ -122,7 +125,10 @@ function AltCostRow({
   }
 
   function removePrereq(index: number) {
-    onChange({ ...cost, prerequisites: cost.prerequisites.filter((_, i) => i !== index) });
+    onChange({
+      ...cost,
+      prerequisites: cost.prerequisites.filter((_, i) => i !== index),
+    });
   }
 
   return (
@@ -136,14 +142,14 @@ function AltCostRow({
             cost={fullCost}
             currencies={currencies}
             hideModifier
-            onChange={(v) => onChange({ ...cost, value: v })}
+            onChange={v => onChange({ ...cost, value: v })}
           />
         )}
         {/* Mandatory / Optional segmented control — compact size */}
         <div className="scale-[0.85] origin-left shrink-0 -my-0.5">
           <SegmentedControl
             value={cost.mandatory ? "mandatory" : "optional"}
-            onChange={(v) => onChange({ ...cost, mandatory: v === "mandatory" })}
+            onChange={v => onChange({ ...cost, mandatory: v === "mandatory" })}
             options={[
               { value: "optional", label: "User Choice" },
               { value: "mandatory", label: "Applies Automatically" },
@@ -155,7 +161,12 @@ function AltCostRow({
           <div className="scale-[0.85] origin-left shrink-0 -my-0.5">
             <SegmentedControl
               value={cost.beforeDiscounts ? "stacks" : "overrides"}
-              onChange={(v) => onChange({ ...cost, beforeDiscounts: v === "stacks" ? true : undefined })}
+              onChange={v =>
+                onChange({
+                  ...cost,
+                  beforeDiscounts: v === "stacks" ? true : undefined,
+                })
+              }
               options={[
                 { value: "overrides", label: "Overrides discounts" },
                 { value: "stacks", label: "Stacks with discounts" },
@@ -177,9 +188,15 @@ function AltCostRow({
 
       {/* Prerequisites row */}
       <div className="flex items-center gap-1 flex-wrap min-h-5">
-        <span className="text-[10px] text-muted shrink-0 font-medium">requires:</span>
+        <span className="text-[10px] text-muted shrink-0 font-medium">
+          requires:
+        </span>
         {cost.prerequisites.map((prereq, i) => (
-          <PrereqChip key={i} prereq={prereq} onRemove={() => removePrereq(i)} />
+          <PrereqChip
+            key={i}
+            prereq={prereq}
+            onRemove={() => removePrereq(i)}
+          />
         ))}
         <button
           type="button"
@@ -188,10 +205,25 @@ function AltCostRow({
         >
           <Plus size={9} /> prereq
         </button>
+        {cost.prerequisites.length > 1 && (
+          <div className="scale-[0.85] origin-left shrink-0 -my-0.5">
+            <SegmentedControl
+              value={cost.AND ? "AND" : "OR"}
+              onChange={v => onChange({ ...cost, AND: v === "AND" })}
+              options={[
+                { value: "AND", label: "Must satisfy all" },
+                { value: "OR", label: "Must satisfy at least one" },
+              ]}
+            />
+          </div>
+        )}
       </div>
 
       {pickerOpen && (
-        <PrerequisitePickerModal onSelect={addPrereq} onClose={() => setPickerOpen(false)} />
+        <PrerequisitePickerModal
+          onSelect={addPrereq}
+          onClose={() => setPickerOpen(false)}
+        />
       )}
     </div>
   );
@@ -208,24 +240,62 @@ export function PrereqChip({
   prereq: AlternativeCostPrerequisite;
   onRemove: () => void;
 }) {
-  if (prereq.type === "origin") return <OriginPrereqChip id={prereq.id} onRemove={onRemove} />;
-  if (prereq.type === "drawback") return <DrawbackPrereqChip id={prereq.id} onRemove={onRemove} />;
+  if (prereq.type === "origin")
+    return <OriginPrereqChip id={prereq.id} onRemove={onRemove} />;
+  if (prereq.type === "drawback")
+    return <DrawbackPrereqChip id={prereq.id} onRemove={onRemove} />;
   return <PurchasePrereqChip id={prereq.id} onRemove={onRemove} />;
 }
 
-function OriginPrereqChip({ id, onRemove }: { id: Id<TID.Origin>; onRemove: () => void }) {
+function OriginPrereqChip({
+  id,
+  onRemove,
+}: {
+  id: Id<TID.Origin>;
+  onRemove: () => void;
+}) {
   const item = useJumpDocOrigin(id);
-  return <ChipPill label="origin" name={item?.name ?? "(deleted)"} onRemove={onRemove} />;
+  return (
+    <ChipPill
+      label="origin"
+      name={item?.name ?? "(deleted)"}
+      onRemove={onRemove}
+    />
+  );
 }
 
-function DrawbackPrereqChip({ id, onRemove }: { id: Id<TID.Drawback>; onRemove: () => void }) {
+function DrawbackPrereqChip({
+  id,
+  onRemove,
+}: {
+  id: Id<TID.Drawback>;
+  onRemove: () => void;
+}) {
   const item = useJumpDocDrawback(id);
-  return <ChipPill label="drawback" name={item?.name ?? "(deleted)"} onRemove={onRemove} />;
+  return (
+    <ChipPill
+      label="drawback"
+      name={item?.name ?? "(deleted)"}
+      onRemove={onRemove}
+    />
+  );
 }
 
-function PurchasePrereqChip({ id, onRemove }: { id: Id<TID.Purchase>; onRemove: () => void }) {
+function PurchasePrereqChip({
+  id,
+  onRemove,
+}: {
+  id: Id<TID.Purchase>;
+  onRemove: () => void;
+}) {
   const item = useJumpDocPurchase(id);
-  return <ChipPill label="purchase" name={item?.name ?? "(deleted)"} onRemove={onRemove} />;
+  return (
+    <ChipPill
+      label="purchase"
+      name={item?.name ?? "(deleted)"}
+      onRemove={onRemove}
+    />
+  );
 }
 
 function ChipPill({
@@ -269,13 +339,22 @@ export function PrerequisitePickerModal({
   const [filter, setFilter] = useState("");
   const lc = filter.toLowerCase();
 
-  const filteredOrigins = origins.filter((o) => o.name.toLowerCase().includes(lc));
-  const filteredDrawbacks = drawbacks.filter((d) => d.name.toLowerCase().includes(lc));
-  const filteredPurchases = purchases.filter((p) => p.name.toLowerCase().includes(lc));
+  const filteredOrigins = origins.filter(o =>
+    o.name.toLowerCase().includes(lc),
+  );
+  const filteredDrawbacks = drawbacks.filter(d =>
+    d.name.toLowerCase().includes(lc),
+  );
+  const filteredPurchases = purchases.filter(p =>
+    p.name.toLowerCase().includes(lc),
+  );
 
-  const isEmpty = origins.length === 0 && drawbacks.length === 0 && purchases.length === 0;
+  const isEmpty =
+    origins.length === 0 && drawbacks.length === 0 && purchases.length === 0;
   const hasMatches =
-    filteredOrigins.length > 0 || filteredDrawbacks.length > 0 || filteredPurchases.length > 0;
+    filteredOrigins.length > 0 ||
+    filteredDrawbacks.length > 0 ||
+    filteredPurchases.length > 0;
 
   // Group origins by category
   const originsByCategory = new Map<
@@ -310,33 +389,41 @@ export function PrerequisitePickerModal({
       onFilterChange={setFilter}
       onClose={onClose}
     >
-      {isEmpty && <p className="text-xs text-ghost px-1 py-1">No items defined yet.</p>}
+      {isEmpty && (
+        <p className="text-xs text-ghost px-1 py-1">No items defined yet.</p>
+      )}
 
       {filteredOrigins.length > 0 && (
         <PickerGroup label="Origins">
-          {[...originsByCategory.entries()].map(([key, { categoryName, items }]) => (
-            <div key={key}>
-              {originsByCategory.size > 1 && (
-                <p className="text-[10px] font-semibold text-muted uppercase tracking-wider px-1 pt-1 pb-0.5">
-                  {categoryName}
-                </p>
-              )}
-              {items.map((o) => (
-                <PickerItem
-                  key={o.id as number}
-                  name={o.name}
-                  subtitle={originsByCategory.size > 1 ? undefined : categoryName || undefined}
-                  onClick={() => onSelect({ type: "origin", id: o.id })}
-                />
-              ))}
-            </div>
-          ))}
+          {[...originsByCategory.entries()].map(
+            ([key, { categoryName, items }]) => (
+              <div key={key}>
+                {originsByCategory.size > 1 && (
+                  <p className="text-[10px] font-semibold text-muted uppercase tracking-wider px-1 pt-1 pb-0.5">
+                    {categoryName}
+                  </p>
+                )}
+                {items.map(o => (
+                  <PickerItem
+                    key={o.id as number}
+                    name={o.name}
+                    subtitle={
+                      originsByCategory.size > 1
+                        ? undefined
+                        : categoryName || undefined
+                    }
+                    onClick={() => onSelect({ type: "origin", id: o.id })}
+                  />
+                ))}
+              </div>
+            ),
+          )}
         </PickerGroup>
       )}
 
       {filteredDrawbacks.length > 0 && (
         <PickerGroup label="Drawbacks">
-          {filteredDrawbacks.map((d) => (
+          {filteredDrawbacks.map(d => (
             <PickerItem
               key={d.id as number}
               name={d.name}
@@ -348,27 +435,35 @@ export function PrerequisitePickerModal({
 
       {filteredPurchases.length > 0 && (
         <PickerGroup label="Purchases">
-          {[...purchasesBySubtype.entries()].map(([key, { subtypeName, items }]) => (
-            <div key={key}>
-              {purchasesBySubtype.size > 1 && (
-                <p className="text-[10px] font-semibold text-muted uppercase tracking-wider px-1 pt-1 pb-0.5">
-                  {subtypeName}
-                </p>
-              )}
-              {items.map((p) => (
-                <PickerItem
-                  key={p.id as number}
-                  name={p.name}
-                  subtitle={purchasesBySubtype.size > 1 ? undefined : p.subtypeName || undefined}
-                  onClick={() => onSelect({ type: "purchase", id: p.id })}
-                />
-              ))}
-            </div>
-          ))}
+          {[...purchasesBySubtype.entries()].map(
+            ([key, { subtypeName, items }]) => (
+              <div key={key}>
+                {purchasesBySubtype.size > 1 && (
+                  <p className="text-[10px] font-semibold text-muted uppercase tracking-wider px-1 pt-1 pb-0.5">
+                    {subtypeName}
+                  </p>
+                )}
+                {items.map(p => (
+                  <PickerItem
+                    key={p.id as number}
+                    name={p.name}
+                    subtitle={
+                      purchasesBySubtype.size > 1
+                        ? undefined
+                        : p.subtypeName || undefined
+                    }
+                    onClick={() => onSelect({ type: "purchase", id: p.id })}
+                  />
+                ))}
+              </div>
+            ),
+          )}
         </PickerGroup>
       )}
 
-      {!isEmpty && !hasMatches && <p className="text-xs text-ghost px-1">No matches.</p>}
+      {!isEmpty && !hasMatches && (
+        <p className="text-xs text-ghost px-1">No matches.</p>
+      )}
     </PickerModal>
   );
 }

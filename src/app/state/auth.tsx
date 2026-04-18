@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         try {
           const idToken = await firebaseUser.getIdToken();
-          const dbUser = await getOrCreateDbUser({ data: idToken });
+          const dbUser = await getOrCreateDbUser({ data: idToken }) as ClientUser ;
           setState({
             firebaseUser,
             dbUser,

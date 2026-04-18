@@ -1,11 +1,14 @@
 import { Duration } from "@/utilities/units";
 import { Currency, OriginCategory, PurchaseSubtype } from "./Jump";
 import { RewardType, SimpleValue, Value } from "./Purchase";
-import { Id, Lookup, Registry, TID } from "./types";
+import { createId, Id, Lookup, Registry, TID } from "./types";
 
 export type DocOriginCategory = OriginCategory & { max?: number } & (
     | { singleLine: true; options: FreeFormOrigin[] }
-    | { singleLine: false; random?: { cost: SimpleValue<TID.Currency>; bounds?: PageRect[] } }
+    | {
+        singleLine: false;
+        random?: { cost: SimpleValue<TID.Currency>; bounds?: PageRect[] };
+      }
   );
 
 export type AnnotationType = {
@@ -61,6 +64,7 @@ export type OriginStipendEntry = {
 
 export type OriginTemplate = {
   name: string;
+  id: Id<TID.Origin>;
   description?: string;
   choiceContext?: string;
   cost: SimpleValue<TID.Currency>;
@@ -73,13 +77,21 @@ export type OriginTemplate = {
   synergies?: Id<TID.Origin>[];
   /** How a qualifying origin affects this choice: discounts it, makes it free, or restricts it to origin holders only. */
   synergyBenefit?: "discounted" | "free" | "access";
+  prerequisites?: JumpDocPrerequisite[];
 };
+
+/** Prerequisite for an alternative cost — always "requires" semantics, no positive/negative distinction. */
+export type AlternativeCostPrerequisite =
+  | { type: "purchase"; id: Id<TID.Purchase> }
+  | { type: "drawback"; id: Id<TID.Drawback> }
+  | { type: "origin"; id: Id<TID.Origin> };
 
 export type AlternativeCost = {
   value: Value<TID.Currency>;
-  prerequisites: JumpDocPrerequisite[];
+  prerequisites: AlternativeCostPrerequisite[];
   beforeDiscounts?: boolean;
   mandatory: boolean;
+  AND?: boolean;
 };
 
 export type JumpDocPrerequisite =
@@ -87,6 +99,9 @@ export type JumpDocPrerequisite =
   | { type: "drawback"; id: Id<TID.Drawback>; positive: boolean }
   | { type: "scenario"; id: Id<TID.Scenario>; positive: boolean }
   | { type: "origin"; id: Id<TID.Origin>; positive: boolean };
+
+/** Alias for JumpDocPrerequisite — used by the purchase/drawback/companion/origin prerequisite editor. */
+export type PurchasePrerequisite = JumpDocPrerequisite;
 
 export type PurchaseTemplate<T extends TID> = {
   name: string;
@@ -124,7 +139,10 @@ export type FreeFormOrigin = {
   bounds?: PageRect[];
 };
 
-export type CompanionTemplate = Omit<PurchaseTemplate<TID.Companion>, "allowMultiple"> & {
+export type CompanionTemplate = Omit<
+  PurchaseTemplate<TID.Companion>,
+  "allowMultiple"
+> & {
   allowances: Lookup<TID.Currency, number>;
   stipend: Lookup<TID.Currency, TID.PurchaseSubtype, number>;
 
@@ -147,14 +165,26 @@ export type CompanionTemplate = Omit<PurchaseTemplate<TID.Companion>, "allowMult
 
 export type BasicPurchaseTemplate = PurchaseTemplate<TID.Purchase> & {
   capstoneBooster: boolean;
-  boosted: { description: string; booster: number; boosterKind?: "purchase" | "drawback" }[];
+  boosted: {
+    description: string;
+    booster: number;
+    boosterKind?: "purchase" | "drawback";
+  }[];
   subtype: Id<TID.PurchaseSubtype>;
   temporary: boolean;
 };
 
+export type DrawbackDurationMod =
+  | { type: "inc" | "set"; years: number }
+  | { type: "choice" };
+
 export type DrawbackTemplate = PurchaseTemplate<TID.Drawback> & {
-  durationMod?: { type: "inc" | "set"; years: number };
-  boosted: { description: string; booster: number; boosterKind?: "purchase" | "drawback" }[];
+  durationMod?: DrawbackDurationMod;
+  boosted: {
+    description: string;
+    booster: number;
+    boosterKind?: "purchase" | "drawback";
+  }[];
   capstoneBooster?: boolean;
 };
 
@@ -170,7 +200,12 @@ export type ScenarioRewardTemplate =
     };
 
 export type ScenarioTemplate = Omit<PurchaseTemplate<TID.Scenario>, "cost"> & {
-  rewardGroups?: { rewards: ScenarioRewardTemplate[]; title: string; context: string }[];
+  rewardGroups?: {
+    rewards: ScenarioRewardTemplate[];
+    title: string;
+    context: string;
+  }[];
+  durationMod?: DrawbackDurationMod;
 };
 
 export type DocCurrencyExchange = {
@@ -198,7 +233,10 @@ export type JumpDoc = {
 
   origins: Registry<TID.Origin, OriginTemplate>;
   currencies: Registry<TID.Currency, Currency>;
-  purchaseSubtypes: Registry<TID.PurchaseSubtype, PurchaseSubtype<TID.Currency>>;
+  purchaseSubtypes: Registry<
+    TID.PurchaseSubtype,
+    PurchaseSubtype<TID.Currency>
+  >;
 
   availableCurrencyExchanges?: DocCurrencyExchange[];
 
@@ -209,3 +247,18 @@ export type JumpDoc = {
 };
 
 export const stripTemplating = (s: string) => s.trim();
+
+/**
+ * Assigns `id` to any OriginTemplate entry that was loaded from JSON without one.
+ * Call this once immediately after loading a JumpDoc from the network.
+ */
+export function preprocessJumpDoc(doc: JumpDoc): JumpDoc {
+  for (const idStr in doc.origins.O) {
+    const tid = createId<TID.Origin>(+idStr);
+    const template = doc.origins.O[tid];
+    if (template && !template.id) {
+      template.id = tid;
+    }
+  }
+  return doc;
+}

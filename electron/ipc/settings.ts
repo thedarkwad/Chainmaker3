@@ -81,14 +81,21 @@ export function setSettings(patch: Partial<ElectronLocalSettings>): void {
 }
 
 export function getRecentFiles(): ElectronRecentFile[] {
-  return readConfig().recentFiles;
+  return readConfig().recentFiles.filter((f) => f.filePath && f.filePath.trim() !== "");
 }
 
 export function addRecentFile(record: ElectronRecentFile): void {
   const config = readConfig();
+  const existing = config.recentFiles.find((f) => f.id === record.id);
+  const newRecord = { ...record };
+  if (existing && !newRecord.filePath) {
+    newRecord.filePath = existing.filePath;
+  }
   // Deduplicate by id, keep most recent first, cap at 20
-  const filtered = config.recentFiles.filter((f) => f.id !== record.id && f.filePath !== record.filePath);
-  config.recentFiles = [record, ...filtered].slice(0, 20);
+  const filtered = config.recentFiles.filter(
+    (f) => f.id !== newRecord.id && (newRecord.filePath === "" || f.filePath !== newRecord.filePath),
+  );
+  config.recentFiles = [newRecord, ...filtered].slice(0, 20);
   writeConfig(config);
 }
 

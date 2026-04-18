@@ -4,7 +4,7 @@ import { AltForm, LengthUnit, WeightUnit } from "./AltForm";
 import { Currency, Jump, JumpSource, JumpSourceType, OriginCategory, PurchaseSubtype } from "./Jump";
 import { type JumpDoc } from "./JumpDoc";
 import { DefaultSubtype, PurchaseType, SimpleValue } from "./Purchase";
-import { createId, createRegistry, GID, Id, LID, Registry } from "./types";
+import { createId, createRegistry, GID, Id, LID, Registry, TID } from "./types";
 import {
   BodyModPresets,
   DefaultBodyMods,
@@ -64,6 +64,7 @@ export function jumpFromDoc(
               amount: s.amount,
               currency: createId<LID.Currency>(s.currency),
             })),
+            templateId: createId<TID.PurchaseSubtype>(+k),
             ...(v.floatingDiscountThresholds
               ? {
                   floatingDiscountThresholds: v.floatingDiscountThresholds.map((s) => ({
@@ -74,7 +75,7 @@ export function jumpFromDoc(
               : {}),
           },
         ]),
-    ),
+    ) as any,
     fId: createId<LID.PurchaseSubtype>(doc.purchaseSubtypes.fId),
   };
 
@@ -83,6 +84,7 @@ export function jumpFromDoc(
     name: doc.name,
     source: { type: JumpSourceType.Jumpdoc, docId: docPublicUid },
     duration: doc.duration,
+    originalDuration: doc.duration,
     originCategories,
     currencies,
     purchaseSubtypes,

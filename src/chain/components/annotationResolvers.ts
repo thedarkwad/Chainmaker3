@@ -22,7 +22,7 @@ import type {
   ResolvedPrerequisite,
   QueuedAnnotationBatch,
   ViewerAnnotationAction,
-} from "@/chain/state/ViewerActionStore";
+} from "@/chain/state/ViewerActionStore.old";
 import type {
   JumpDoc,
   OriginTemplate,
@@ -322,32 +322,6 @@ export function resolveAltCostsToStorage(
     mandatory: ac.mandatory,
     ...(ac.beforeDiscounts ? { beforeDiscounts: true as const } : {}),
   }));
-}
-
-/**
- * Returns true if any prereq in the list is satisfied (OR semantics).
- * Uses the interaction-time hook accessors so no store reads are needed.
- */
-export function checkResolvedAltCostPrereqs(
-  prereqs: ResolvedAltCostPrereq[],
-  docId: string,
-  origins: Record<number, Origin[]> | null,
-  originCategories: Registry<LID.OriginCategory, OriginCategory> | undefined,
-  findPurchase: (docId: string, id: Id<TID.Purchase>) => Id<GID.Purchase> | undefined,
-  findDrawback: (docId: string, id: Id<TID.Drawback>) => Id<GID.Purchase> | undefined,
-): boolean {
-  if (prereqs.length === 0) return true;
-  return prereqs.some((prereq) => {
-    if (prereq.type === "origin") {
-      const catLid = resolveJumpOriginCategory(prereq.categoryName, originCategories);
-      if (!catLid) return false;
-      return (origins?.[catLid] ?? []).some(
-        (o) => o.summary === prereq.originName || o.templateName === prereq.originName,
-      );
-    }
-    if (prereq.type === "drawback") return findDrawback(docId, prereq.templateId) !== undefined;
-    return findPurchase(docId, prereq.templateId) !== undefined;
-  });
 }
 
 /** Converts a ResolvedPrerequisite[] to StoredPurchasePrerequisite[] (with docId bound in). */

@@ -93,7 +93,26 @@ function getOrAssignId(filePath: string): string {
 }
 
 function resolveFilePath(id: string): string | undefined {
-  return pendingJumpdocToSaved.get(id) ?? jumpdocIdToPath.get(id);
+  let p = pendingJumpdocToSaved.get(id) ?? jumpdocIdToPath.get(id);
+  if (p) return p;
+
+  const folder = getSettings().jumpdocFolder;
+  if (!folder || !fs.existsSync(folder)) return undefined;
+
+  const index = readIndex(folder);
+  for (const filename of Object.keys(index.entries)) {
+    const entry = index.entries[filename];
+    if (entry.id === id) {
+      const fullPath = path.join(folder, filename);
+      jumpdocIdToPath.set(id, fullPath);
+      jumpdocPathToId.set(fullPath, id);
+      return fullPath;
+    }
+  }
+
+  // Fallback: full scan if not in index. listJumpdocs() populates the maps.
+  listJumpdocs();
+  return jumpdocIdToPath.get(id);
 }
 
 // ── Index helpers ─────────────────────────────────────────────────────────────

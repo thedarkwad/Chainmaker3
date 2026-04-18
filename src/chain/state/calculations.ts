@@ -17,7 +17,11 @@ import {
   purchaseValue,
 } from "@/chain/data/Purchase";
 import { createId, GID, Id, LID, Lookup } from "@/chain/data/types";
-import { CalculatedData, Budget, CharacterPassportStats } from "@/chain/data/CalculatedData";
+import {
+  CalculatedData,
+  Budget,
+  CharacterPassportStats,
+} from "@/chain/data/CalculatedData";
 import { useChainStore } from "./Store";
 import { shallow } from "zustand/shallow";
 import { produce } from "immer";
@@ -39,25 +43,30 @@ export function adjustBank(
 ): { balance: number; totalDeposit: number } {
   const n = jumpNumber[jumpId];
   const jumpChunk = jumpChunks[n];
-  let balance = n > 0 ? (bankBalance?.[charId]?.[jumpChunks[n - 1][0]] ?? 0) : 0;
+  let balance =
+    n > 0 ? (bankBalance?.[charId]?.[jumpChunks[n - 1][0]] ?? 0) : 0;
 
   balance = Math.floor(balance * (1 + interestRate / 100));
   let positiveDeposit = 0;
   let negativeDeposit = 0;
-  jumpChunk.forEach((jId) => {
+  jumpChunk.forEach(jId => {
     const deposit = chain.jumps.O[jId]?.bankDeposits?.[charId] ?? 0;
     if (deposit > 0) positiveDeposit += deposit;
     else negativeDeposit += deposit;
   });
 
-  balance += Math.floor((positiveDeposit * depositRatio) / 100) + negativeDeposit;
+  balance +=
+    Math.floor((positiveDeposit * depositRatio) / 100) + negativeDeposit;
   return { balance, totalDeposit: positiveDeposit };
 }
 
 export function adjustJumpAccess(
   chain: Chain,
   charId: Id<GID.Character>,
-): { jumpAccess: Set<number>; supplementAccess: Lookup<GID.Supplement, Set<number>> } {
+): {
+  jumpAccess: Set<number>;
+  supplementAccess: Lookup<GID.Supplement, Set<number>>;
+} {
   const jumpAccess = new Set<number>();
   const supplementAccess: Lookup<GID.Supplement, Set<number>> = {};
   const primary = chain.characters?.O?.[charId]?.primary;
@@ -73,7 +82,9 @@ export function adjustJumpAccess(
         if (!chain.purchases.O[pId]) continue;
         if (
           chain.purchases.O[pId].type == PurchaseType.Companion &&
-          (chain.purchases.O[pId] as CompanionImport).importData.characters.includes(charId)
+          (
+            chain.purchases.O[pId] as CompanionImport
+          ).importData.characters.includes(charId)
         ) {
           jumpAccess.add(jId);
           continue;
@@ -106,7 +117,9 @@ export function adjustJumpAccess(
   // offset converts internal 0-based chunk numbers to user-visible jump numbers.
   const offset = chain.chainSettings.startWithJumpZero ? 0 : 1;
 
-  const primaryCharIds = chain.characterList.filter((cId) => chain.characters.O[cId]?.primary);
+  const primaryCharIds = chain.characterList.filter(
+    cId => chain.characters.O[cId]?.primary,
+  );
 
   for (const suppIdStr of Object.keys(chain.supplements.O)) {
     const suppGid = createId<GID.Supplement>(+suppIdStr);
@@ -114,7 +127,8 @@ export function adjustJumpAccess(
     if (!supp) continue;
 
     const suppJumpIds = new Set<number>();
-    const hasBaseAccess = primary || supp.companionAccess === CompanionAccess.Available;
+    const hasBaseAccess =
+      primary || supp.companionAccess === CompanionAccess.Available;
 
     if (hasBaseAccess) {
       // Include all accessible jumps in chunks at or after initialJump.
@@ -122,7 +136,7 @@ export function adjustJumpAccess(
       for (const chunk of chunks) {
         const displayNumber = numbers[chunk[0]] + offset;
         if (displayNumber < supp.initialJump) continue;
-        const accessible = chunk.filter((jId) => jumpAccess.has(jId));
+        const accessible = chunk.filter(jId => jumpAccess.has(jId));
         if (accessible.length === 0) continue;
         for (const jId of accessible) suppJumpIds.add(jId);
         if (supp.singleJump) break;
@@ -139,7 +153,8 @@ export function adjustJumpAccess(
           const jump = chain.jumps.O[jId];
           if (!jump) continue;
           for (const primId of primaryCharIds) {
-            for (const pId of jump.supplementPurchases?.[primId]?.[suppGid] ?? []) {
+            for (const pId of jump.supplementPurchases?.[primId]?.[suppGid] ??
+              []) {
               const p = chain.purchases.O[pId];
               if (!p || p.type !== PurchaseType.SupplementImport) continue;
               const si = p as SupplementImport;
@@ -177,12 +192,14 @@ export function adjustRetainedDrawbacks(
 ): Id<GID.Purchase>[] {
   const J = jumpNumber[jumpId];
 
-  const currentChunkIdx = jumpChunks.findIndex((chunk) => chunk.includes(jumpId));
+  const currentChunkIdx = jumpChunks.findIndex(chunk => chunk.includes(jumpId));
   if (currentChunkIdx === -1) return [];
 
   const currentChunk = jumpChunks[currentChunkIdx];
-  const priorJumps: Id<GID.Jump>[] = jumpChunks.slice(0, currentChunkIdx).flat();
-  const currentChunkOthers = currentChunk.filter((j) => j !== jumpId);
+  const priorJumps: Id<GID.Jump>[] = jumpChunks
+    .slice(0, currentChunkIdx)
+    .flat();
+  const currentChunkOthers = currentChunk.filter(j => j !== jumpId);
 
   const retained: Id<GID.Purchase>[] = [];
 
@@ -192,12 +209,19 @@ export function adjustRetainedDrawbacks(
     tempOrPermJumps: Id<GID.Jump>[],
   ) => {
     for (const qId of permJumps) {
-      if (drawback.overrides?.[qId]?.[charId]?.type === OverrideType.BoughtOffPermanent)
+      if (
+        drawback.overrides?.[qId]?.[charId]?.type ===
+        OverrideType.BoughtOffPermanent
+      )
         return true;
     }
     for (const qId of tempOrPermJumps) {
       const t = drawback.overrides?.[qId]?.[charId]?.type;
-      if (t === OverrideType.BoughtOffPermanent || t === OverrideType.BoughtOffTemp) return true;
+      if (
+        t === OverrideType.BoughtOffPermanent ||
+        t === OverrideType.BoughtOffTemp
+      )
+        return true;
     }
     return false;
   };
@@ -215,7 +239,8 @@ export function adjustRetainedDrawbacks(
       const duration = drawback.duration;
       if (duration !== undefined && J >= PN + duration) continue;
 
-      if (!isBoughtOff(drawback, priorJumps, currentChunkOthers)) retained.push(pId);
+      if (!isBoughtOff(drawback, priorJumps, currentChunkOthers))
+        retained.push(pId);
     }
   }
 
@@ -231,7 +256,8 @@ export function adjustRetainedDrawbacks(
         const duration = drawback.duration;
         if (duration !== undefined && duration <= 1) continue;
 
-        if (!isBoughtOff(drawback, priorJumps, currentChunkOthers)) retained.push(pId);
+        if (!isBoughtOff(drawback, priorJumps, currentChunkOthers))
+          retained.push(pId);
       }
     }
   }
@@ -246,15 +272,18 @@ export function adjustSupplementInvestments(
   jumpId: Id<GID.Jump>,
   suppId: Id<GID.Supplement>,
 ): number {
-  const currentChunkIdx = jumpChunks.findIndex((chunk) => chunk.includes(jumpId));
+  const currentChunkIdx = jumpChunks.findIndex(chunk => chunk.includes(jumpId));
   if (currentChunkIdx === -1) return 0;
 
   let total = 0;
   for (const jId of jumpChunks[currentChunkIdx]) {
-    const localInvestment = chain.jumps.O[jId]?.supplementInvestments?.[charId]?.[suppId] ?? 0;
+    const localInvestment =
+      chain.jumps.O[jId]?.supplementInvestments?.[charId]?.[suppId] ?? 0;
     total += Math.round(
       localInvestment *
-        (localInvestment > 0 ? chain.supplements.O[suppId].investmentRatio / 100 : 0),
+        (localInvestment > 0
+          ? chain.supplements.O[suppId].investmentRatio / 100
+          : 0),
     );
   }
   return total;
@@ -266,7 +295,9 @@ export function adjustGrossSupplementStipend(
   jumpNumber: CalculatedData["jumpNumber"],
   investment: number | undefined,
   grossSupplementStipend: CalculatedData["grossSupplementStipend"] | undefined,
-  companionSupplementPercentage: CalculatedData["companionSupplementPercentage"] | undefined,
+  companionSupplementPercentage:
+    | CalculatedData["companionSupplementPercentage"]
+    | undefined,
   charId: Id<GID.Character>,
   jumpId: Id<GID.Jump>,
   suppId: Id<GID.Supplement>,
@@ -274,9 +305,10 @@ export function adjustGrossSupplementStipend(
   const supp = chain.supplements.O[suppId]!;
   const char = chain.characters.O[charId]!;
   const isPrimary = char.primary;
-  const hasBaseAccess = isPrimary || supp.companionAccess === CompanionAccess.Available;
+  const hasBaseAccess =
+    isPrimary || supp.companionAccess === CompanionAccess.Available;
 
-  const currentChunkIdx = jumpChunks.findIndex((chunk) => chunk.includes(jumpId));
+  const currentChunkIdx = jumpChunks.findIndex(chunk => chunk.includes(jumpId));
   if (currentChunkIdx === -1) return 0;
 
   const priorChunks = jumpChunks.slice(0, currentChunkIdx);
@@ -305,7 +337,8 @@ export function adjustGrossSupplementStipend(
       const p = chain.purchases.O[pId];
       if (!p) continue;
       if (
-        (p.type === PurchaseType.SupplementPerk || p.type === PurchaseType.SupplementItem) &&
+        (p.type === PurchaseType.SupplementPerk ||
+          p.type === PurchaseType.SupplementItem) &&
         typeof p.value === "number" &&
         p.value < 0
       ) {
@@ -332,7 +365,9 @@ export function adjustGrossSupplementStipend(
 
   // 6. Companion import income (Imports access only).
   if (!isPrimary && supp.companionAccess === CompanionAccess.Imports) {
-    const primaryCharIds = chain.characterList.filter((cId) => chain.characters.O[cId]?.primary);
+    const primaryCharIds = chain.characterList.filter(
+      cId => chain.characters.O[cId]?.primary,
+    );
 
     for (const primId of primaryCharIds) {
       // Allowances: scan this block's imports from primId that include charId.
@@ -351,16 +386,22 @@ export function adjustGrossSupplementStipend(
       // Percentage income.
       let oldCumPct = 0;
       let primaryPriorAccumulated = 0;
-      const newPct = companionSupplementPercentage?.[charId]?.[primId]?.[jumpId]?.[suppId] ?? 0;
+      const newPct =
+        companionSupplementPercentage?.[charId]?.[primId]?.[jumpId]?.[suppId] ??
+        0;
       if (newPct > 0)
         for (const priorChunk of priorChunks) {
           const priorJump = priorChunk[0];
           oldCumPct +=
-            companionSupplementPercentage?.[charId]?.[primId]?.[priorJump]?.[suppId] ?? 0;
-          primaryPriorAccumulated += grossSupplementStipend?.[primId]?.[priorJump]?.[suppId] ?? 0;
+            companionSupplementPercentage?.[charId]?.[primId]?.[priorJump]?.[
+              suppId
+            ] ?? 0;
+          primaryPriorAccumulated +=
+            grossSupplementStipend?.[primId]?.[priorJump]?.[suppId] ?? 0;
         }
 
-      const primaryGrossK = grossSupplementStipend?.[primId]?.[jumpId]?.[suppId] ?? 0;
+      const primaryGrossK =
+        grossSupplementStipend?.[primId]?.[jumpId]?.[suppId] ?? 0;
 
       gross += Math.round(((oldCumPct + newPct) * primaryGrossK) / 100);
       gross += Math.round((newPct * primaryPriorAccumulated) / 100);
@@ -376,12 +417,14 @@ export function adjustChainDrawbacks(
   charId: Id<GID.Character>,
   jumpId: Id<GID.Jump>,
 ): Id<GID.Purchase>[] {
-  const currentChunkIdx = jumpChunks.findIndex((chunk) => chunk.includes(jumpId));
+  const currentChunkIdx = jumpChunks.findIndex(chunk => chunk.includes(jumpId));
   if (currentChunkIdx === -1) return [];
 
   const currentChunk = jumpChunks[currentChunkIdx];
-  const priorJumps: Id<GID.Jump>[] = jumpChunks.slice(0, currentChunkIdx).flat();
-  const currentChunkOthers = currentChunk.filter((j) => j !== jumpId);
+  const priorJumps: Id<GID.Jump>[] = jumpChunks
+    .slice(0, currentChunkIdx)
+    .flat();
+  const currentChunkOthers = currentChunk.filter(j => j !== jumpId);
 
   const active: Id<GID.Purchase>[] = [];
 
@@ -445,15 +488,23 @@ export function adjustBudget(
     const currencies = jump.currencies.O;
     const subtypes = jump.purchaseSubtypes.O;
     budget = {
-      currency: objMap(currencies, (o) => (isPrimary ? +o.budget : 0)),
-      stipends: objMap(subtypes, (st) =>
+      currency: objMap(currencies, o => (isPrimary ? +o.budget : 0)),
+      stipends: objMap(subtypes, st =>
         Object.fromEntries(
-          st.stipend.map(({ currency, amount }) => [currency, isPrimary ? +amount : 0]),
+          st.stipend.map(({ currency, amount }) => [
+            currency,
+            isPrimary ? +amount : 0,
+          ]),
         ),
       ),
-      originStipend: { ...(jump.originStipend ?? { amount: 0, currency: DEFAULT_CURRENCY_ID }) },
+      originStipend: {
+        ...(jump.originStipend ?? { amount: 0, currency: DEFAULT_CURRENCY_ID }),
+      },
       companionStipend: {
-        ...(jump.companionStipend ?? { amount: 0, currency: DEFAULT_CURRENCY_ID }),
+        ...(jump.companionStipend ?? {
+          amount: 0,
+          currency: DEFAULT_CURRENCY_ID,
+        }),
       },
       drawbackCP: 0,
       remainingDiscounts: Object.fromEntries(
@@ -464,7 +515,7 @@ export function adjustBudget(
             st
               .floatingDiscountThresholds!.slice()
               .sort((a, b) => a.amount - b.amount)
-              .map((sv) => ({ value: { ...sv }, n: 1 })),
+              .map(sv => ({ value: { ...sv }, n: 1 })),
           ]),
       ) as Budget["remainingDiscounts"],
     } as Budget;
@@ -475,14 +526,20 @@ export function adjustBudget(
     const charOrigins = jump.origins?.[charId];
     if (charOrigins) {
       for (const catIdStr in charOrigins) {
-        for (const origin of charOrigins[+catIdStr as Id<LID.OriginCategory>] ?? []) {
+        for (const origin of charOrigins[+catIdStr as Id<LID.OriginCategory>] ??
+          []) {
           let stipendDeduction =
             origin.value.currency == budget.originStipend.currency
-              ? Math.max(Math.min(budget.originStipend.amount, origin.value.amount), 0)
+              ? Math.max(
+                  Math.min(budget.originStipend.amount, origin.value.amount),
+                  0,
+                )
               : 0;
           budget.originStipend.amount -= stipendDeduction;
           budget.currency[origin.value.currency] =
-            (budget.currency[origin.value.currency] ?? 0) - origin.value.amount + stipendDeduction;
+            (budget.currency[origin.value.currency] ?? 0) -
+            origin.value.amount +
+            stipendDeduction;
         }
       }
     }
@@ -491,14 +548,17 @@ export function adjustBudget(
     const charInvestments = jump.supplementInvestments?.[charId];
     if (charInvestments) {
       for (const suppIdStr in charInvestments) {
-        budget.currency[DEFAULT_CURRENCY_ID] -= charInvestments[suppIdStr as any] ?? 0;
+        budget.currency[DEFAULT_CURRENCY_ID] -=
+          charInvestments[suppIdStr as any] ?? 0;
       }
     }
 
     // Apply currency exchanges.
     for (const ex of jump.currencyExchanges?.[charId] ?? []) {
-      budget.currency[ex.oCurrency] = (budget.currency[ex.oCurrency] ?? 0) - ex.oamount;
-      budget.currency[ex.tCurrency] = (budget.currency[ex.tCurrency] ?? 0) + ex.tamount;
+      budget.currency[ex.oCurrency] =
+        (budget.currency[ex.oCurrency] ?? 0) - ex.oamount;
+      budget.currency[ex.tCurrency] =
+        (budget.currency[ex.tCurrency] ?? 0) + ex.tamount;
     }
 
     // Add allowances and stipends granted by companion imports that include this character.
@@ -535,11 +595,14 @@ export function adjustBudget(
       const p = chain.purchases.O[pId] as Scenario;
       for (const reward of p.rewards) {
         if (reward.type === RewardType.Currency) {
-          budget.currency[reward.currency] = (budget.currency[reward.currency] ?? 0) + reward.value;
+          budget.currency[reward.currency] =
+            (budget.currency[reward.currency] ?? 0) + reward.value;
         } else if (reward.type === RewardType.Stipend) {
-          if (!budget.stipends[reward.subtype]) budget.stipends[reward.subtype] = {};
+          if (!budget.stipends[reward.subtype])
+            budget.stipends[reward.subtype] = {};
           budget.stipends[reward.subtype][reward.currency] =
-            (budget.stipends[reward.subtype][reward.currency] ?? 0) + reward.value;
+            (budget.stipends[reward.subtype][reward.currency] ?? 0) +
+            reward.value;
         }
       }
     }
@@ -575,9 +638,11 @@ export function adjustBudget(
           ) as number;
           if (isPrimary && p.itemStipend) {
             const itemSubtype = DefaultSubtype[PurchaseType.Item];
-            if (!budget.stipends[itemSubtype]) budget.stipends[itemSubtype] = {};
+            if (!budget.stipends[itemSubtype])
+              budget.stipends[itemSubtype] = {};
             budget.stipends[itemSubtype][DEFAULT_CURRENCY_ID] =
-              (budget.stipends[itemSubtype][DEFAULT_CURRENCY_ID] ?? 0) + p.itemStipend;
+              (budget.stipends[itemSubtype][DEFAULT_CURRENCY_ID] ?? 0) +
+              p.itemStipend;
           }
         } else if (p.companionStipend) {
           budget.currency[DEFAULT_CURRENCY_ID] =
@@ -600,10 +665,12 @@ export function adjustBudget(
           override.modifier ?? { modifier: CostModifier.Full },
         );
         if (typeof cost == "number")
-          budget.currency[DEFAULT_CURRENCY_ID] = (budget.currency[DEFAULT_CURRENCY_ID] ?? 0) - cost;
+          budget.currency[DEFAULT_CURRENCY_ID] =
+            (budget.currency[DEFAULT_CURRENCY_ID] ?? 0) - cost;
         else
           for (const sv of cost)
-            budget.currency[sv.currency] = (budget.currency[sv.currency] ?? 0) - sv.amount;
+            budget.currency[sv.currency] =
+              (budget.currency[sv.currency] ?? 0) - sv.amount;
         continue;
       }
       const val = purchaseValue(
@@ -611,7 +678,8 @@ export function adjustBudget(
         override?.modifier ?? { modifier: CostModifier.Full },
       ) as Value;
       for (const sv of val)
-        budget.currency[sv.currency] = (budget.currency[sv.currency] ?? 0) + sv.amount;
+        budget.currency[sv.currency] =
+          (budget.currency[sv.currency] ?? 0) + sv.amount;
     }
 
     // Add drawback value for each current-jump drawback (or deduct buyoff cost).
@@ -626,11 +694,32 @@ export function adjustBudget(
         if (sv.currency == DEFAULT_CURRENCY_ID && jump.drawbackLimit) {
           [budget.drawbackCP, amount] = [
             budget.drawbackCP + amount,
-            Math.min(amount, Math.max(0, jump.drawbackLimit - budget.drawbackCP)),
+            Math.min(
+              amount,
+              Math.max(0, jump.drawbackLimit - budget.drawbackCP),
+            ),
           ];
         }
+        if (p.floatingDiscountThresholds) {
+          Object.entries(subtypes).forEach(([id, st]) => {
+            (p?.floatingDiscountThresholds?.[+id as any] ?? []).forEach(sv => {
+              if (!budget?.remainingDiscounts[+id as any])
+                budget!.remainingDiscounts[+id as any] = [];
+              let discounts = budget!.remainingDiscounts[+id as any];
+              let i = discounts.findIndex(
+                d => JSON.stringify(d.value) == JSON.stringify(sv),
+              );
+              if (i < 0) {
+                discounts?.push({ value: sv, n: 1 });
+              } else {
+                discounts[i].n++;
+              }
+            });
+          });
+        }
         if ((p.subtype ?? null) === null)
-          budget.currency[sv.currency] = (budget.currency[sv.currency] ?? 0) + amount;
+          budget.currency[sv.currency] =
+            (budget.currency[sv.currency] ?? 0) + amount;
         else
           budget.stipends[p.subtype!][sv.currency] =
             (budget.stipends[p.subtype!][sv.currency] ?? 0) + amount;
@@ -639,12 +728,18 @@ export function adjustBudget(
 
     // Deduct purchase costs, exhausting the subtype stipend first before the main currency.
     // Also collect eligible floating-discount purchases for the greedy pass below.
-    const floatingEligible = new Map<string, { amount: number; currency: Id<LID.Currency> }[]>();
+    const floatingEligible = new Map<
+      string,
+      { amount: number; currency: Id<LID.Currency> }[]
+    >();
     for (const pId of jump.purchases[charId] ?? []) {
       const p = chain.purchases.O[pId];
       if (!p || !Array.isArray(p.value)) continue;
 
-      let cost = purchaseValue(p.value, p.cost ?? { modifier: CostModifier.Full });
+      let cost = purchaseValue(
+        p.value,
+        p.cost ?? { modifier: CostModifier.Full },
+      );
 
       let subtypeId: Id<LID.PurchaseSubtype> | undefined;
       if (p.type === PurchaseType.Perk || p.type === PurchaseType.Item) {
@@ -652,16 +747,23 @@ export function adjustBudget(
       }
 
       // Collect for floating-discount greedy (single-currency purchases that opt in).
-      if (subtypeId != null && (p as BasicPurchase).usesFloatingDiscount && p.value.length <= 1) {
+      if (
+        subtypeId != null &&
+        (p as BasicPurchase).usesFloatingDiscount &&
+        p.value.length <= 1
+      ) {
         const sv = p.value[0];
         if (sv) {
           const key = String(subtypeId);
           if (!floatingEligible.has(key)) floatingEligible.set(key, []);
-          floatingEligible.get(key)!.push({ amount: sv.amount, currency: sv.currency });
+          floatingEligible
+            .get(key)!
+            .push({ amount: sv.amount, currency: sv.currency });
         }
       }
 
-      if (typeof cost == "number") cost = [{ currency: DEFAULT_CURRENCY_ID, amount: cost }];
+      if (typeof cost == "number")
+        cost = [{ currency: DEFAULT_CURRENCY_ID, amount: cost }];
       for (const sv of cost) {
         let remaining = sv.amount;
 
@@ -683,7 +785,8 @@ export function adjustBudget(
         }
 
         if (remaining !== 0)
-          budget.currency[sv.currency] = (budget.currency[sv.currency] ?? 0) - remaining;
+          budget.currency[sv.currency] =
+            (budget.currency[sv.currency] ?? 0) - remaining;
       }
 
       // If this purchase has subpurchases, pour their stipend into the bucket,
@@ -723,7 +826,8 @@ export function adjustBudget(
             }
 
             if (remaining !== 0)
-              budget.currency[sv.currency] = (budget.currency[sv.currency] ?? 0) - remaining;
+              budget.currency[sv.currency] =
+                (budget.currency[sv.currency] ?? 0) - remaining;
           }
         }
       }
@@ -743,20 +847,21 @@ export function adjustBudget(
         // Permissible: same currency and threshold >= purchase's unmodified amount.
         // slots is sorted ascending by value, so first match is smallest permissible.
         const permissible = slots.filter(
-          (s) => s.value.currency === currency && s.value.amount >= amount,
+          s => s.value.currency === currency && s.value.amount >= amount,
         );
         if (!permissible.length) continue;
 
-        const withPositiveN = permissible.filter((s) => s.n > 0);
-        const target = withPositiveN.length > 0 ? withPositiveN[0] : permissible[0];
+        const withPositiveN = permissible.filter(s => s.n > 0);
+        const target =
+          withPositiveN.length > 0 ? withPositiveN[0] : permissible[0];
         target.n--;
       }
     }
 
-    Object.keys(jump.purchaseSubtypes.O).forEach((id) => {
+    Object.keys(jump.purchaseSubtypes.O).forEach(id => {
       budget!.stipends[id as any] = objFilter(
         budget!.stipends[id as any],
-        (v) => v != 0,
+        v => v != 0,
       ) as Budget["stipends"];
     });
   } // end suppId == null
@@ -766,14 +871,16 @@ export function adjustBudget(
   // never dependent on potentially-stale stored supplementBudgets values.
   const suppBudgets: Lookup<GID.Supplement, number> = {};
   if (jumpChunks) {
-    const currentChunkIdx = jumpChunks.findIndex((chunk) => chunk.includes(jumpId));
+    const currentChunkIdx = jumpChunks.findIndex(chunk =>
+      chunk.includes(jumpId),
+    );
     if (currentChunkIdx !== -1) {
       const currentChunk = jumpChunks[currentChunkIdx];
 
       const suppIds =
         suppId != null
           ? [suppId]
-          : Object.keys(chain.supplements.O).map((s) => +s as Id<GID.Supplement>);
+          : Object.keys(chain.supplements.O).map(s => +s as Id<GID.Supplement>);
 
       for (const sid of suppIds) {
         let sb = 0;
@@ -820,16 +927,19 @@ export function adjustBudget(
 // Synchronize functions — subscribe to store, call adjust, write results back
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const synchronizeBank = (charId: Id<GID.Character>, jumpId: Id<GID.Jump>) =>
+export const synchronizeBank = (
+  charId: Id<GID.Character>,
+  jumpId: Id<GID.Jump>,
+) =>
   useChainStore.subscribe(
-    (state) => ({
+    state => ({
       jumpChunks: state.calculatedData.jumpChunks!,
       jumpNumber: state.calculatedData.jumpNumber!,
       chain: state.chain,
       bankBalance: state.calculatedData.bankBalance,
       ...state.chain!.bankSettings,
     }),
-    (data) => {
+    data => {
       if (
         !data.chain ||
         !Object.keys(data.chain.characters.O).includes(String(charId)) ||
@@ -848,12 +958,15 @@ export const synchronizeBank = (charId: Id<GID.Character>, jumpId: Id<GID.Jump>)
         data.depositRatio,
       );
 
-      useChainStore.setState((s) =>
-        produce(s, (st) => {
-          if (!st.calculatedData.bankBalance) st.calculatedData.bankBalance = {};
-          if (!st.calculatedData.bankBalance[charId]) st.calculatedData.bankBalance[charId] = {};
+      useChainStore.setState(s =>
+        produce(s, st => {
+          if (!st.calculatedData.bankBalance)
+            st.calculatedData.bankBalance = {};
+          if (!st.calculatedData.bankBalance[charId])
+            st.calculatedData.bankBalance[charId] = {};
           st.calculatedData.bankBalance[charId][jumpId] = balance;
-          if (!st.calculatedData.totalBankDeposit) st.calculatedData.totalBankDeposit = {};
+          if (!st.calculatedData.totalBankDeposit)
+            st.calculatedData.totalBankDeposit = {};
           if (!st.calculatedData.totalBankDeposit[charId])
             st.calculatedData.totalBankDeposit[charId] = {};
           st.calculatedData.totalBankDeposit[charId][jumpId] = totalDeposit;
@@ -930,28 +1043,39 @@ export function adjustPassportStats(
     cpTotal,
     initialJumpId,
     initialJumpName:
-      initialJumpId !== undefined ? chain.jumps.O[initialJumpId]?.name || undefined : undefined,
+      initialJumpId !== undefined
+        ? chain.jumps.O[initialJumpId]?.name || undefined
+        : undefined,
   };
 }
 
 export const synchronizeJumpAccess = (charId: Id<GID.Character>) =>
   useChainStore.subscribe(
-    (state) => ({
+    state => ({
       chain: state.chain,
       jumpNumber: state.calculatedData.jumpNumber!,
       primary: state.chain?.characters?.O?.[charId]?.primary,
     }),
-    (data) => {
-      if (!data.chain || !Object.keys(data.chain.characters.O).map(Number).includes(charId)) return;
+    data => {
+      if (
+        !data.chain ||
+        !Object.keys(data.chain.characters.O).map(Number).includes(charId)
+      )
+        return;
 
-      const { jumpAccess, supplementAccess } = adjustJumpAccess(data.chain, charId);
+      const { jumpAccess, supplementAccess } = adjustJumpAccess(
+        data.chain,
+        charId,
+      );
       const passportStats = adjustPassportStats(data.chain, charId, jumpAccess);
 
-      useChainStore.setState((s) =>
-        produce(s, (st) => {
+      useChainStore.setState(s =>
+        produce(s, st => {
           if (!st.calculatedData.jumpAccess) st.calculatedData.jumpAccess = [];
-          if (!st.calculatedData.supplementAccess) st.calculatedData.supplementAccess = [];
-          if (!st.calculatedData.passportStats) st.calculatedData.passportStats = [];
+          if (!st.calculatedData.supplementAccess)
+            st.calculatedData.supplementAccess = [];
+          if (!st.calculatedData.passportStats)
+            st.calculatedData.passportStats = [];
           st.calculatedData.jumpAccess[charId] = jumpAccess;
           st.calculatedData.supplementAccess[charId] = supplementAccess;
           st.calculatedData.passportStats[charId] = passportStats;
@@ -974,14 +1098,21 @@ export const synchronizeBudget = (
   suppId?: Id<GID.Supplement>,
 ) =>
   useChainStore.subscribe(
-    (state) => ({
+    state => ({
       chain: state.chain,
-      retainedDrawbacks: state.calculatedData.retainedDrawbacks?.[charId]?.[jumpId],
+      retainedDrawbacks:
+        state.calculatedData.retainedDrawbacks?.[charId]?.[jumpId],
       chainDrawbacks: state.calculatedData.chainDrawbacks?.[charId]?.[jumpId],
       jumpChunks: state.calculatedData.jumpChunks,
       grossSupplementStipend: state.calculatedData.grossSupplementStipend,
     }),
-    ({ chain, retainedDrawbacks, chainDrawbacks, jumpChunks, grossSupplementStipend }) => {
+    ({
+      chain,
+      retainedDrawbacks,
+      chainDrawbacks,
+      jumpChunks,
+      grossSupplementStipend,
+    }) => {
       if (
         !chain ||
         !Object.keys(chain.characters.O).includes(String(charId)) ||
@@ -1000,8 +1131,8 @@ export const synchronizeBudget = (
         suppId,
       );
 
-      useChainStore.setState((s) =>
-        produce(s, (st) => {
+      useChainStore.setState(s =>
+        produce(s, st => {
           const cd = st.calculatedData;
 
           if (budget != null) {
@@ -1031,9 +1162,12 @@ export const synchronizeBudget = (
     },
   );
 
-export const synchronizeRetainedDrawbacks = (charId: Id<GID.Character>, jumpId: Id<GID.Jump>) =>
+export const synchronizeRetainedDrawbacks = (
+  charId: Id<GID.Character>,
+  jumpId: Id<GID.Jump>,
+) =>
   useChainStore.subscribe(
-    (state) => ({
+    state => ({
       chain: state.chain,
       jumpChunks: state.calculatedData.jumpChunks,
       jumpNumber: state.calculatedData.jumpNumber,
@@ -1046,11 +1180,18 @@ export const synchronizeRetainedDrawbacks = (charId: Id<GID.Character>, jumpId: 
       )
         return;
 
-      const retained = adjustRetainedDrawbacks(chain, jumpChunks, jumpNumber, charId, jumpId);
+      const retained = adjustRetainedDrawbacks(
+        chain,
+        jumpChunks,
+        jumpNumber,
+        charId,
+        jumpId,
+      );
 
-      useChainStore.setState((s) =>
-        produce(s, (st) => {
-          if (!st.calculatedData.retainedDrawbacks) st.calculatedData.retainedDrawbacks = {} as any;
+      useChainStore.setState(s =>
+        produce(s, st => {
+          if (!st.calculatedData.retainedDrawbacks)
+            st.calculatedData.retainedDrawbacks = {} as any;
           if (!st.calculatedData.retainedDrawbacks![charId])
             st.calculatedData.retainedDrawbacks![charId] = {} as any;
           st.calculatedData.retainedDrawbacks![charId][jumpId] = retained;
@@ -1069,7 +1210,7 @@ export const synchronizeSupplementInvestments = (
   suppId: Id<GID.Supplement>,
 ) =>
   useChainStore.subscribe(
-    (state) => ({
+    state => ({
       chain: state.chain,
       jumpChunks: state.calculatedData.jumpChunks,
     }),
@@ -1081,10 +1222,16 @@ export const synchronizeSupplementInvestments = (
       )
         return;
 
-      const total = adjustSupplementInvestments(chain, jumpChunks, charId, jumpId, suppId);
+      const total = adjustSupplementInvestments(
+        chain,
+        jumpChunks,
+        charId,
+        jumpId,
+        suppId,
+      );
 
-      useChainStore.setState((s) =>
-        produce(s, (st) => {
+      useChainStore.setState(s =>
+        produce(s, st => {
           const cd = st.calculatedData;
           if (!cd.supplementInvestments) cd.supplementInvestments = {};
           const byChar = cd.supplementInvestments!;
@@ -1096,7 +1243,9 @@ export const synchronizeSupplementInvestments = (
     },
     {
       equalityFn: (a, b) =>
-        a.chain?.jumps?.O?.[jumpId]?.supplementInvestments?.[charId]?.[suppId] ===
+        a.chain?.jumps?.O?.[jumpId]?.supplementInvestments?.[charId]?.[
+          suppId
+        ] ===
         b.chain?.jumps?.O?.[jumpId]?.supplementInvestments?.[charId]?.[suppId],
       fireImmediately: true,
     },
@@ -1108,13 +1257,17 @@ export const synchronizeGrossSupplementStipend = (
   suppId: Id<GID.Supplement>,
 ) =>
   useChainStore.subscribe(
-    (state) => ({
+    state => ({
       chain: state.chain,
       jumpChunks: state.calculatedData.jumpChunks,
       jumpNumber: state.calculatedData.jumpNumber,
-      investment: state.calculatedData.supplementInvestments?.[charId]?.[jumpId]?.[suppId],
+      investment:
+        state.calculatedData.supplementInvestments?.[charId]?.[jumpId]?.[
+          suppId
+        ],
       grossSupplementStipend: state.calculatedData.grossSupplementStipend,
-      companionSupplementPercentage: state.calculatedData.companionSupplementPercentage,
+      companionSupplementPercentage:
+        state.calculatedData.companionSupplementPercentage,
     }),
     ({
       chain,
@@ -1144,8 +1297,8 @@ export const synchronizeGrossSupplementStipend = (
         suppId,
       );
 
-      useChainStore.setState((s) =>
-        produce(s, (st) => {
+      useChainStore.setState(s =>
+        produce(s, st => {
           const cd = st.calculatedData;
           if (!cd.grossSupplementStipend) cd.grossSupplementStipend = {};
           const byChar = cd.grossSupplementStipend!;
@@ -1164,9 +1317,12 @@ export const synchronizeGrossSupplementStipend = (
     },
   );
 
-export const synchronizeChainDrawbacks = (charId: Id<GID.Character>, jumpId: Id<GID.Jump>) =>
+export const synchronizeChainDrawbacks = (
+  charId: Id<GID.Character>,
+  jumpId: Id<GID.Jump>,
+) =>
   useChainStore.subscribe(
-    (state) => ({
+    state => ({
       chain: state.chain,
       jumpChunks: state.calculatedData.jumpChunks,
     }),
@@ -1180,9 +1336,10 @@ export const synchronizeChainDrawbacks = (charId: Id<GID.Character>, jumpId: Id<
 
       const active = adjustChainDrawbacks(chain, jumpChunks, charId, jumpId);
 
-      useChainStore.setState((s) =>
-        produce(s, (st) => {
-          if (!st.calculatedData.chainDrawbacks) st.calculatedData.chainDrawbacks = {} as any;
+      useChainStore.setState(s =>
+        produce(s, st => {
+          if (!st.calculatedData.chainDrawbacks)
+            st.calculatedData.chainDrawbacks = {} as any;
           if (!st.calculatedData.chainDrawbacks![charId])
             st.calculatedData.chainDrawbacks![charId] = {} as any;
           st.calculatedData.chainDrawbacks![charId][jumpId] = active;
@@ -1208,7 +1365,7 @@ export function adjustJumpOrganization(): void {
   if (!chain) return;
 
   // 1. Compute jump structure.
-  const data = (chain.jumpList || []).map((j) => ({
+  const data = (chain.jumpList || []).map(j => ({
     id: j,
     parentJump: chain.jumps.O[j]?.parentJump,
   }));
@@ -1239,22 +1396,30 @@ export function adjustJumpOrganization(): void {
   const newSuppBudgets = {} as CalculatedData["supplementBudgets"];
   const newBudget = {} as CalculatedData["budget"];
 
-  const suppIds = Object.keys(chain.supplements.O).map((s) => createId<GID.Supplement>(+s));
+  const suppIds = Object.keys(chain.supplements.O).map(s =>
+    createId<GID.Supplement>(+s),
+  );
 
   // Primaries first so companion gross-stipend calculations can reference their values.
   const orderedChars = [
-    ...chain.characterList.filter((cId) => chain.characters.O[cId]?.primary),
-    ...chain.characterList.filter((cId) => !chain.characters.O[cId]?.primary),
+    ...chain.characterList.filter(cId => chain.characters.O[cId]?.primary),
+    ...chain.characterList.filter(cId => !chain.characters.O[cId]?.primary),
   ];
 
   for (const charId of orderedChars) {
     newBankBalance[charId] = {} as CalculatedData["bankBalance"][typeof charId];
-    newTotalBankDeposit[charId] = {} as CalculatedData["totalBankDeposit"][typeof charId];
-    newRetainedDrawbacks[charId] = {} as CalculatedData["retainedDrawbacks"][typeof charId];
-    newChainDrawbacks[charId] = {} as CalculatedData["chainDrawbacks"][typeof charId];
-    newSuppInvestments[charId] = {} as CalculatedData["supplementInvestments"][typeof charId];
-    newGrossStipend[charId] = {} as CalculatedData["grossSupplementStipend"][typeof charId];
-    newSuppBudgets[charId] = {} as CalculatedData["supplementBudgets"][typeof charId];
+    newTotalBankDeposit[charId] =
+      {} as CalculatedData["totalBankDeposit"][typeof charId];
+    newRetainedDrawbacks[charId] =
+      {} as CalculatedData["retainedDrawbacks"][typeof charId];
+    newChainDrawbacks[charId] =
+      {} as CalculatedData["chainDrawbacks"][typeof charId];
+    newSuppInvestments[charId] =
+      {} as CalculatedData["supplementInvestments"][typeof charId];
+    newGrossStipend[charId] =
+      {} as CalculatedData["grossSupplementStipend"][typeof charId];
+    newSuppBudgets[charId] =
+      {} as CalculatedData["supplementBudgets"][typeof charId];
     newBudget[charId] = {} as CalculatedData["budget"][typeof charId];
 
     for (const jumpId of chain.jumpList) {
@@ -1279,7 +1444,12 @@ export function adjustJumpOrganization(): void {
         charId,
         jumpId,
       );
-      newChainDrawbacks[charId][jumpId] = adjustChainDrawbacks(chain, chunks, charId, jumpId);
+      newChainDrawbacks[charId][jumpId] = adjustChainDrawbacks(
+        chain,
+        chunks,
+        charId,
+        jumpId,
+      );
 
       newSuppInvestments[charId][jumpId] =
         {} as CalculatedData["supplementInvestments"][typeof charId][typeof jumpId];
@@ -1287,13 +1457,8 @@ export function adjustJumpOrganization(): void {
         {} as CalculatedData["grossSupplementStipend"][typeof charId][typeof jumpId];
 
       for (const suppId of suppIds) {
-        newSuppInvestments[charId][jumpId][suppId] = adjustSupplementInvestments(
-          chain,
-          chunks,
-          charId,
-          jumpId,
-          suppId,
-        );
+        newSuppInvestments[charId][jumpId][suppId] =
+          adjustSupplementInvestments(chain, chunks, charId, jumpId, suppId);
         // Passes newGrossStipend so primary values at the same jump are available for companions.
         newGrossStipend[charId][jumpId][suppId] = adjustGrossSupplementStipend(
           chain,
@@ -1324,8 +1489,8 @@ export function adjustJumpOrganization(): void {
   }
 
   // 3. Write all computed data in a single setState.
-  useChainStore.setState((s) =>
-    produce(s, (st) => {
+  useChainStore.setState(s =>
+    produce(s, st => {
       st.calculatedData.jumpNumber = numbers;
       st.calculatedData.jumpChunks = chunks;
       st.calculatedData.bankBalance = newBankBalance;
