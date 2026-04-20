@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChainMaker — Down for Maintenance</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: oklch(0% 0 0);
+      color: oklch(0.93 0.007 240);
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 2rem;
+    }
+
+    .card {
+      max-width: 520px;
+      width: 100%;
+      background: oklch(0.2 0.01 240);
+      border: 1px solid oklch(0.29 0.02 240);
+      border-radius: 12px;
+      padding: 2.5rem 2.5rem 2rem;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: oklch(0.93 0.007 240);
+      margin-bottom: 0.75rem;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      color: oklch(0.65 0.021 240);
+      line-height: 1.6;
+      margin-bottom: 1.75rem;
+    }
+
+    .notice {
+      background: oklch(0.23 0.013 240);
+      border: 1px solid oklch(0.29 0.02 240);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      font-size: 0.875rem;
+      color: oklch(0.5 0.022 240);
+      line-height: 1.6;
+    }
+
+    .notice strong {
+      color: oklch(0.65 0.021 240);
+    }
+
+    .notice a {
+      color: oklch(0.68 0.24 248);
+      text-decoration: none;
+    }
+
+    .notice a:hover {
+      text-decoration: underline;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid oklch(0.29 0.02 240);
+      margin: 1.75rem 0 1.25rem;
+    }
+
+    .status {
+      font-size: 0.8rem;
+      color: oklch(0.37 0.024 240);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>ChainMaker is Updating</h1>
+    <p class="subtitle">
+      The server is temporarily offline, most likely for an update.
+      Please check back in a few minutes.
+    </p>
+    <div class="notice">
+      If the site is still down after <strong>15 minutes</strong>,
+      feel free to reach out at
+      <a href="mailto:shelbychainmaker@gmail.com">shelbychainmaker@gmail.com</a>
+      and I'll look into it.
+    </div>
+    <hr class="divider" />
+    <p class="status">HTTP 502 — Bad Gateway</p>
+  </div>
+</body>
+</html>
