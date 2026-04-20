@@ -1116,8 +1116,12 @@ function computePossibleCosts(
 ) {
   let isPurchase = (template as BasicPurchaseTemplate).subtype !== undefined;
   let floatingDiscountMode = isPurchase
-    ? doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype]
-        .floatingDiscountMode
+    ? (doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype]
+        .floatingDiscountMode ??
+      (doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype]
+        .floatingDiscountThresholds?.length
+        ? "free"
+        : undefined))
     : undefined;
   let maxFloatingDiscountThreshold: PartialLookup<TID.Currency, number> = {};
 
@@ -1233,6 +1237,9 @@ function computePossibleCosts(
     if (altCost.mandatory) cost = newCost;
     else costOptions.push(newCost);
   }
+  if (floatingDiscountMode == "free" && floatingDiscount(cost))
+    cost.floatingDiscountOption = true;
+
   return { default: cost, options: costOptions };
 }
 
@@ -2933,6 +2940,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             if (!jump.drawbacks[charId]) jump.drawbacks[charId] = [];
             jump.drawbacks[charId]!.push(newId);
           }
+          c.budgetFlag += 1;
         });
         return newId;
       },
@@ -3543,7 +3551,6 @@ export function AnnotationInteractionHandler({
 
   useEffect(() => {
     if (!chain || !doc) return;
-    const build = computeBuildData(chain, jumpId, charId, doc);
     setTracked("Backfill originalCost", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
@@ -3564,7 +3571,7 @@ export function AnnotationInteractionHandler({
           .usesFloatingDiscount;
         p.template.originalCost = {
           cost: p.value as any as Value<TID.Currency>,
-          ...(floatingDiscountOption
+          ...(!floatingDiscountOption
             ? (p.cost as ModifiedCost<TID.Currency>)
             : { modifier: CostModifier.Full }),
           floatingDiscountOption: floatingDiscountOption || undefined,
