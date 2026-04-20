@@ -1015,6 +1015,7 @@ function computeBuildData(
     ...(jump.scenarios[charId] ?? []),
   ]?.forEach(pId => {
     let purchase = chain.purchases.O[pId] as JumpPurchase;
+    if (!purchase) return;
     if (purchase.template?.id !== undefined)
       switch (purchase.type) {
         case PurchaseType.Perk:
@@ -3552,22 +3553,20 @@ export function AnnotationInteractionHandler({
       ]) {
         const p = c.purchases.O[gid] as JumpPurchase | undefined;
         if (!p?.template?.id) continue;
-        if ((p.template as any).originalCost) continue;
+        if (p?.template?.originalCost) continue;
         const isDrawback = p.type === PurchaseType.Drawback;
         const tid = p.template.id;
         const template = isDrawback
           ? doc.availableDrawbacks.O[tid as Id<TID.Drawback>]
           : doc.availablePurchases.O[tid as Id<TID.Purchase>];
         if (!template) continue;
-        const { default: defaultCost } = computePossibleCosts(
-          template,
-          build,
-          doc,
-        );
         const floatingDiscountOption = !!(p as BasicPurchase)
           .usesFloatingDiscount;
-        (p.template as any).originalCost = {
-          ...defaultCost,
+        p.template.originalCost = {
+          cost: p.value as any as Value<TID.Currency>,
+          ...(floatingDiscountOption
+            ? (p.cost as ModifiedCost<TID.Currency>)
+            : { modifier: CostModifier.Full }),
           floatingDiscountOption: floatingDiscountOption || undefined,
         };
       }
@@ -3592,12 +3591,12 @@ export function AnnotationInteractionHandler({
       let isError = false;
       if (interactions.length > 1)
         interactions = interactions.filter((_, index) => !errors[index]);
-      else 
-        isError = !!errors[0];
+      else isError = !!errors[0];
 
       let showPreview = false;
       if (interactions.length > 1) showPreview = true;
-      else if (interactions[0].forcePreview(buildData) || isError) showPreview = true;
+      else if (interactions[0].forcePreview(buildData) || isError)
+        showPreview = true;
       else {
         let actions = (
           typeof interactions[0].actions == "function"

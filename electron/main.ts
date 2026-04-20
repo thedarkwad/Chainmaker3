@@ -223,8 +223,12 @@ function buildMenu(): void {
         {
           label: "Check for Updates…",
           click: () => {
-            userInitiatedUpdateCheck = true;
-            autoUpdater.checkForUpdates().catch(() => {});
+            try {
+              userInitiatedUpdateCheck = true;
+              autoUpdater.checkForUpdates().catch(() => {});
+            } catch {
+              userInitiatedUpdateCheck = false;
+            }
           },
         },
       ],
@@ -385,7 +389,7 @@ app.whenReady().then(() => {
   buildMenu();
   createWindow();
 
-  if (!isDev) setupAutoUpdater();
+  if (!isDev) { try { setupAutoUpdater(); } catch (e) { console.error("Auto-updater failed to initialize:", e); } }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

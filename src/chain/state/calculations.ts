@@ -593,6 +593,7 @@ export function adjustBudget(
     // Add scenario rewards (currency and stipend types only).
     for (const pId of jump.scenarios[charId] ?? []) {
       const p = chain.purchases.O[pId] as Scenario;
+      if (!p) continue;
       for (const reward of p.rewards) {
         if (reward.type === RewardType.Currency) {
           budget.currency[reward.currency] =
