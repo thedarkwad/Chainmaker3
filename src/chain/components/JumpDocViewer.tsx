@@ -646,8 +646,6 @@ export function JumpDocViewer({
       }
     }
 
-    console.log("F");
-
     // Collect purchase subtype assignments
     const subtypeAssignments: {
       lid: Id<LID.PurchaseSubtype>;
@@ -671,16 +669,12 @@ export function JumpDocViewer({
       }
     }
 
-    console.log("G");
-
     if (
       assignments.length === 0 &&
       catAssignments.length === 0 &&
       subtypeAssignments.length === 0
     )
       return;
-
-    console.log("H");
 
     setOrigins(
       draft => {

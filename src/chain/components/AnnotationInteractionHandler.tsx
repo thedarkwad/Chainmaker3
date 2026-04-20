@@ -914,7 +914,11 @@ function InteractionDialog({
       onConfirm: () =>
         a
           .execute(build, mutators, interactionState)
-          .forEach(followup => enqueueInteractions([followup])),
+          .forEach(followup =>
+            "interaction" in followup
+              ? enqueueInteractions(followup.interaction, followup.character)
+              : enqueueInteractions([followup]),
+          ),
     }));
 
   return (
@@ -1281,7 +1285,7 @@ export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
       originError = `Restricted to holders of ${template.origins?.map((o, i) => `${i == (template.origins?.length ?? 0) - 1 && i > 0 && "or "}"${doc.origins.O[o].name}"`).join(", ")}.`;
     }
     if (prereqErrors.length > 0 || originError)
-      return `${prereqErrors.join(" ")} ${originError}`;
+      return `${prereqErrors.join(" ")} ${originError ?? ""}`;
   };
 
   let actions: (
@@ -2049,7 +2053,7 @@ export function randomizerInteraction(
       )
     : undefined;
 
-  const getAvailable = (bui_ld: JumpDocBuildData): OriginTemplate[] => {
+  const getAvailable = (_: JumpDocBuildData): OriginTemplate[] => {
     const result: OriginTemplate[] = [];
     for (const idStr in doc.origins.O) {
       const tid = createId<TID.Origin>(+idStr);
@@ -2197,7 +2201,10 @@ function buildFreebieInteractions(
   doc: JumpDoc,
   jumpId: Id<GID.Jump>,
   companionCharIds: Id<GID.Character>[],
-): AnnotationInteraction<object>[] {
+): {
+  interaction: [AnnotationInteraction<object>];
+  character: Id<GID.Character>;
+}[] {
   const freeOverride = {
     cost: {
       cost: [] as Value<TID.Currency>,
@@ -2206,47 +2213,59 @@ function buildFreebieInteractions(
     type: "import" as const,
     source: importId,
   };
-  const result: AnnotationInteraction<object>[] = [];
+  const result: {
+    interaction: [AnnotationInteraction<object>];
+    character: Id<GID.Character>;
+  }[] = [];
   for (const companionCharId of companionCharIds) {
     for (const freebie of freebies) {
       if (freebie.type === "purchase") {
         const tmpl = doc.availablePurchases.O[freebie.id];
         if (tmpl)
-          result.push(
-            purchaseInteraction(
-              "purchase",
-              tmpl,
-              doc,
-              jumpId,
-              companionCharId,
-              freeOverride,
-            ) as AnnotationInteraction<object>,
-          );
+          result.push({
+            interaction: [
+              purchaseInteraction(
+                "purchase",
+                tmpl,
+                doc,
+                jumpId,
+                companionCharId,
+                freeOverride,
+              ) as AnnotationInteraction<object>,
+            ],
+            character: +companionCharId as any,
+          });
       } else if (freebie.type === "drawback") {
         const tmpl = doc.availableDrawbacks.O[freebie.id];
         if (tmpl)
-          result.push(
-            purchaseInteraction(
-              "drawback",
-              tmpl,
+          result.push({
+            interaction: [
+              purchaseInteraction(
+                "drawback",
+                tmpl,
+                doc,
+                jumpId,
+                companionCharId,
+                freeOverride,
+              ) as AnnotationInteraction<object>,
+            ],
+            character: +companionCharId as any,
+          });
+      } else {
+        result.push({
+          interaction: [
+            originInteraction(
+              doc.origins.O[freebie.id],
+              {},
               doc,
               jumpId,
               companionCharId,
-              freeOverride,
+              undefined,
+              importId,
             ) as AnnotationInteraction<object>,
-          );
-      } else {
-        result.push(
-          originInteraction(
-            doc.origins.O[freebie.id],
-            {},
-            doc,
-            jumpId,
-            companionCharId,
-            undefined,
-            importId,
-          ) as AnnotationInteraction<object>,
-        );
+          ],
+          character: +companionCharId as any,
+        });
       }
     }
   }
@@ -2522,7 +2541,7 @@ export function companionImportInteraction(
         state.selectedIds.length === 0
           ? "You must select or create at least one character in order to add them as a companion."
           : undefined,
-      execute: (build, mutators, state) => {
+      execute: (_, mutators, state) => {
         if (state.follower) {
           const newId = mutators.addFollower({ template }, jumpId, charId, doc);
           if (newId !== undefined)
@@ -2585,7 +2604,9 @@ export function companionImportInteraction(
     preview: props => (
       <CompanionPreviewInner
         template={template}
-        adding={copies(props.buildData).length === 0}
+        adding={
+          copies(props.buildData).length === 0 || !template.specificCharacter
+        }
         state={props.state}
         setState={props.setState}
         selfCharId={charId}
@@ -2893,6 +2914,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             newId = registryAdd(c.purchases, {
               charId,
               jumpId,
+              duration: 1,
               overrides: {},
               name: applyTags(template.name, tags),
               description: applyTags(template.description, tags),
@@ -3567,14 +3589,15 @@ export function AnnotationInteractionHandler({
       let errors = Object.fromEntries(
         interactions.map((i, index) => [index, i.error(currentBuildData)]),
       );
+      let isError = false;
       if (interactions.length > 1)
         interactions = interactions.filter((_, index) => !errors[index]);
-
-      if (interactions.length == 0) continue;
+      else 
+        isError = !!errors[0];
 
       let showPreview = false;
       if (interactions.length > 1) showPreview = true;
-      else if (interactions[0].forcePreview(buildData)) showPreview = true;
+      else if (interactions[0].forcePreview(buildData) || isError) showPreview = true;
       else {
         let actions = (
           typeof interactions[0].actions == "function"
@@ -3599,7 +3622,11 @@ export function AnnotationInteractionHandler({
               mutators,
               interactions[0].initialize(currentBuildData),
             )
-            .forEach(a => enqueueInteractions([a]));
+            .forEach(a =>
+              "interaction" in a
+                ? enqueueInteractions(a.interaction, a.character)
+                : enqueueInteractions([a]),
+            );
         } else if (actions.length > 1) showPreview = true;
       }
 

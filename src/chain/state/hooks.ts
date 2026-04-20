@@ -1437,7 +1437,6 @@ export function useJumpOrigins(
             PartialLookup<LID.OriginCategory, Origin[]>
           >,
         );
-        console.log("AAAAABBBB")
         extraMutation?.(c);
       });
     },

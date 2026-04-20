@@ -25,7 +25,7 @@ export type BuildListener = {
 
 export type AnnotationAction<A> = {
   name: string | ((buildData: JumpDocBuildData, state: A) => string);
-  execute: (buildData: JumpDocBuildData, mutators: ChainMutators, state: A) => AnnotationInteraction<object>[];
+  execute: (buildData: JumpDocBuildData, mutators: ChainMutators, state: A) => AnnotationInteraction<object>[] | {interaction: [AnnotationInteraction<object>], character: Id<GID.Character>}[];
   condition: (buildData: JumpDocBuildData) => boolean;
   variant?: "confirm" | "warn" | "danger";
   blocker?: string | ((buildData: JumpDocBuildData, state: A) => string | undefined);
@@ -51,7 +51,6 @@ export type AnnotationInteraction<A extends object> = {
   warning?: string | ((build: JumpDocBuildData, state: A) => string | undefined);
 
   actions: AnnotationAction<A>[] | ((build: JumpDocBuildData) => AnnotationAction<A>[]);
-
   forcePreview: (buildData: JumpDocBuildData) => boolean;
 };
 
