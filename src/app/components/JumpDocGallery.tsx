@@ -269,6 +269,11 @@ function DocCard({
     <>
       <div className="w-full relative aspect-square rounded-t overflow-hidden bg-tint">
         {cover}
+        {!doc.published && (
+          <div className="absolute inset-ring-3 inset-ring-accent2 inset-0 bg-accent2-tint/85 flex items-center justify-center">
+            <span className="text-xs font-semibold uppercase tracking-widest text-accent2">unpublished</span>
+          </div>
+        )}
         {doc.author.length > 0 && (
           <span className="whitespace-nowrap absolute top-0 right-0 truncate max-w-7/12 bg-black rounded-bl text-white opacity-70 p-0.5 text-xs">
             By {doc.author.join(", ")}

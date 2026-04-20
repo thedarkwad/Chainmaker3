@@ -365,7 +365,10 @@ export const listPublishedJumpDocs = createServerFn({ method: "POST" })
     const skip = (data.page - 1) * data.pageSize;
     const searchFilter = buildSearchFilter(data.search ?? "");
     const nsfwFilter = data.showNsfw ? {} : { nsfw: { $ne: true } };
-    const filter = { published: true, ...nsfwFilter, ...searchFilter };
+    const publishedFilter = callerUid
+      ? { $or: [{ published: true }, { ownerUid: callerUid }] }
+      : { published: true };
+    const filter = { ...publishedFilter, ...nsfwFilter, ...searchFilter };
 
     const projection = callerUid
       ? {
@@ -375,6 +378,7 @@ export const listPublishedJumpDocs = createServerFn({ method: "POST" })
           publicUid: 1,
           imageId: 1,
           nsfw: 1,
+          published: 1,
           attributes: 1,
           createdAt: 1,
           updatedAt: 1,
@@ -387,6 +391,7 @@ export const listPublishedJumpDocs = createServerFn({ method: "POST" })
           publicUid: 1,
           imageId: 1,
           nsfw: 1,
+          published: 1,
           attributes: 1,
           createdAt: 1,
           updatedAt: 1,
@@ -415,7 +420,6 @@ export const listPublishedJumpDocs = createServerFn({ method: "POST" })
           d as RawJumpDoc,
           d.imageId ? imagePathById.get(d.imageId) : undefined,
           callerUid,
-          true,
         ),
       ),
     };
