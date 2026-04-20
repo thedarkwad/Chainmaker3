@@ -298,13 +298,13 @@ export function AltFormEditor({
         </a>
       )}
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        {altForm.species.trim() && (
+        {altForm?.species?.trim?.() && (
           <div>
             <FieldLabel>Species</FieldLabel>
             <p className="text-ink">{altForm.species}</p>
           </div>
         )}
-        {altForm.sex.trim() && (
+        {altForm?.sex?.trim?.() && (
           <div>
             <FieldLabel>Sex</FieldLabel>
             <p className="text-ink">{altForm.sex}</p>
@@ -319,13 +319,13 @@ export function AltFormEditor({
           <p className="text-ink">{displayWeight(altForm.weight, imperial)}</p>
         </div>
       </div>
-      {altForm.physicalDescription.trim() && (
+      {altForm?.physicalDescription?.trim?.() && (
         <div>
           <FieldLabel>Physical Description</FieldLabel>
           <ViewText text={altForm.physicalDescription} />
         </div>
       )}
-      {altForm.capabilities.trim() && (
+      {altForm?.capabilities?.trim?.() && (
         <div>
           <FieldLabel>Capabilities & Limitations</FieldLabel>
           <ViewText text={altForm.capabilities} />

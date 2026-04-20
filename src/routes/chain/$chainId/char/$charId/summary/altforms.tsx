@@ -132,7 +132,7 @@ function AltFormThumbnail({
   if (!altForm) return null;
 
   const name = altForm.name.trim() || "Unnamed Form";
-  const descriptor = [altForm.sex.trim(), altForm.species.trim()].filter(Boolean).join(" ");
+  const descriptor = [altForm.sex.trim(), altForm?.species?.trim?.() ?? ""].filter(Boolean).join(" ");
 
   return (
     <div
