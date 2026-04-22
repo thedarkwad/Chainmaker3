@@ -2096,7 +2096,7 @@ export function randomizerInteraction(
               doc,
               jumpId,
               charId,
-              template.cost,
+              category.random!.cost,
             ) as AnnotationInteraction<object>,
           ];
         },
