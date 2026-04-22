@@ -1206,6 +1206,7 @@ function computePossibleCosts(
         ? altCost.prerequisites.some(a)
         : altCost.prerequisites.every(a);
     if (
+      altCost.prerequisites.length > 0 &&
       f(prereq => {
         if (
           isFirstCopy &&
