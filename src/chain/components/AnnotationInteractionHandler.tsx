@@ -1291,7 +1291,7 @@ export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
         build.origins.every(bo => bo.template?.id != o),
       )
     ) {
-      originError = `Restricted to holders of ${template.origins?.map((o, i) => `${i == (template.origins?.length ?? 0) - 1 && i > 0 && "or "}"${doc.origins.O[o].name}"`).join(", ")}.`;
+      originError = `Restricted to holders of ${template.origins?.map((o, i) => `${i == (template.origins?.length ?? 0) - 1 && i > 0 ? "or " : ""}"${doc.origins.O[o].name}"`).join(", ")}.`;
     }
     if (prereqErrors.length > 0 || originError)
       return `${prereqErrors.join(" ")} ${originError ?? ""}`;

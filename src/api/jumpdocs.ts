@@ -368,7 +368,10 @@ export const listPublishedJumpDocs = createServerFn({ method: "POST" })
     const publishedFilter = callerUid
       ? { $or: [{ published: true }, { ownerUid: callerUid }] }
       : { published: true };
-    const filter = { ...publishedFilter, ...nsfwFilter, ...searchFilter };
+    const filterClauses: object[] = [publishedFilter];
+    if (Object.keys(nsfwFilter).length > 0) filterClauses.push(nsfwFilter);
+    if (Object.keys(searchFilter).length > 0) filterClauses.push(searchFilter);
+    const filter = filterClauses.length === 1 ? filterClauses[0] : { $and: filterClauses };
 
     const projection = callerUid
       ? {
