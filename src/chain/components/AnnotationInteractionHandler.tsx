@@ -24,6 +24,7 @@ import {
   setTracked,
   useAllCharacters,
   useChain,
+  useCharacter,
   useCreateCompanion,
   useRemoveCharacter,
   useUpdateStack,
@@ -1362,7 +1363,7 @@ export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
         },
       })),
       ...floatingDiscountCosts.map(c => ({
-        name: `Use Floating Discount(${formatCostDisplay(
+        name: `Use Floating Discount (${formatCostDisplay(
           c.cost,
           c,
           doc.currencies,
@@ -3449,6 +3450,8 @@ export function AnnotationInteractionHandler({
   const { startUpdate, finalizeUpdate } = useUpdateStack();
   const currentAction = useRef<undefined | string>(undefined);
 
+  const character = useCharacter(charId);
+
   const allListeners = useMemo(
     () => [
       createPrereqRemovalListener(),
@@ -3457,7 +3460,7 @@ export function AnnotationInteractionHandler({
       createScenarioRewardListener(),
       createOriginSynergyListener(jumpId, charId),
       createOriginStipendListener(jumpId, charId),
-      createDurationListener(jumpId, doc),
+      ...(character.char?.primary ? [createDurationListener(jumpId, doc)] : []),
     ],
     [jumpId, charId, doc],
   );
