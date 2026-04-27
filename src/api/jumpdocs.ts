@@ -3,7 +3,7 @@ import { applyPatches, enablePatches, type Patch } from "immer";
 import mongoose from "mongoose";
 import AdmZip from "adm-zip";
 import sharp from "sharp";
-import { connectToDatabase, Models } from "@/server/db";
+import { connectToDatabase, IConversation, Models } from "@/server/db";
 import { verifyIdToken } from "@/server/auth";
 import { syncJumpDocPurchases } from "@/server/purchases";
 import { uploadFile, deleteFile } from "@/server/storage";
@@ -11,8 +11,15 @@ import { compressPdf } from "@/server/pdf";
 import { type SaveResult } from "@/api/types";
 import { customAlphabet } from "nanoid";
 import { alphanumeric } from "nanoid-dictionary";
-import { parseJumpDocQuery, type JumpDocSearchField } from "@/utilities/SearchUtilities";
-import { isAuthorizedForDoc, isAuthorizedOrTrustedForDoc, escapeRegex } from "@/api/_helpers";
+import {
+  parseJumpDocQuery,
+  type JumpDocSearchField,
+} from "@/utilities/SearchUtilities";
+import {
+  isAuthorizedForDoc,
+  isAuthorizedOrTrustedForDoc,
+  escapeRegex,
+} from "@/api/_helpers";
 
 export type { SaveResult, SaveStatus } from "@/api/types";
 
@@ -30,7 +37,12 @@ enablePatches();
  */
 export const saveJumpDoc = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { docMongoId: string; idToken: string; patches: Patch[]; edits: number }) => data,
+    (data: {
+      docMongoId: string;
+      idToken: string;
+      patches: Patch[];
+      edits: number;
+    }) => data,
   )
   .handler(async ({ data }): Promise<SaveResult> => {
     await connectToDatabase();
@@ -40,7 +52,8 @@ export const saveJumpDoc = createServerFn({ method: "POST" })
     const doc = await Models.JumpDoc.findById(data.docMongoId).lean();
     if (!doc) return { status: "not_found" };
 
-    if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
+    if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid)))
+      return { status: "unauthorized" };
 
     if (doc.edits !== data.edits) return { status: "conflict" };
 
@@ -50,11 +63,15 @@ export const saveJumpDoc = createServerFn({ method: "POST" })
     } catch {
       return { status: "bad_patches" };
     }
-    const updatedContents = updated as { name?: string; author?: string; version?: string };
+    const updatedContents = updated as {
+      name?: string;
+      author?: string;
+      version?: string;
+    };
     const updatedName = updatedContents.name ?? "";
     const updatedAuthor = (updatedContents.author ?? "")
       .split(",")
-      .map((s) => s.trim())
+      .map(s => s.trim())
       .filter(Boolean);
     const updatedDocVersion = updatedContents.version?.trim() ?? "";
     await Models.JumpDoc.findByIdAndUpdate(
@@ -70,7 +87,13 @@ export const saveJumpDoc = createServerFn({ method: "POST" })
       },
       { strict: false },
     );
-    await syncJumpDocPurchases(doc.publicUid, updatedName, doc.published, doc.nsfw, updated as never);
+    await syncJumpDocPurchases(
+      doc.publicUid,
+      updatedName,
+      doc.published,
+      doc.nsfw,
+      updated as never,
+    );
 
     return { status: "ok", edits: doc.edits + 1 };
   });
@@ -82,39 +105,46 @@ export const saveJumpDoc = createServerFn({ method: "POST" })
  */
 export const deleteJumpDoc = createServerFn({ method: "POST" })
   .inputValidator((data: { publicUid: string; idToken: string }) => data)
-  .handler(async ({ data }): Promise<{ status: "ok" | "not_found" | "unauthorized" }> => {
-    await connectToDatabase();
-    const { uid } = await verifyIdToken(data.idToken);
-    const doc = await Models.JumpDoc.findOne({ publicUid: data.publicUid }).lean();
-    if (!doc) return { status: "not_found" };
-    if (!(await isAuthorizedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
-    const docIdStr = String(doc._id);
-    const pdf = await Models.PDF.findOne({ usedInDocId: docIdStr }).lean();
-    const ops: Promise<unknown>[] = [
-      Models.JumpDoc.findByIdAndDelete(doc._id),
-      Models.Purchase.deleteMany({ docId: data.publicUid }),
-    ];
-    if (pdf) {
-      ops.push(Models.PDF.findByIdAndDelete(pdf._id));
-      if (pdf.backblazeFileId) ops.push(deleteFile(pdf.backblazeFileId));
-      ops.push(
-        Models.User.updateOne(
-          { firebaseUid: uid },
-          { $inc: { "pdfUsage.currentBytes": -pdf.bytes } },
-        ),
-      );
-    }
-    if (doc.imageId) {
-      ops.push(
-        Models.Image.updateOne(
-          { _id: doc.imageId },
-          { $pull: { usedIn: { docType: "jumpdoc", docId: docIdStr } } },
-        ),
-      );
-    }
-    await Promise.all(ops);
-    return { status: "ok" };
-  });
+  .handler(
+    async ({
+      data,
+    }): Promise<{ status: "ok" | "not_found" | "unauthorized" }> => {
+      await connectToDatabase();
+      const { uid } = await verifyIdToken(data.idToken);
+      const doc = await Models.JumpDoc.findOne({
+        publicUid: data.publicUid,
+      }).lean();
+      if (!doc) return { status: "not_found" };
+      if (!(await isAuthorizedForDoc(uid, doc.ownerUid)))
+        return { status: "unauthorized" };
+      const docIdStr = String(doc._id);
+      const pdf = await Models.PDF.findOne({ usedInDocId: docIdStr }).lean();
+      const ops: Promise<unknown>[] = [
+        Models.JumpDoc.findByIdAndDelete(doc._id),
+        Models.Purchase.deleteMany({ docId: data.publicUid }),
+      ];
+      if (pdf) {
+        ops.push(Models.PDF.findByIdAndDelete(pdf._id));
+        if (pdf.backblazeFileId) ops.push(deleteFile(pdf.backblazeFileId));
+        ops.push(
+          Models.User.updateOne(
+            { firebaseUid: uid },
+            { $inc: { "pdfUsage.currentBytes": -pdf.bytes } },
+          ),
+        );
+      }
+      if (doc.imageId) {
+        ops.push(
+          Models.Image.updateOne(
+            { _id: doc.imageId },
+            { $pull: { usedIn: { docType: "jumpdoc", docId: docIdStr } } },
+          ),
+        );
+      }
+      await Promise.all(ops);
+      return { status: "ok" };
+    },
+  );
 
 /**
  * Replaces a JumpDoc's contents wholesale — no patch application, no edits check.
@@ -122,18 +152,25 @@ export const deleteJumpDoc = createServerFn({ method: "POST" })
  * Requires the caller to be the owner or an admin.
  */
 export const forceReplaceJumpDoc = createServerFn({ method: "POST" })
-  .inputValidator((data: { docMongoId: string; idToken: string; contents: unknown }) => data)
+  .inputValidator(
+    (data: { docMongoId: string; idToken: string; contents: unknown }) => data,
+  )
   .handler(async ({ data }): Promise<SaveResult> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);
     const doc = await Models.JumpDoc.findById(data.docMongoId).lean();
     if (!doc) return { status: "not_found" };
-    if (!(await isAuthorizedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
-    const contents = data.contents as { name?: string; author?: string; version?: string };
+    if (!(await isAuthorizedForDoc(uid, doc.ownerUid)))
+      return { status: "unauthorized" };
+    const contents = data.contents as {
+      name?: string;
+      author?: string;
+      version?: string;
+    };
     const updatedName = contents.name ?? "";
     const updatedAuthor = (contents.author ?? "")
       .split(",")
-      .map((s) => s.trim())
+      .map(s => s.trim())
       .filter(Boolean);
     const updatedDocVersion = contents.version?.trim() ?? "";
     await Models.JumpDoc.findByIdAndUpdate(
@@ -259,14 +296,19 @@ export const listJumpDocs = createServerFn({ method: "POST" })
     ).lean();
 
     // Batch-fetch cover image paths for docs that have an imageId.
-    const imageIds = docs.map((d) => d.imageId).filter(Boolean) as string[];
+    const imageIds = docs.map(d => d.imageId).filter(Boolean) as string[];
     const images =
       imageIds.length > 0
-        ? await Models.Image.find({ _id: { $in: imageIds } }, { path: 1 }).lean()
+        ? await Models.Image.find(
+            { _id: { $in: imageIds } },
+            { path: 1 },
+          ).lean()
         : [];
-    const imagePathById = new Map(images.map((img) => [String(img._id), img.path as string]));
+    const imagePathById = new Map(
+      images.map(img => [String(img._id), img.path as string]),
+    );
 
-    return docs.map((d) =>
+    return docs.map(d =>
       mapJumpDocSummary(
         d as RawJumpDoc,
         d.imageId ? imagePathById.get(d.imageId) : undefined,
@@ -316,14 +358,14 @@ function buildSearchFilter(search: string): object {
   const tokens = parseJumpDocQuery(search);
   if (tokens.length === 0) return {};
 
-  const anyTokens = tokens.filter((t) => t.field === "any");
-  const specificTokens = tokens.filter((t) => t.field !== "any");
+  const anyTokens = tokens.filter(t => t.field === "any");
+  const specificTokens = tokens.filter(t => t.field !== "any");
 
   const andClauses: object[] = [];
 
   // Bare words: any one must match name, author, or franchise
   if (anyTokens.length > 0) {
-    const orClauses = anyTokens.flatMap((t) => {
+    const orClauses = anyTokens.flatMap(t => {
       const re = new RegExp(escapeRegex(t.term), "i");
       return [{ name: re }, { author: re }, { "attributes.franchise": re }];
     });
@@ -371,7 +413,8 @@ export const listPublishedJumpDocs = createServerFn({ method: "POST" })
     const filterClauses: object[] = [publishedFilter];
     if (Object.keys(nsfwFilter).length > 0) filterClauses.push(nsfwFilter);
     if (Object.keys(searchFilter).length > 0) filterClauses.push(searchFilter);
-    const filter = filterClauses.length === 1 ? filterClauses[0] : { $and: filterClauses };
+    const filter =
+      filterClauses.length === 1 ? filterClauses[0] : { $and: filterClauses };
 
     const projection = callerUid
       ? {
@@ -409,16 +452,21 @@ export const listPublishedJumpDocs = createServerFn({ method: "POST" })
       Models.JumpDoc.countDocuments(filter),
     ]);
 
-    const imageIds = docs.map((d) => d.imageId).filter(Boolean) as string[];
+    const imageIds = docs.map(d => d.imageId).filter(Boolean) as string[];
     const images =
       imageIds.length > 0
-        ? await Models.Image.find({ _id: { $in: imageIds } }, { path: 1 }).lean()
+        ? await Models.Image.find(
+            { _id: { $in: imageIds } },
+            { path: 1 },
+          ).lean()
         : [];
-    const imagePathById = new Map(images.map((img) => [String(img._id), img.path as string]));
+    const imagePathById = new Map(
+      images.map(img => [String(img._id), img.path as string]),
+    );
 
     return {
       total,
-      docs: docs.map((d) =>
+      docs: docs.map(d =>
         mapJumpDocSummary(
           d as RawJumpDoc,
           d.imageId ? imagePathById.get(d.imageId) : undefined,
@@ -461,7 +509,7 @@ export const getPublishedJumpDocSummary = createServerFn({ method: "POST" })
     const imageUrl = doc.imageId
       ? await Models.Image.findOne({ _id: doc.imageId }, { path: 1 })
           .lean()
-          .then((img) => img?.path as string | undefined)
+          .then(img => img?.path as string | undefined)
       : undefined;
     return mapJumpDocSummary(doc as RawJumpDoc, imageUrl, callerUid, true);
   });
@@ -475,7 +523,9 @@ export const loadJumpDoc = createServerFn({ method: "POST" })
   .inputValidator((data: { publicUid: string; idToken?: string }) => data)
   .handler(async ({ data }) => {
     await connectToDatabase();
-    const doc = await Models.JumpDoc.findOne({ publicUid: data.publicUid }).lean();
+    const doc = await Models.JumpDoc.findOne({
+      publicUid: data.publicUid,
+    }).lean();
     if (!doc) throw new Error("JumpDoc not found");
 
     // Published docs are public — no auth required.
@@ -483,7 +533,8 @@ export const loadJumpDoc = createServerFn({ method: "POST" })
     if (doc.ownerUid && !doc.published) {
       if (!data.idToken) throw new Error("Authentication required");
       const { uid } = await verifyIdToken(data.idToken);
-      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid))) throw new Error("Unauthorized");
+      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid)))
+        throw new Error("Unauthorized");
     }
 
     // Fetch cover image URL if the doc has one
@@ -534,7 +585,9 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
   .handler(
     async ({
       data,
-    }): Promise<{ status: "ok" } | { status: "unauthorized" } | { status: "not_found" }> => {
+    }): Promise<
+      { status: "ok" } | { status: "unauthorized" } | { status: "not_found" }
+    > => {
       await connectToDatabase();
 
       const { uid } = await verifyIdToken(data.idToken);
@@ -542,7 +595,8 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
       const doc = await Models.JumpDoc.findById(data.docMongoId).lean();
       if (!doc) return { status: "not_found" };
 
-      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
+      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid)))
+        return { status: "unauthorized" };
 
       const oldImageId = (doc.imageId as string | undefined) ?? null;
       const newImageId = data.imageId ?? null;
@@ -580,7 +634,9 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
           updates.push(
             Models.Image.updateOne(
               { _id: newImageId },
-              { $addToSet: { usedIn: { docType: "jumpdoc", docId: docIdStr } } },
+              {
+                $addToSet: { usedIn: { docType: "jumpdoc", docId: docIdStr } },
+              },
             ),
           );
         }
@@ -600,11 +656,18 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
  */
 export const createJumpDoc = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { idToken: string; fileName: string; fileData: string; bytes: number }) => data,
+    (data: {
+      idToken: string;
+      fileName: string;
+      fileData: string;
+      bytes: number;
+    }) => data,
   )
   .handler(async ({ data }): Promise<{ publicUid: string }> => {
     if (data.bytes > 10 * 1048576)
-      throw new Error(`PDF is too large to upload (max 10 MB before compression).`);
+      throw new Error(
+        `PDF is too large to upload (max 10 MB before compression).`,
+      );
 
     await connectToDatabase();
 
@@ -615,12 +678,17 @@ export const createJumpDoc = createServerFn({ method: "POST" })
     const pdfBytes = buffer.length;
 
     // Check PDF storage quota
-    const user = await Models.User.findOne({ firebaseUid: uid }, { pdfUsage: 1 }).lean();
+    const user = await Models.User.findOne(
+      { firebaseUid: uid },
+      { pdfUsage: 1 },
+    ).lean();
     if (!user) throw new Error("User not found");
     if (user.pdfUsage.currentBytes + pdfBytes > user.pdfUsage.maxBytes) {
       const limitMb = Math.round(user.pdfUsage.maxBytes / 1024 / 1024);
       const usedMb = Math.round(user.pdfUsage.currentBytes / 1024 / 1024);
-      throw new Error(`PDF storage quota exceeded (${usedMb} MB used of ${limitMb} MB limit)`);
+      throw new Error(
+        `PDF storage quota exceeded (${usedMb} MB used of ${limitMb} MB limit)`,
+      );
     }
 
     // Upload to Backblaze B2
@@ -644,7 +712,12 @@ export const createJumpDoc = createServerFn({ method: "POST" })
           0: { name: "Age", singleLine: true, multiple: false, options: [] },
           1: { name: "Gender", singleLine: true, multiple: false, options: [] },
           2: { name: "Location", singleLine: false, multiple: false },
-          3: { name: "Origin", singleLine: false, multiple: false, providesDiscounts: true },
+          3: {
+            name: "Origin",
+            singleLine: false,
+            multiple: false,
+            providesDiscounts: true,
+          },
         },
       },
       origins: { fId: 0, O: {} },
@@ -734,7 +807,10 @@ export const getJumpDocPdfUrl = createServerFn({ method: "POST" })
     ).lean();
     if (!doc) throw new Error("Not found");
     const pdf = await Models.PDF.findById(doc.pdf, { path: 1 }).lean();
-    return { pdfUrl: (pdf?.path as string) ?? null, name: (doc.name as string) ?? "Untitled" };
+    return {
+      pdfUrl: (pdf?.path as string) ?? null,
+      name: (doc.name as string) ?? "Untitled",
+    };
   });
 
 /**
@@ -745,7 +821,9 @@ export const buildJumpDocZip = createServerFn({ method: "POST" })
   .inputValidator((data: { publicUid: string }) => data)
   .handler(async ({ data }) => {
     await connectToDatabase();
-    const doc = await Models.JumpDoc.findOne({ publicUid: data.publicUid }).lean();
+    const doc = await Models.JumpDoc.findOne({
+      publicUid: data.publicUid,
+    }).lean();
     if (!doc) throw new Error("Not found");
 
     const pdf = await Models.PDF.findById(doc.pdf, { path: 1 }).lean();
@@ -753,7 +831,9 @@ export const buildJumpDocZip = createServerFn({ method: "POST" })
 
     const [pdfRes, imageDoc] = await Promise.all([
       fetch(pdf.path as string),
-      doc.imageId ? Models.Image.findById(doc.imageId, { path: 1 }).lean() : Promise.resolve(null),
+      doc.imageId
+        ? Models.Image.findById(doc.imageId, { path: 1 }).lean()
+        : Promise.resolve(null),
     ]);
     const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
 
@@ -761,8 +841,14 @@ export const buildJumpDocZip = createServerFn({ method: "POST" })
     const meta = { name, author: doc.author ?? [], version: "1.0" };
 
     const zip = new AdmZip();
-    zip.addFile("data.json", Buffer.from(JSON.stringify(doc.contents, null, 2), "utf-8"));
-    zip.addFile("meta.json", Buffer.from(JSON.stringify(meta, null, 2), "utf-8"));
+    zip.addFile(
+      "data.json",
+      Buffer.from(JSON.stringify(doc.contents, null, 2), "utf-8"),
+    );
+    zip.addFile(
+      "meta.json",
+      Buffer.from(JSON.stringify(meta, null, 2), "utf-8"),
+    );
     zip.addFile("pdf.pdf", pdfBuffer);
 
     if (imageDoc?.path) {
@@ -794,16 +880,19 @@ export const importJumpDoc = createServerFn({ method: "POST" })
     if (!dataEntry || !pdfEntry)
       throw new Error("Invalid .jumpdoc file: missing data.json or pdf.pdf");
 
-    const contents = JSON.parse(dataEntry.getData().toString("utf-8")) as Record<string, unknown>;
+    const contents = JSON.parse(
+      dataEntry.getData().toString("utf-8"),
+    ) as Record<string, unknown>;
     const meta = zip.getEntry("meta.json")
-      ? (JSON.parse(zip.getEntry("meta.json")!.getData().toString("utf-8")) as Record<
-          string,
-          unknown
-        >)
+      ? (JSON.parse(
+          zip.getEntry("meta.json")!.getData().toString("utf-8"),
+        ) as Record<string, unknown>)
       : {};
 
     const name = (meta.name ?? contents.name ?? "Untitled") as string;
-    const attributes = (meta.attributes as Record<string, string[]> | undefined) ?? {
+    const attributes = (meta.attributes as
+      | Record<string, string[]>
+      | undefined) ?? {
       genre: [],
       medium: [],
       franchise: [],
@@ -815,29 +904,47 @@ export const importJumpDoc = createServerFn({ method: "POST" })
     const rawPdfBuffer = pdfEntry.getData();
     const pdfBuffer = await compressPdf(rawPdfBuffer);
     const pdfBytes = pdfBuffer.length;
-    const user = await Models.User.findOne({ firebaseUid: uid }, { pdfUsage: 1 }).lean();
+    const user = await Models.User.findOne(
+      { firebaseUid: uid },
+      { pdfUsage: 1 },
+    ).lean();
     if (!user) throw new Error("User not found");
     if (user.pdfUsage.currentBytes + pdfBytes > user.pdfUsage.maxBytes) {
       const limitMb = Math.round(user.pdfUsage.maxBytes / 1024 / 1024);
       throw new Error(`PDF storage quota exceeded (limit: ${limitMb} MB)`);
     }
     const pdfKey = `pdfs/${uid}/${customAlphabet(alphanumeric, 16)()}.pdf`;
-    const { url: pdfUrl } = await uploadFile(pdfKey, pdfBuffer, "application/pdf");
+    const { url: pdfUrl } = await uploadFile(
+      pdfKey,
+      pdfBuffer,
+      "application/pdf",
+    );
     contents.url = pdfUrl;
 
     // Upload thumbnail best-effort.
     let imageId: string | null = null;
-    const thumbEntry = zip.getEntries().find((e) => e.entryName.startsWith("thumb."));
+    const thumbEntry = zip
+      .getEntries()
+      .find(e => e.entryName.startsWith("thumb."));
     if (thumbEntry) {
       try {
         const compressed = await sharp(thumbEntry.getData())
-          .resize({ width: 512, height: 512, fit: "inside", withoutEnlargement: true })
+          .resize({
+            width: 512,
+            height: 512,
+            fit: "inside",
+            withoutEnlargement: true,
+          })
           .avif({ quality: 65 })
           .toBuffer();
-        const imgUser = await Models.User.findOne({ firebaseUid: uid }, { imageUsage: 1 }).lean();
+        const imgUser = await Models.User.findOne(
+          { firebaseUid: uid },
+          { imageUsage: 1 },
+        ).lean();
         if (
           imgUser &&
-          imgUser.imageUsage.currentBytes + compressed.length <= imgUser.imageUsage.maxBytes
+          imgUser.imageUsage.currentBytes + compressed.length <=
+            imgUser.imageUsage.maxBytes
         ) {
           const imgKey = `images/${uid}/${customAlphabet(alphanumeric, 16)()}.avif`;
           const { url } = await uploadFile(imgKey, compressed, "image/avif");
@@ -864,7 +971,7 @@ export const importJumpDoc = createServerFn({ method: "POST" })
     const jumpdoc = await Models.JumpDoc.create({
       contents,
       name,
-      author: ((contents.author as string) ?? "").split(",").map((s) => s.trim()),
+      author: ((contents.author as string) ?? "").split(",").map(s => s.trim()),
       ownerUid: uid,
       publicUid: customAlphabet(alphanumeric, 16)(),
       pdf: String(pdfObjId),
@@ -892,7 +999,9 @@ export const importJumpDoc = createServerFn({ method: "POST" })
     if (imageId) {
       await Models.Image.updateOne(
         { _id: imageId },
-        { $push: { usedIn: { docType: "jumpdoc", docId: String(jumpdoc._id) } } },
+        {
+          $push: { usedIn: { docType: "jumpdoc", docId: String(jumpdoc._id) } },
+        },
       );
     }
 
@@ -906,25 +1015,37 @@ export const importJumpDoc = createServerFn({ method: "POST" })
  */
 export const sendTrustedEditMessage = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { publicUid: string; idToken: string; what: string; why: string; how?: string }) =>
-      data,
+    (data: {
+      publicUid: string;
+      idToken: string;
+      what: string;
+      why: string;
+      how?: string;
+    }) => data,
   )
   .handler(
     async ({
       data,
-    }): Promise<{ status: "ok" } | { status: "not_found" } | { status: "unauthorized" }> => {
+    }): Promise<
+      { status: "ok" } | { status: "not_found" } | { status: "unauthorized" }
+    > => {
       await connectToDatabase();
       const { uid } = await verifyIdToken(data.idToken);
 
-      const doc = await Models.JumpDoc.findOne({ publicUid: data.publicUid }, { ownerUid: 1 }).lean();
+      const doc = await Models.JumpDoc.findOne(
+        { publicUid: data.publicUid },
+        { ownerUid: 1 },
+      ).lean();
       if (!doc) return { status: "not_found" };
-      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
+      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid)))
+        return { status: "unauthorized" };
 
       const parts = [
         `## What changed?\n${data.what}`,
         `## Why was this necessary?\n${data.why}`,
       ];
       if (data.how?.trim()) parts.push(`## How to replicate:\n${data.how}`);
+      parts.push("Feel free to ask me any questions you may have!");
       const content = parts.join("\n\n");
 
       const message = {
@@ -934,13 +1055,18 @@ export const sendTrustedEditMessage = createServerFn({ method: "POST" })
         senderUid: uid,
       };
 
-      const existing = await Models.Conversation.findOne({ salientJumpDocUid: data.publicUid });
+      const existing = await Models.Conversation.findOne({
+        salientJumpDocUid: data.publicUid,
+      }) as IConversation | null;
       if (existing) {
-        const ownerRead = existing.read.find((r) => r.userUid === doc.ownerUid);
+        const ownerRead = existing.read.find(r => r.userUid === doc.ownerUid);
         if (ownerRead) {
           await Models.Conversation.updateOne(
             { _id: existing._id, "read.userUid": doc.ownerUid },
-            { $push: { messages: message }, $set: { "read.$.caughtUp": false } },
+            {
+              $push: { messages: message },
+              $set: { "read.$.caughtUp": false },
+            },
           );
         } else {
           await Models.Conversation.updateOne(
@@ -976,30 +1102,55 @@ export const sendTrustedEditMessage = createServerFn({ method: "POST" })
  * Used for publish-metadata and unpublish actions by trusted editors.
  */
 export const sendModeratorNotification = createServerFn({ method: "POST" })
-  .inputValidator((data: { publicUid: string; idToken: string; content: string }) => data)
+  .inputValidator(
+    (data: { publicUid: string; idToken: string; content: string }) => data,
+  )
   .handler(
-    async ({ data }): Promise<{ status: "ok" } | { status: "not_found" } | { status: "unauthorized" }> => {
+    async ({
+      data,
+    }): Promise<
+      { status: "ok" } | { status: "not_found" } | { status: "unauthorized" }
+    > => {
       await connectToDatabase();
       const { uid } = await verifyIdToken(data.idToken);
 
-      const doc = await Models.JumpDoc.findOne({ publicUid: data.publicUid }, { ownerUid: 1 }).lean();
+      const doc = await Models.JumpDoc.findOne(
+        { publicUid: data.publicUid },
+        { ownerUid: 1 },
+      ).lean();
       if (!doc) return { status: "not_found" };
-      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
+      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid)))
+        return { status: "unauthorized" };
 
-      const message = { timestamp: new Date(), content: data.content, accompanyingChange: true, senderUid: uid };
+      const message = {
+        timestamp: new Date(),
+        content: data.content,
+        accompanyingChange: true,
+        senderUid: uid,
+      };
 
-      const existing = await Models.Conversation.findOne({ salientJumpDocUid: data.publicUid });
+      const existing = await Models.Conversation.findOne({
+        salientJumpDocUid: data.publicUid,
+      }) as IConversation | null;
       if (existing) {
-        const ownerRead = existing.read.find((r) => r.userUid === doc.ownerUid);
+        const ownerRead = existing.read.find(r => r.userUid === doc.ownerUid);
         if (ownerRead) {
           await Models.Conversation.updateOne(
             { _id: existing._id, "read.userUid": doc.ownerUid },
-            { $push: { messages: message }, $set: { "read.$.caughtUp": false } },
+            {
+              $push: { messages: message },
+              $set: { "read.$.caughtUp": false },
+            },
           );
         } else {
           await Models.Conversation.updateOne(
             { _id: existing._id },
-            { $push: { messages: message, read: { userUid: doc.ownerUid, caughtUp: false, readUpTo: 0 } } },
+            {
+              $push: {
+                messages: message,
+                read: { userUid: doc.ownerUid, caughtUp: false, readUpTo: 0 },
+              },
+            },
           );
         }
       } else {
