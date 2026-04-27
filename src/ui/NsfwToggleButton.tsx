@@ -80,7 +80,7 @@ export function NsfwToggleButton({
                   you are 18 or older.
                 </p>
                 <p className="text-xs text-muted leading-relaxed">
-                  Note that NSFW jumpdocs sometimes feature fetishizion of
+                  Note that NSFW jumpdocs sometimes feature fetishization of
                   non-consensual sexual situations, either implicity or
                   explicitly. If you would be uncomfortable seeing content of
                   this sort, you may want to leave these jumpdocs hidden.
