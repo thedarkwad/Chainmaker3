@@ -217,3 +217,11 @@ export async function buildJumpDocZip(
 export async function importJumpDoc(_params: unknown): Promise<{ publicUid: string }> {
   throw new Error("importJumpDoc is not available in Electron.");
 }
+
+export async function sendTrustedEditMessage(_params: unknown): Promise<{ status: "ok" }> {
+  return { status: "ok" };
+}
+
+export async function sendModeratorNotification(_params: unknown): Promise<{ status: "ok" }> {
+  return { status: "ok" };
+}

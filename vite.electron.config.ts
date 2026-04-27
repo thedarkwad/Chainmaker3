@@ -36,6 +36,7 @@ export default defineConfig({
       "@/app/state/recentChains": path.resolve("src/electron-api/recentChains.ts"),
       "@/api/auth": path.resolve("src/electron-api/api-auth.ts"),
       "@/api/purchases": path.resolve("src/electron-api/purchases.ts"),
+      "@/api/conversations": path.resolve("src/electron-api/conversations.ts"),
       // Stub out Node/server modules that leak into the renderer via transitive deps
       "util": path.resolve("src/electron-api/empty.ts"),
       "node:async_hooks": path.resolve("src/electron-api/empty.ts"),
