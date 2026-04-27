@@ -1045,7 +1045,6 @@ export const sendTrustedEditMessage = createServerFn({ method: "POST" })
         `## Why was this necessary?\n${data.why}`,
       ];
       if (data.how?.trim()) parts.push(`## How to replicate:\n${data.how}`);
-      parts.push("Feel free to ask me any questions you may have!");
       const content = parts.join("\n\n");
 
       const message = {
