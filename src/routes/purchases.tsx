@@ -171,7 +171,8 @@ function PurchaseRow({
 
 function PurchasesPage() {
   const { settings, updateSettings } = useTheme();
-  const { firebaseUser } = useCurrentUser();
+  const { firebaseUser, dbUser } = useCurrentUser();
+  const isTrusted = dbUser?.permissions?.includes("trusted") ?? false;
 
   const [search, setSearch] = useState("");
   const [committedSearch, setCommittedSearch] = useState("");
@@ -377,6 +378,7 @@ function PurchasesPage() {
             <JumpDocSidebar
               doc={sidebarDoc}
               isOwner={sidebarDoc.isOwner ?? false}
+              isTrusted={isTrusted}
               onClose={() => setSidebarDoc(null)}
               onNewChain={() => setPickerTab("new")}
               onExistingChain={() => setPickerTab("existing")}
@@ -398,6 +400,7 @@ function PurchasesPage() {
             <JumpDocSidebar
               doc={sidebarDoc}
               isOwner={sidebarDoc.isOwner ?? false}
+              isTrusted={isTrusted}
               onClose={() => setMobileSidebarOpen(false)}
               onNewChain={() => setPickerTab("new")}
               onExistingChain={() => setPickerTab("existing")}

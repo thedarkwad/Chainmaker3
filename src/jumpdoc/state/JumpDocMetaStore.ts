@@ -23,6 +23,7 @@ const EMPTY_ATTRIBUTES: JumpDocAttributes = {
 
 type JumpDocMetaState = {
   docMongoId: string;
+  ownerUid: string;
   published: boolean;
   nsfw: boolean;
   attributes: JumpDocAttributes;
@@ -44,6 +45,7 @@ type JumpDocMetaStore = JumpDocMetaState & {
 
 export const useJumpDocMetaStore = create<JumpDocMetaStore>((set) => ({
   docMongoId: "",
+  ownerUid: "",
   published: false,
   nsfw: false,
   attributes: EMPTY_ATTRIBUTES,
@@ -61,6 +63,7 @@ export function useJumpDocMeta() {
   return useJumpDocMetaStore(
     useShallow((s) => ({
       docMongoId: s.docMongoId,
+      ownerUid: s.ownerUid,
       published: s.published,
       nsfw: s.nsfw,
       attributes: s.attributes,

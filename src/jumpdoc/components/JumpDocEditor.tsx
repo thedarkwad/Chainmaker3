@@ -19,13 +19,15 @@ import { CompanionsSection } from "./CompanionsSection";
 import { DrawbacksSection } from "./DrawbacksSection";
 import { ScenariosSection } from "./ScenariosSection";
 import { PublishModal } from "./PublishModal";
+import { TrustedUnpublishModal } from "./TrustedUnpublishModal";
 import type { SectionSharedProps } from "./sectionTypes";
 import {
   useJumpDocNonSingleLineOriginCategoryIds,
   useJumpDocPurchaseSubtypeIdsSorted,
 } from "@/jumpdoc/state/hooks";
 import { useJumpDocMetaStore, useJumpDocMeta } from "@/jumpdoc/state/JumpDocMetaStore";
-import { publishJumpDoc } from "@/api/jumpdocs";
+import { useJumpDoc } from "@/jumpdoc/state/hooks";
+import { publishJumpDoc, sendModeratorNotification } from "@/api/jumpdocs";
 import { TID } from "@/chain/data/types";
 
 type JumpDocEditorProps = SectionSharedProps<TID> & {
@@ -40,6 +42,10 @@ type JumpDocEditorProps = SectionSharedProps<TID> & {
   className?: string;
   /** When set, shows a mobile-only "Show PDF" button at the top of the panel. */
   onShowPdf?: () => void;
+  /** True when the current user is a trusted editor (not the owner). */
+  isTrustedEditor?: boolean;
+  /** Public UID of the doc — required for moderator notifications. */
+  docPublicUid?: string;
 };
 
 export function JumpDocEditor({
@@ -52,6 +58,8 @@ export function JumpDocEditor({
   firebaseUser,
   className,
   onShowPdf,
+  isTrustedEditor,
+  docPublicUid,
 }: JumpDocEditorProps) {
   const shared: SectionSharedProps<TID> = {
     onAddBoundsRequest,
@@ -63,10 +71,12 @@ export function JumpDocEditor({
   const originCatIds = useJumpDocNonSingleLineOriginCategoryIds();
   const subtypeIds = useJumpDocPurchaseSubtypeIdsSorted();
   const { published, nsfw, docMongoId, attributes, imageId } = useJumpDocMeta();
+  const doc = useJumpDoc();
   const isElectron = import.meta.env.VITE_PLATFORM === "electron";
 
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [unpublishing, setUnpublishing] = useState(false);
+  const [showUnpublishModal, setShowUnpublishModal] = useState(false);
 
   const basicsSection = useRef<HTMLDivElement>(null);
 
@@ -84,6 +94,7 @@ export function JumpDocEditor({
 
   async function handleUnpublish() {
     if (unpublishing || !firebaseUser) return;
+    if (isTrustedEditor) { setShowUnpublishModal(true); return; }
     setUnpublishing(true);
     try {
       const idToken = await firebaseUser.getIdToken();
@@ -92,6 +103,26 @@ export function JumpDocEditor({
       });
       if (result.status === "ok") {
         useJumpDocMetaStore.getState().setPublished(false);
+      }
+    } finally {
+      setUnpublishing(false);
+    }
+  }
+
+  async function handleTrustedUnpublish(rationale: string) {
+    if (!firebaseUser || !docPublicUid) return;
+    setUnpublishing(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const result = await publishJumpDoc({
+        data: { docMongoId, idToken, published: false, nsfw, attributes, imageId },
+      });
+      if (result.status === "ok") {
+        useJumpDocMetaStore.getState().setPublished(false);
+        const docName = doc?.name ?? "Unknown";
+        const content = `Your ${docName} jumpdoc conversion has been unpublished.\n\n**Why was it removed?**\n${rationale}`;
+        await sendModeratorNotification({ data: { publicUid: docPublicUid, idToken, content } });
+        setShowUnpublishModal(false);
       }
     } finally {
       setUnpublishing(false);
@@ -232,9 +263,21 @@ export function JumpDocEditor({
         )}
       </div>
 
-      {/* Publish modal — portals into #jumpdoc-editor-outer */}
       {showPublishModal && (
-        <PublishModal firebaseUser={firebaseUser} onClose={() => setShowPublishModal(false)} />
+        <PublishModal
+          firebaseUser={firebaseUser}
+          onClose={() => setShowPublishModal(false)}
+          isTrustedEditor={isTrustedEditor}
+          docPublicUid={docPublicUid}
+        />
+      )}
+      {showUnpublishModal && (
+        <TrustedUnpublishModal
+          docName={doc?.name ?? ""}
+          saving={unpublishing}
+          onClose={() => setShowUnpublishModal(false)}
+          onSubmit={handleTrustedUnpublish}
+        />
       )}
     </div>
   );

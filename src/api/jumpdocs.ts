@@ -12,7 +12,7 @@ import { type SaveResult } from "@/api/types";
 import { customAlphabet } from "nanoid";
 import { alphanumeric } from "nanoid-dictionary";
 import { parseJumpDocQuery, type JumpDocSearchField } from "@/utilities/SearchUtilities";
-import { isAuthorizedForDoc, escapeRegex } from "@/api/_helpers";
+import { isAuthorizedForDoc, isAuthorizedOrTrustedForDoc, escapeRegex } from "@/api/_helpers";
 
 export type { SaveResult, SaveStatus } from "@/api/types";
 
@@ -40,7 +40,7 @@ export const saveJumpDoc = createServerFn({ method: "POST" })
     const doc = await Models.JumpDoc.findById(data.docMongoId).lean();
     if (!doc) return { status: "not_found" };
 
-    if (!(await isAuthorizedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
+    if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
 
     if (doc.edits !== data.edits) return { status: "conflict" };
 
@@ -479,11 +479,11 @@ export const loadJumpDoc = createServerFn({ method: "POST" })
     if (!doc) throw new Error("JumpDoc not found");
 
     // Published docs are public — no auth required.
-    // Unpublished docs require the caller to be the owner or an admin.
+    // Unpublished docs require the caller to be the owner, an admin, or trusted.
     if (doc.ownerUid && !doc.published) {
       if (!data.idToken) throw new Error("Authentication required");
       const { uid } = await verifyIdToken(data.idToken);
-      if (!(await isAuthorizedForDoc(uid, doc.ownerUid))) throw new Error("Unauthorized");
+      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid))) throw new Error("Unauthorized");
     }
 
     // Fetch cover image URL if the doc has one
@@ -497,6 +497,7 @@ export const loadJumpDoc = createServerFn({ method: "POST" })
       contents: doc.contents,
       edits: doc.edits,
       docMongoId: String(doc._id),
+      ownerUid: doc.ownerUid,
       published: doc.published ?? false,
       nsfw: (doc as { nsfw?: boolean }).nsfw ?? false,
       attributes: doc.attributes ?? {
@@ -541,7 +542,7 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
       const doc = await Models.JumpDoc.findById(data.docMongoId).lean();
       if (!doc) return { status: "not_found" };
 
-      if (!(await isAuthorizedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
+      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
 
       const oldImageId = (doc.imageId as string | undefined) ?? null;
       const newImageId = data.imageId ?? null;
@@ -897,6 +898,125 @@ export const importJumpDoc = createServerFn({ method: "POST" })
 
     return { publicUid: jumpdoc.publicUid as string };
   });
+
+/**
+ * Creates or appends to the conversation for a jumpdoc, recording a trusted editor's change.
+ * Finds the conversation by salientJumpDocUid = publicUid; creates one if none exists.
+ * The message is assembled from three parts with markdown headings.
+ */
+export const sendTrustedEditMessage = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { publicUid: string; idToken: string; what: string; why: string; how?: string }) =>
+      data,
+  )
+  .handler(
+    async ({
+      data,
+    }): Promise<{ status: "ok" } | { status: "not_found" } | { status: "unauthorized" }> => {
+      await connectToDatabase();
+      const { uid } = await verifyIdToken(data.idToken);
+
+      const doc = await Models.JumpDoc.findOne({ publicUid: data.publicUid }, { ownerUid: 1 }).lean();
+      if (!doc) return { status: "not_found" };
+      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
+
+      const parts = [
+        `## What changed?\n${data.what}`,
+        `## Why was this necessary?\n${data.why}`,
+      ];
+      if (data.how?.trim()) parts.push(`## How to replicate:\n${data.how}`);
+      const content = parts.join("\n\n");
+
+      const message = {
+        timestamp: new Date(),
+        content,
+        accompanyingChange: true,
+        senderUid: uid,
+      };
+
+      const existing = await Models.Conversation.findOne({ salientJumpDocUid: data.publicUid });
+      if (existing) {
+        const ownerRead = existing.read.find((r) => r.userUid === doc.ownerUid);
+        if (ownerRead) {
+          await Models.Conversation.updateOne(
+            { _id: existing._id, "read.userUid": doc.ownerUid },
+            { $push: { messages: message }, $set: { "read.$.caughtUp": false } },
+          );
+        } else {
+          await Models.Conversation.updateOne(
+            { _id: existing._id },
+            {
+              $push: {
+                messages: message,
+                read: { userUid: doc.ownerUid, caughtUp: false, readUpTo: 0 },
+              },
+            },
+          );
+        }
+      } else {
+        await Models.Conversation.create({
+          participants: [uid, doc.ownerUid],
+          salientJumpDocUid: data.publicUid,
+          read: [
+            { userUid: uid, caughtUp: true, readUpTo: 1 },
+            { userUid: doc.ownerUid, caughtUp: false, readUpTo: 0 },
+          ],
+          messages: [message],
+        });
+      }
+
+      return { status: "ok" };
+    },
+  );
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Sends a pre-formatted moderator notification to the doc owner's conversation.
+ * Used for publish-metadata and unpublish actions by trusted editors.
+ */
+export const sendModeratorNotification = createServerFn({ method: "POST" })
+  .inputValidator((data: { publicUid: string; idToken: string; content: string }) => data)
+  .handler(
+    async ({ data }): Promise<{ status: "ok" } | { status: "not_found" } | { status: "unauthorized" }> => {
+      await connectToDatabase();
+      const { uid } = await verifyIdToken(data.idToken);
+
+      const doc = await Models.JumpDoc.findOne({ publicUid: data.publicUid }, { ownerUid: 1 }).lean();
+      if (!doc) return { status: "not_found" };
+      if (!(await isAuthorizedOrTrustedForDoc(uid, doc.ownerUid))) return { status: "unauthorized" };
+
+      const message = { timestamp: new Date(), content: data.content, accompanyingChange: true, senderUid: uid };
+
+      const existing = await Models.Conversation.findOne({ salientJumpDocUid: data.publicUid });
+      if (existing) {
+        const ownerRead = existing.read.find((r) => r.userUid === doc.ownerUid);
+        if (ownerRead) {
+          await Models.Conversation.updateOne(
+            { _id: existing._id, "read.userUid": doc.ownerUid },
+            { $push: { messages: message }, $set: { "read.$.caughtUp": false } },
+          );
+        } else {
+          await Models.Conversation.updateOne(
+            { _id: existing._id },
+            { $push: { messages: message, read: { userUid: doc.ownerUid, caughtUp: false, readUpTo: 0 } } },
+          );
+        }
+      } else {
+        await Models.Conversation.create({
+          participants: [uid, doc.ownerUid],
+          salientJumpDocUid: data.publicUid,
+          read: [
+            { userUid: uid, caughtUp: true, readUpTo: 1 },
+            { userUid: doc.ownerUid, caughtUp: false, readUpTo: 0 },
+          ],
+          messages: [message],
+        });
+      }
+
+      return { status: "ok" };
+    },
+  );
 
 // On web, handleAutoSave calls handleSave() directly — this stub is never invoked.
 export async function autosaveJumpDoc(): Promise<never> {

@@ -204,7 +204,7 @@ const parseText: (text: string, currencies: Registry<TID.Currency, Currency>) =>
 // ─────────────────────────────────────────────────────────────────────────────
 
 function JumpDocPage() {
-  const { firebaseUser } = useCurrentUser();
+  const { firebaseUser, dbUser } = useCurrentUser();
   const [activeTool, setActiveTool] = useState<ToolType | null>(null);
   const [addBoundsTarget, setAddBoundsTarget] = useState<{
     type: ToolType;
@@ -227,7 +227,9 @@ function JumpDocPage() {
   const editorRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   const doc = useJumpDoc();
-  const { pdfUrl } = useJumpDocMeta();
+  const { pdfUrl, ownerUid } = useJumpDocMeta();
+  const { docId } = Route.useParams();
+  const isTrustedEditor = !!dbUser && ownerUid !== "" && dbUser.firebaseUid !== ownerUid && (dbUser.permissions ?? []).includes("trusted");
   const templates = useAllBoundedTemplates();
   const toolDefs = useJumpDocToolDefinitions();
   const toolColors = useMemo(() => {
@@ -453,6 +455,8 @@ function JumpDocPage() {
             firebaseUser={firebaseUser}
             className="flex-1 min-h-0 w-full"
             onShowPdf={() => setMobilePanel("pdf")}
+            isTrustedEditor={isTrustedEditor}
+            docPublicUid={docId}
           />
         </div>
 

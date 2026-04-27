@@ -25,7 +25,7 @@ const userSchema = new Schema(
     displayName: { type: String, required: false, default: "" },
     email: { type: String, required: true },
 
-    permissions: [{ type: String, enum: ["admin", "comments", "jumpdocs"] }],
+    permissions: [{ type: String, enum: ["admin", "trusted"] }],
     // apiKeys: arbitrary named keys the user has generated
     apiKeys: { type: Map, of: String, default: {} },
 
@@ -66,7 +66,11 @@ const imageSchema = new Schema(
     // Public path/URL used to serve this image
     path: { type: String, required: true },
 
-    uploadType: { type: String, enum: ["native", "imagechest"], required: true },
+    uploadType: {
+      type: String,
+      enum: ["native", "imagechest"],
+      required: true,
+    },
     // Only present when uploadType === "imagechest"
     imageChestParameters: { postId: String, deleteURL: String },
     // Only present when uploadType === "native"
@@ -85,6 +89,40 @@ const imageSchema = new Schema(
 );
 
 export type IImage = InferSchemaType<typeof imageSchema>;
+
+// ---------------------------------------------------------------------------
+
+const conversationSchema = new Schema(
+  {
+
+    participants: [{ type: String, required: true, index: true }],
+    read: [
+      {
+        userUid: { type: String, required: true },
+        caughtUp: { type: Boolean, required: true, default: false },
+        readUpTo: { type: Number, required: true, default: 0 },
+      },
+    ],
+
+    salientJumpDocUid: { type: String, required: true, index: true },
+
+    messages: [
+      {
+        timestamp: { type: Date, required: true },
+        content: { type: String, required: true },
+        accompanyingChange: {type: Boolean, required: true, default: false},
+        senderUid: { type: String, required: true },
+      },
+    ],
+  },
+  {
+    minimize: false,
+    collection: "conversations",
+    timestamps: { createdAt: "createdAt", updatedAt: "updatedAt" },
+  },
+);
+
+export type IConversation = InferSchemaType<typeof conversationSchema>;
 
 // ---------------------------------------------------------------------------
 
@@ -214,8 +252,13 @@ export type IPurchase = InferSchemaType<typeof purchaseSchema>;
 export const Models = {
   User: mongoose.models["User"] ?? model<IUser>("User", userSchema),
   Chain: mongoose.models["Chain"] ?? model<IChain>("Chain", chainSchema),
-  JumpDoc: mongoose.models["JumpDoc"] ?? model<IJumpDoc>("JumpDoc", jumpdocSchema),
+  JumpDoc:
+    mongoose.models["JumpDoc"] ?? model<IJumpDoc>("JumpDoc", jumpdocSchema),
   Image: mongoose.models["Image"] ?? model<IImage>("Image", imageSchema),
   PDF: mongoose.models["PDF"] ?? model<IPDF>("PDF", pdfSchema),
-  Purchase: mongoose.models["Purchase"] ?? model<IPurchase>("Purchase", purchaseSchema),
+  Purchase:
+    mongoose.models["Purchase"] ?? model<IPurchase>("Purchase", purchaseSchema),
+  Conversation:
+    mongoose.models["Conversation"] ??
+    model<IConversation>("Conversation", conversationSchema),
 };

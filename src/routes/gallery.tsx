@@ -19,7 +19,8 @@ export const Route = createFileRoute("/gallery")({
 
 function GalleryPage() {
   const { settings, updateSettings } = useTheme();
-  const { firebaseUser } = useCurrentUser();
+  const { firebaseUser, dbUser } = useCurrentUser();
+  const isTrusted = dbUser?.permissions?.includes("trusted") ?? false;
   const isElectron = import.meta.env.VITE_PLATFORM === "electron";
 
   const [selectedDoc, setSelectedDoc] = useState<JumpDocSummary | null>(null);
@@ -150,6 +151,7 @@ function GalleryPage() {
                 <JumpDocSidebar
                   doc={selectedDoc}
                   isOwner={selectedDoc.isOwner ?? false}
+              isTrusted={isTrusted}
                   onClose={() => setSelectedDoc(null)}
                   onSearchChange={(s) => setSearch(s)}
                   onNewChain={() => openPicker("new")}
@@ -173,6 +175,7 @@ function GalleryPage() {
               <JumpDocSidebar
                 doc={selectedDoc}
                 isOwner={selectedDoc.isOwner ?? false}
+              isTrusted={isTrusted}
                 onClose={() => setSelectedDoc(null)}
                 onSearchChange={(s) => {
                   setSearch(s);

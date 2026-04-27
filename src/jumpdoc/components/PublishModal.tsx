@@ -5,7 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { TagField } from "@/ui/TagField";
 import { useJumpDocMetaStore, type JumpDocAttributes } from "@/jumpdoc/state/JumpDocMetaStore";
 import { useJumpDoc } from "@/jumpdoc/state/hooks";
-import { publishJumpDoc } from "@/api/jumpdocs";
+import { publishJumpDoc, sendModeratorNotification } from "@/api/jumpdocs";
 import { GENRE_OPTIONS, MEDIUM_OPTIONS } from "@/jumpdoc/data/jumpDocAttributeOptions";
 import { Tip } from "@/ui/Tip";
 import { ImageGallery } from "@/app/components/ImageGallery";
@@ -15,13 +15,15 @@ import type { ImageSummary } from "@/api/images";
 type Props = {
   firebaseUser: { getIdToken: () => Promise<string> } | null;
   onClose: () => void;
+  isTrustedEditor?: boolean;
+  docPublicUid?: string;
 };
 
 /**
  * PublishModal — portals into #jumpdoc-editor-outer.
  * Lets the user set metadata attributes and publish (or update) the JumpDoc.
  */
-export function PublishModal({ firebaseUser, onClose }: Props) {
+export function PublishModal({ firebaseUser, onClose, isTrustedEditor, docPublicUid }: Props) {
   const {
     docMongoId,
     published,
@@ -52,6 +54,9 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warningQueue, setWarningQueue] = useState<string[]>([]);
+  const [followUpStep, setFollowUpStep] = useState(false);
+  const [followUpWhat, setFollowUpWhat] = useState("");
+  const [followUpSending, setFollowUpSending] = useState(false);
 
   const isElectron = import.meta.env.VITE_PLATFORM === "electron";
   const doc = useJumpDoc();
@@ -184,7 +189,11 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
         setPublished(true);
         setNsfw(draftNsfw);
         setCoverImage(draftImageId, draftImageUrl);
-        onClose();
+        if (isTrustedEditor && docPublicUid) {
+          setFollowUpStep(true);
+        } else {
+          onClose();
+        }
       } else {
         setError(
           result.status === "unauthorized"
@@ -196,6 +205,19 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
       setError("Failed to publish. Please try again.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleFollowUpSend() {
+    if (!firebaseUser || !docPublicUid) { onClose(); return; }
+    setFollowUpSending(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const docName = doc?.name ?? "Unknown";
+      const content = `Your "${docName}" jumpdoc's metadata was updated.\n\n**What was changed?**\n${followUpWhat}`;
+      await sendModeratorNotification({ data: { publicUid: docPublicUid, idToken, content } });
+    } finally {
+      onClose();
     }
   }
 
@@ -215,6 +237,48 @@ export function PublishModal({ firebaseUser, onClose }: Props) {
   if (!panel) return null;
 
   const isEditMode = published;
+
+  if (followUpStep) {
+    return createPortal(
+      <div className="absolute inset-0 z-50 flex items-center justify-center bg-canvas/60 backdrop-blur-sm">
+        <div className="flex flex-col bg-canvas border border-edge rounded-lg shadow-xl w-80">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-edge shrink-0">
+            <span className="text-sm font-semibold text-ink">Notify the owner</span>
+          </div>
+          <div className="px-4 py-4 flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-muted">What was changed?</label>
+              <textarea
+                value={followUpWhat}
+                onChange={(e) => setFollowUpWhat(e.target.value)}
+                rows={4}
+                placeholder="Describe the metadata changes you made…"
+                className="w-full resize-none rounded border border-edge bg-tint px-3 py-2 text-sm text-ink placeholder:text-ghost focus:outline-none focus:border-trim"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3 py-1.5 text-xs text-muted hover:text-ink transition-colors"
+              >
+                Skip
+              </button>
+              <button
+                type="button"
+                disabled={!followUpWhat.trim() || followUpSending}
+                onClick={() => void handleFollowUpSend()}
+                className="px-3 py-1.5 text-xs font-medium rounded border border-accent/40 bg-accent-tint text-accent hover:bg-accent/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {followUpSending ? "Sending…" : "Send & Close"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>,
+      panel,
+    );
+  }
 
   return createPortal(
     <div

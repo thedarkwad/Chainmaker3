@@ -34,6 +34,7 @@ function triggerDownload(blob: Blob, filename: string): void {
 export function JumpDocSidebar({
   doc,
   isOwner,
+  isTrusted,
   onClose,
   onSearchChange,
   onNewChain,
@@ -41,6 +42,7 @@ export function JumpDocSidebar({
 }: {
   doc: JumpDocSummary;
   isOwner?: boolean;
+  isTrusted?: boolean;
   onClose: () => void;
   onSearchChange?: (s: string) => void;
   onNewChain?: () => void;
@@ -195,7 +197,7 @@ export function JumpDocSidebar({
                 type="button"
                 disabled={downloading !== null}
                 onClick={() => setMenuOpen((o) => !o)}
-                className="flex w-full bg-surface items-center justify-center gap-1.5 rounded border border-edge px-3 py-2 text-xs font-medium text-muted transition-colors hover:border-accent/50 bg-canvas hover:text-ink disabled:opacity-50"
+                className="flex w-full bg-surface items-center justify-center gap-1.5 rounded border border-edge px-3 py-2 text-xs font-medium text-muted transition-colors hover:border-accent/50 hover:text-ink disabled:opacity-50"
               >
                 <Download size={11} />
                 {downloading !== null
@@ -225,14 +227,14 @@ export function JumpDocSidebar({
               )}
             </div>
           )}
-          {(isOwner || isElectron) && (
+          {(isOwner || isTrusted || isElectron) && (
             <Link
               to="/jumpdoc/$docId"
               params={{ docId: doc.publicUid }}
               className="flex w-full bg-surface items-center justify-center gap-1.5 rounded border border-edge px-3 py-2 text-xs font-medium text-muted transition-colors hover:border-accent/50 hover:text-ink"
             >
               <Pencil size={11} />
-              Edit JumpDoc
+              {isTrusted && !isOwner ? "Correct JumpDoc" : "Edit JumpDoc"}
             </Link>
           )}
 

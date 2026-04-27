@@ -5,13 +5,14 @@ import { BookOpen, Loader2, Save, X } from "lucide-react";
 import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
 import { useJumpDocName } from "@/jumpdoc/state/hooks";
 import { activeDocHandlers } from "@/electron-api/activeDocHandlers";
-import { useJumpDocMetaStore, type JumpDocAttributes } from "@/jumpdoc/state/JumpDocMetaStore";
+import { useJumpDocMetaStore, useJumpDocMeta, type JumpDocAttributes } from "@/jumpdoc/state/JumpDocMetaStore";
+import { TrustedEditModal } from "@/jumpdoc/components/TrustedEditModal";
 import { makeUndoRedoProvider } from "@/providers/makeUndoRedoProvider";
 import { AppHeader } from "@/app/components/AppHeader";
 import { PortalNav } from "@/app/components/PortalNav";
 import { useTheme } from "@/providers/ThemeProvider";
 import { useCurrentUser } from "@/app/state/auth";
-import { saveJumpDoc, autosaveJumpDoc, forceReplaceJumpDoc, loadJumpDoc } from "@/api/jumpdocs";
+import { saveJumpDoc, autosaveJumpDoc, forceReplaceJumpDoc, loadJumpDoc, sendTrustedEditMessage } from "@/api/jumpdocs";
 import { type JumpDoc, preprocessJumpDoc } from "@/chain/data/JumpDoc";
 
 export const Route = createFileRoute("/jumpdoc/$docId")({
@@ -27,11 +28,13 @@ const JumpDocUndoRedoProvider = makeUndoRedoProvider(useJumpDocStore as any);
 function JumpDocLoader() {
   const { docId } = Route.useParams();
   const { settings, updateSettings } = useTheme();
-  const { firebaseUser, loading: authLoading } = useCurrentUser();
+  const { firebaseUser, dbUser, loading: authLoading } = useCurrentUser();
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showTrustedModal, setShowTrustedModal] = useState(false);
+  const { ownerUid } = useJumpDocMeta();
   // Show a guide banner if this appears to be the user's first jumpdoc.
   const [showGuideBanner, setShowGuideBanner] = useState(
     () => localStorage.getItem("chainmaker_has_jumpdocs") === "false",
@@ -46,6 +49,13 @@ function JumpDocLoader() {
   const handleAutoSaveRef = useRef<() => Promise<void>>(async () => {});
   // True until the first successful save — allows saving even with 0 patches (initial save).
   const isPendingRef = useRef(false);
+
+  const isTrustedEditor =
+    loaded &&
+    !!dbUser &&
+    ownerUid !== "" &&
+    dbUser.firebaseUid !== ownerUid &&
+    (dbUser.permissions ?? []).includes("trusted");
 
   // Load the JumpDoc from the DB once auth is resolved.
   useEffect(() => {
@@ -62,6 +72,7 @@ function JumpDocLoader() {
         useJumpDocStore.getState().setDoc(preprocessJumpDoc(result.contents as JumpDoc));
         useJumpDocMetaStore.getState().setMeta({
           docMongoId: result.docMongoId,
+          ownerUid: (result as { ownerUid?: string }).ownerUid ?? "",
           published: result.published,
           nsfw: (result as { nsfw?: boolean }).nsfw ?? false,
           attributes: (result.attributes as JumpDocAttributes | undefined) ?? {
@@ -93,6 +104,11 @@ function JumpDocLoader() {
     const { updates } = useJumpDocStore.getState();
     const patches = updates.cumulativePatches;
     if (!patches.length && !isPendingRef.current) return;
+
+    if (manual && isTrustedEditor) {
+      setShowTrustedModal(true);
+      return;
+    }
 
     const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
     setSaving(true);
@@ -137,7 +153,32 @@ function JumpDocLoader() {
     }
   }
 
+  async function handleTrustedSave(what: string, why: string, how: string) {
+    if (!firebaseUser) return;
+    const idToken = await firebaseUser.getIdToken();
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const msgResult = await sendTrustedEditMessage({
+        data: { publicUid: docId, idToken, what, why, how },
+      });
+      if (msgResult.status !== "ok") {
+        setSaveError(
+          msgResult.status === "unauthorized"
+            ? "You don't have permission to edit this jumpdoc."
+            : "JumpDoc not found on the server.",
+        );
+        return;
+      }
+      await handleSave(false);
+      setShowTrustedModal(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleAutoSave() {
+    if (isTrustedEditor) return;
     if (import.meta.env.VITE_PLATFORM === "electron") {
       const { updates } = useJumpDocStore.getState();
       if (!updates.cumulativePatches.length) return;
@@ -224,6 +265,13 @@ function JumpDocLoader() {
     <div className="flex flex-col h-dvh overflow-hidden">
       <title>{`${name || "[unnamed jumpdoc]"} | ChainMaker`}</title>
       <JumpDocUndoRedoProvider />
+      {showTrustedModal && (
+        <TrustedEditModal
+          onClose={() => setShowTrustedModal(false)}
+          onSubmit={handleTrustedSave}
+          saving={saving}
+        />
+      )}
       {showGuideBanner && (
         <div className="shrink-0 flex items-center justify-between gap-4 bg-accent-tint border-b border-accent-ring px-4 py-2">
           <p className="text-sm text-ink">
