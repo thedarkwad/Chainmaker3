@@ -194,6 +194,7 @@ const jumpdocSchema = new Schema(
     ownerUid: { type: String, index: true },
     publicUid: { type: String, required: true, unique: true, index: true },
     published: { type: Boolean, required: true, default: false },
+    firstPublishedAt: { type: Date, index: true },
     nsfw: { type: Boolean, required: true, default: false },
     edits: { type: Number, required: true, default: 0 },
     version: { type: String, required: true },

@@ -1090,20 +1090,25 @@ function getPrereqError(
   let name: string;
   switch (prereq.type) {
     case "drawback":
+      if (doc.availableDrawbacks.O[prereq.id] === undefined) return;
+
       has = (build.drawbacks[prereq.id] ?? []).length > 0;
       name = (doc.availableDrawbacks.O[prereq.id] ?? []).name;
       break;
     case "purchase":
+      if (doc.availablePurchases.O[prereq.id] === undefined) return;
       has = (build.purchases[prereq.id] ?? []).length > 0;
       name = (doc.availablePurchases.O[prereq.id] ?? []).name;
       break;
     case "scenario":
+      if (doc.availableScenarios.O[prereq.id] === undefined) return;
       has = (build.scenarios[prereq.id] ?? []).length > 0;
       name = (doc.availableScenarios.O[prereq.id] ?? []).name;
       break;
     case "origin":
+      if (doc.origins.O[prereq.id] === undefined) return;
       has = build.origins.some(o => o.template?.id == prereq.id);
-      name = doc.origins.O[prereq.id].name;
+      name = doc.origins.O[prereq.id]?.name;
   }
   if (!has && prereq.positive) return `Restricted to holders of "${name}".`;
   if (has && !prereq.positive) return `Incompatible with "${name}".`;

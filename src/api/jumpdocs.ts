@@ -601,6 +601,8 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
       const oldImageId = (doc.imageId as string | undefined) ?? null;
       const newImageId = data.imageId ?? null;
 
+      const isFirstPublish = data.published && !(doc as { firstPublishedAt?: Date }).firstPublishedAt;
+
       const updates: Promise<unknown>[] = [
         Models.JumpDoc.findByIdAndUpdate(data.docMongoId, {
           $set: {
@@ -608,6 +610,7 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
             nsfw: data.nsfw,
             attributes: data.attributes,
             imageId: newImageId,
+            ...(isFirstPublish ? { firstPublishedAt: new Date() } : {}),
           },
         }),
         ...(doc.published !== data.published
