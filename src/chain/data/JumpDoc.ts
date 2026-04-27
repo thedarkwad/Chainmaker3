@@ -219,6 +219,7 @@ export type DocCurrencyExchange = {
 };
 
 export type JumpDoc = {
+  [x: string]: any;
   name: string;
   url: string;
   author: string;

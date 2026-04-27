@@ -1120,6 +1120,9 @@ function computePossibleCosts(
   doc: JumpDoc,
   isFirstCopy?: boolean,
 ) {
+  if (!doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype])
+    doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype] =
+      doc.purchaseSubtypes.O[0 as any];
   let isPurchase = (template as BasicPurchaseTemplate).subtype !== undefined;
   let floatingDiscountMode = isPurchase
     ? (doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype]
