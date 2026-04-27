@@ -83,6 +83,7 @@ import { formatCostDisplay, formatCostShort } from "@/ui/CostDropdown";
 import { convertWhitespace, objFilter } from "@/utilities/miscUtilities";
 import { Currency, DEFAULT_CURRENCY_ID } from "../data/Jump";
 import { formatDuration } from "@/utilities/units";
+import { basename } from "node:path";
 
 const MySwal = withReactContent(Swal);
 
@@ -95,6 +96,39 @@ export type AnnotationInteractionHandlerProps = {
 export type PossibleCost = ModifiedCost<TID.Currency> & {
   cost: Value<TID.Currency>;
   floatingDiscountOption?: boolean;
+};
+
+export const purchaseValueWithThreshold = <
+  T extends TID.Currency | LID.Currency = LID.Currency,
+>(
+  value: Value<T>,
+  mod: ModifiedCost<T>,
+  freebieAllowed: boolean,
+  currencies: Registry<T, Currency>,
+): Value<T> => {
+  switch (mod.modifier) {
+    case CostModifier.Full:
+      return value;
+    case CostModifier.Free:
+      if (freebieAllowed)
+        return value.map(val => ({
+          amount: Math.min(val.amount, 0),
+          currency: val.currency,
+        }));
+      // intentional fallthrough
+      else;
+    case CostModifier.Reduced:
+      return value.map(val => ({
+        amount:
+          freebieAllowed &&
+          val.amount < (currencies.O[val.currency]?.discountFreeThreshold ?? 0)
+            ? Math.min(0, val.amount)
+            : Math.min(val.amount, Math.floor(val.amount / 2)),
+        currency: val.currency,
+      }));
+    case CostModifier.Custom:
+      return mod.modifiedTo as Value<T>;
+  }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -383,7 +417,12 @@ export function createRepricePurchasesListener(): BuildListener {
           const stillValid = costsToCheck.some(c =>
             valuesEqualTID(
               originalEffective,
-              purchaseValue(c.cost, c) as Value<TID.Currency>,
+              purchaseValueWithThreshold(
+                c.cost,
+                c,
+                i == 0,
+                doc.currencies,
+              ) as Value<TID.Currency>,
             ),
           );
 
@@ -1015,38 +1054,32 @@ function computeBuildData(
     ...(jump.drawbacks[charId] ?? []),
     ...(jump.scenarios[charId] ?? []),
   ]?.forEach(pId => {
-    let purchase = chain.purchases.O[pId] as JumpPurchase;
+    let purchase = chain.purchases.O[pId] as JumpPurchase<TID>;
     if (!purchase) return;
+    let add = <A extends TID>(
+      index: PartialIndex<A, GID.Purchase>,
+      a: number,
+      b: Id<GID.Purchase>,
+    ) => {
+      if (!index[a as Id<A>]) index[a as Id<A>] = [];
+      if (purchase.cost.modifier == CostModifier.Free)
+        index[a as Id<A>]!.unshift(b);
+      else index[a as Id<A>]!.push(b);
+    };
     if (purchase.template?.id !== undefined)
       switch (purchase.type) {
         case PurchaseType.Perk:
         case PurchaseType.Item:
-          if (!purchases[purchase.template.id as Id<TID.Purchase>])
-            purchases[purchase.template.id as Id<TID.Purchase>] = [];
-          purchases[purchase.template.id as Id<TID.Purchase>]!.push(
-            purchase.id,
-          );
+          add(purchases, purchase.template.id, purchase.id);
           break;
         case PurchaseType.Companion:
-          if (!companionImports[purchase.template.id as Id<TID.Companion>])
-            companionImports[purchase.template.id as Id<TID.Companion>] = [];
-          companionImports[purchase.template.id as Id<TID.Companion>]!.push(
-            purchase.id,
-          );
+          add(companionImports, purchase.template.id, purchase.id);
           break;
         case PurchaseType.Drawback:
-          if (!drawbacks[purchase.template.id as Id<TID.Drawback>])
-            drawbacks[purchase.template.id as Id<TID.Drawback>] = [];
-          drawbacks[purchase.template.id as Id<TID.Drawback>]!.push(
-            purchase.id,
-          );
+          add(drawbacks, purchase.template.id, purchase.id);
           break;
         case PurchaseType.Scenario:
-          if (!scenarios[purchase.template.id as Id<TID.Scenario>])
-            scenarios[purchase.template.id as Id<TID.Scenario>] = [];
-          scenarios[purchase.template.id as Id<TID.Scenario>]!.push(
-            purchase.id,
-          );
+          add(scenarios, purchase.template.id, purchase.id);
           break;
       }
   });
@@ -1118,7 +1151,7 @@ function computePossibleCosts(
   template: PurchaseTemplate<TID>,
   build: JumpDocBuildData,
   doc: JumpDoc,
-  isFirstCopy?: boolean,
+  isFirstCopy: boolean,
 ) {
   if (!doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype])
     doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype] =
@@ -1163,12 +1196,16 @@ function computePossibleCosts(
 
     switch (template.originBenefit ?? "discounted") {
       case "free":
-        return {
-          ...c,
-          modifier: CostModifier.Free,
-        };
+        if (isFirstCopy)
+          return {
+            ...c,
+            modifier: CostModifier.Free,
+          };
+        //intentional fallthrough
+        else;
       case "discounted":
         if (
+          isFirstCopy &&
           c.cost.every(
             c =>
               c.amount <=
@@ -1183,20 +1220,27 @@ function computePossibleCosts(
             return {
               ...c,
               modifier: CostModifier.Custom,
-              modifiedTo: purchaseValue<TID.Currency>(
+              modifiedTo: purchaseValueWithThreshold<TID.Currency>(
                 purchaseValue<TID.Currency>(c.cost, {
                   modifier: CostModifier.Reduced,
-                }),
+                }) as Value<TID.Currency>,
                 { modifier: CostModifier.Reduced },
+                isFirstCopy,
+                doc.currencies,
               ) as Value<TID.Currency>,
             };
           case CostModifier.Custom:
             return {
               ...c,
               modifier: CostModifier.Custom,
-              modifiedTo: purchaseValue<TID.Currency>(c.modifiedTo, {
-                modifier: CostModifier.Reduced,
-              }) as Value<TID.Currency>,
+              modifiedTo: purchaseValueWithThreshold<TID.Currency>(
+                c.modifiedTo as Value<TID.Currency>,
+                {
+                  modifier: CostModifier.Reduced,
+                },
+                isFirstCopy,
+                doc.currencies,
+              ),
             };
           case CostModifier.Free:
             return c;
@@ -1287,7 +1331,7 @@ export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
   let getCost = (build: JumpDocBuildData) =>
     override
       ? { default: override.cost, options: [] }
-      : computePossibleCosts(template, build, doc);
+      : computePossibleCosts(template, build, doc, copies(build).length === 0);
 
   let error = (build: JumpDocBuildData) => {
     let prereqErrors = (template.prerequisites ?? [])
@@ -2468,6 +2512,7 @@ export function companionImportInteraction(
       { ...template, allowMultiple: !template.specificCharacter },
       build,
       doc,
+      copies(build).length === 0,
     );
 
   const error = (build: JumpDocBuildData) => {
@@ -2862,20 +2907,59 @@ function convertSubtypeId(
 }
 
 function convertModifiedCost(
-  v: ModifiedCost<TID.Currency>,
+  v: Value<TID.Currency>,
+  m: ModifiedCost<TID.Currency>,
   doc: JumpDoc,
   currencies: Registry<LID.Currency, Currency>,
+  floatingDiscount: boolean,
 ): ModifiedCost {
-  switch (v.modifier) {
+  switch (m.modifier) {
     case CostModifier.Full:
+      if (floatingDiscount && v.every(({amount, currency}) => (amount < (doc.currencies.O?.[currency]?.discountFreeThreshold ?? 0))))
+        return { modifier: CostModifier.Free };
+      else if (floatingDiscount)
+        return {modifier: CostModifier.Reduced};
+      else
+        return m;
     case CostModifier.Reduced:
+      if (floatingDiscount)
+        return {
+          modifier: CostModifier.Custom,
+          modifiedTo: convertValue(
+            purchaseValueWithThreshold(
+              purchaseValue(v, {
+                modifier: CostModifier.Reduced,
+              }) as Value<TID.Currency>,
+              { modifier: CostModifier.Reduced },
+              true,
+              doc.currencies,
+            ),
+            doc,
+            currencies,
+          ),
+        };
+      return m;
     case CostModifier.Free:
-      return v;
+      return m;
     case CostModifier.Custom:
+      if (floatingDiscount)
+        return {
+          modifier: CostModifier.Custom,
+          modifiedTo: convertValue(
+            (m.modifiedTo as Value<TID.Currency>).map(
+              ({ amount, currency }) => ({
+                currency,
+                amount: amount > 0 ? Math.floor(amount / 4) : amount,
+              }),
+            ) as Value<TID.Currency>,
+            doc,
+            currencies,
+          ),
+        };
       return {
         modifier: CostModifier.Custom,
         modifiedTo: convertValue(
-          v.modifiedTo as Value<TID.Currency>,
+          m.modifiedTo as Value<TID.Currency>,
           doc,
           currencies,
         ),
@@ -2913,7 +2997,13 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
               name: applyTags(template.name, tags),
               description: applyTags(template.description, tags),
               type: jump.purchaseSubtypes.O[subtype].type,
-              cost: convertModifiedCost(cost, doc, jump.currencies),
+              cost: convertModifiedCost(
+                template.cost,
+                cost,
+                doc,
+                jump.currencies,
+                cost.floatingDiscountOption ?? false,
+              ),
               reward,
               ...(freebie !== undefined ? { freebie } : {}),
               value: convertValue(template.cost, doc, jump.currencies),
@@ -2925,6 +3015,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
                 jumpdoc: "",
                 originalCost: cost,
               },
+              usesFloatingDiscount: cost.floatingDiscountOption ?? false,
             });
             if (!jump.purchases[charId]) jump.purchases[charId] = [];
             jump.purchases[charId]!.push(newId);
@@ -2937,7 +3028,13 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
               name: applyTags(template.name, tags),
               description: applyTags(template.description, tags),
               type: PurchaseType.Drawback,
-              cost: convertModifiedCost(cost, doc, jump.currencies),
+              cost: convertModifiedCost(
+                template.cost,
+                cost,
+                doc,
+                jump.currencies,
+                cost.floatingDiscountOption ?? false,
+              ),
               value: convertValue(template.cost, doc, jump.currencies),
               template: {
                 id: template.id as any,
@@ -3092,11 +3189,26 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
     repricePurchase: useCallback((id, cost, doc) => {
       setTracked("Reprice purchase", c => {
         const p = c.purchases.O[id] as JumpPurchase | undefined;
-        if (!p) return;
+        if (!p || !p.template) return;
         const jump = c.jumps.O[p.jumpId];
         if (!jump) return;
-        p.cost = convertModifiedCost(cost, doc, jump.currencies) as any;
-        if (p.template) (p.template as any).originalCost = cost;
+        let templateValue: Value<TID.Currency>;
+        if (p.type == PurchaseType.Drawback)
+          templateValue = doc.availableDrawbacks.O[p.template.id as any].cost;
+        else if (p.type == PurchaseType.Companion)
+          templateValue = doc.availableCompanions.O[p.template.id as any].cost;
+        else
+          templateValue = doc.availablePurchases.O[p.template.id as any].cost;
+        p.value = convertValue(templateValue, doc, jump.currencies);
+        p.cost = convertModifiedCost(
+          templateValue,
+          cost,
+          doc,
+          jump.currencies,
+          false,
+        );
+        p.template.originalCost = cost;
+        if ("usesFloatingDiscount" in p) p.usesFloatingDiscount = false;
         c.budgetFlag += 1;
       });
     }, []),
