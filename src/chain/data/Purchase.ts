@@ -298,6 +298,12 @@ export function purchaseValue<T extends TID.Currency | LID.Currency = LID.Curren
 ): Value<T>;
 
 export function purchaseValue<T extends TID.Currency | LID.Currency = LID.Currency>(
+  value: Value<T> | number,
+  mod: ModifiedCost<T>,
+): Value<T> | number;
+
+
+export function purchaseValue<T extends TID.Currency | LID.Currency = LID.Currency>(
   value: number,
   mod: ModifiedCost<T>,
 ): number;

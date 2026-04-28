@@ -401,7 +401,7 @@ export function createRepricePurchasesListener(): BuildListener {
           const originalEffective = purchaseValue(
             originalCost.cost,
             originalCost,
-          ) as Value<TID.Currency>;
+          );
 
           const possibleCosts = computePossibleCosts(
             template,
@@ -1178,7 +1178,7 @@ function computePossibleCosts(
   }
 
   let floatingDiscount = (c: PossibleCost) =>
-    (purchaseValue(c.cost, c) as Value<TID.Currency>).every(
+    (purchaseValue(c.cost, c)).every(
       c => c.amount <= (maxFloatingDiscountThreshold[c.currency] ?? 0),
     );
 

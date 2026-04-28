@@ -154,7 +154,7 @@ function buildScenarioIR(
       }
       case RewardType.Item:
       case RewardType.Perk: {
-        const reward = chain.purchases.O[r.id];
+        const reward = Object.values(chain.purchases.O).find((p) => (p as BasicPurchase).template?.id === r.id);
         if (reward) rewardStrings.push(reward.name);
         break;
       }
