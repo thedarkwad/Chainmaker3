@@ -193,7 +193,10 @@ export const markConversationRead = createServerFn({ method: "POST" })
       if (!conv.participants.includes(uid)) return { status: "unauthorized" };
 
       const messageCount = conv.messages.length;
-      const hasEntry = conv.read.some((r: { userUid: string }) => r.userUid === uid);
+      const existing = conv.read.find((r: { userUid: string }) => r.userUid === uid);
+      const hasEntry = existing !== undefined;
+
+      if (existing?.caughtUp && existing.readUpTo === messageCount) return { status: "ok" };
 
       if (hasEntry) {
         await Models.Conversation.updateOne(
