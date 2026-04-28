@@ -521,7 +521,6 @@ export function adjustBudget(
     } as Budget;
 
     budget.currency[DEFAULT_CURRENCY_ID] -= jump.bankDeposits[charId] ?? 0;
-    console.log("A", budget.currency[DEFAULT_CURRENCY_ID]);
     // Deduct origin costs.
     const charOrigins = jump.origins?.[charId];
     if (charOrigins) {
@@ -543,17 +542,15 @@ export function adjustBudget(
         }
       }
     }
-    console.log("B", budget.currency[DEFAULT_CURRENCY_ID]);
 
     // Deduct supplement investments from the main currency (currency 0).
     const charInvestments = jump.supplementInvestments?.[charId];
     if (charInvestments) {
       for (const suppIdStr in charInvestments) {
         budget.currency[DEFAULT_CURRENCY_ID] -=
-          charInvestments[suppIdStr as any] ?? 0;
+          charInvestments[+suppIdStr as any] ?? 0;
       }
     }
-    console.log("C", budget.currency[DEFAULT_CURRENCY_ID]);
 
     // Apply currency exchanges.
     for (const ex of jump.currencyExchanges?.[charId] ?? []) {
@@ -562,7 +559,6 @@ export function adjustBudget(
       budget.currency[ex.tCurrency] =
         (budget.currency[ex.tCurrency] ?? 0) + ex.tamount;
     }
-    console.log("D", budget.currency[DEFAULT_CURRENCY_ID]);
 
     // Add allowances and stipends granted by companion imports that include this character.
     for (const charId2 of chain.characterList) {
@@ -592,8 +588,6 @@ export function adjustBudget(
         }
       }
     }
-
-    console.log("E", budget.currency[DEFAULT_CURRENCY_ID]);
 
     // Add scenario rewards (currency and stipend types only).
     for (const pId of jump.scenarios[charId] ?? []) {
@@ -805,7 +799,6 @@ export function adjustBudget(
       // If this purchase has subpurchases, pour their stipend into the bucket,
       // then deduct each subpurchase cost the same way.
       const bp = p as BasicPurchase;
-      console.log("X", budget.currency[DEFAULT_CURRENCY_ID]);
 
       if (bp.subpurchases) {
         if (subtypeId != null) {
