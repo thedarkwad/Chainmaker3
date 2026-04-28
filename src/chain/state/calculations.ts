@@ -521,7 +521,7 @@ export function adjustBudget(
     } as Budget;
 
     budget.currency[DEFAULT_CURRENCY_ID] -= jump.bankDeposits[charId] ?? 0;
-
+    console.log("A", budget.currency[DEFAULT_CURRENCY_ID]);
     // Deduct origin costs.
     const charOrigins = jump.origins?.[charId];
     if (charOrigins) {
@@ -543,6 +543,7 @@ export function adjustBudget(
         }
       }
     }
+    console.log("B", budget.currency[DEFAULT_CURRENCY_ID]);
 
     // Deduct supplement investments from the main currency (currency 0).
     const charInvestments = jump.supplementInvestments?.[charId];
@@ -552,6 +553,7 @@ export function adjustBudget(
           charInvestments[suppIdStr as any] ?? 0;
       }
     }
+    console.log("C", budget.currency[DEFAULT_CURRENCY_ID]);
 
     // Apply currency exchanges.
     for (const ex of jump.currencyExchanges?.[charId] ?? []) {
@@ -560,6 +562,7 @@ export function adjustBudget(
       budget.currency[ex.tCurrency] =
         (budget.currency[ex.tCurrency] ?? 0) + ex.tamount;
     }
+    console.log("D", budget.currency[DEFAULT_CURRENCY_ID]);
 
     // Add allowances and stipends granted by companion imports that include this character.
     for (const charId2 of chain.characterList) {
@@ -590,6 +593,8 @@ export function adjustBudget(
       }
     }
 
+    console.log("E", budget.currency[DEFAULT_CURRENCY_ID]);
+
     // Add scenario rewards (currency and stipend types only).
     for (const pId of jump.scenarios[charId] ?? []) {
       const p = chain.purchases.O[pId] as Scenario;
@@ -616,7 +621,7 @@ export function adjustBudget(
 
     if (!isSupplementJump || chain.chainSettings.chainDrawbacksSupplements)
       for (const pId of chainDrawbacks ?? []) {
-        const p = chain.purchases.O[pId] as Drawback;
+        const p = chain.purchases.O[pId] as Drawback & { value: number };
         if (!p) continue;
         const override = p.overrides?.[jumpId]?.[charId];
         if (override?.type === OverrideType.Excluded) continue;
@@ -625,18 +630,25 @@ export function adjustBudget(
           override?.type === OverrideType.BoughtOffPermanent
         ) {
           if (isPrimary || companionsShare) {
-            budget.currency[DEFAULT_CURRENCY_ID] -= purchaseValue(
+            let newValue = purchaseValue(
               p.value,
               override.modifier ?? { modifier: CostModifier.Full },
-            ) as number;
+            ) as Value | number;
+            if (typeof newValue === "number")
+              budget.currency[DEFAULT_CURRENCY_ID] -= newValue;
+            else
+              budget.currency[DEFAULT_CURRENCY_ID] -= newValue[0]?.amount ?? 0;
           }
           continue;
         }
         if (isPrimary || companionsShare) {
-          budget.currency[DEFAULT_CURRENCY_ID] += purchaseValue(
+          let newValue = purchaseValue(
             p.value,
             override?.modifier ?? { modifier: CostModifier.Full },
-          ) as number;
+          ) as Value | number;
+          if (typeof newValue === "number")
+            budget.currency[DEFAULT_CURRENCY_ID] += newValue;
+          else budget.currency[DEFAULT_CURRENCY_ID] += newValue[0]?.amount ?? 0;
           if (isPrimary && p.itemStipend) {
             const itemSubtype = DefaultSubtype[PurchaseType.Item];
             if (!budget.stipends[itemSubtype])
@@ -653,7 +665,7 @@ export function adjustBudget(
 
     // Add value for each retained drawback (or deduct buyoff cost).
     for (const pId of retainedDrawbacks ?? []) {
-      const p = chain.purchases.O[pId] as Drawback;
+      const p = chain.purchases.O[pId] as Drawback & { value: Value };
       if (!p) continue;
       const override = p.overrides?.[jumpId]?.[charId];
       if (override?.type === OverrideType.Excluded) continue;
@@ -662,7 +674,7 @@ export function adjustBudget(
         override?.type === OverrideType.BoughtOffPermanent
       ) {
         const cost = purchaseValue(
-          p.value as Value,
+          p.value,
           override.modifier ?? { modifier: CostModifier.Full },
         );
         if (typeof cost == "number")
@@ -675,9 +687,9 @@ export function adjustBudget(
         continue;
       }
       const val = purchaseValue(
-        p.value as Value,
+        p.value,
         override?.modifier ?? { modifier: CostModifier.Full },
-      ) as Value;
+      );
       for (const sv of val)
         budget.currency[sv.currency] =
           (budget.currency[sv.currency] ?? 0) + sv.amount;
@@ -685,11 +697,11 @@ export function adjustBudget(
 
     // Add drawback value for each current-jump drawback (or deduct buyoff cost).
     for (const pId of jump.drawbacks[charId] ?? []) {
-      const p = chain.purchases.O[pId] as Drawback;
+      const p = chain.purchases.O[pId] as Drawback & { value: Value };
       if (!p) {
         continue;
       }
-      const val = purchaseValue(p.value, p.cost) as Value;
+      const val = purchaseValue(p.value, p.cost);
       for (const sv of val) {
         let amount = sv.amount;
         if (sv.currency == DEFAULT_CURRENCY_ID && jump.drawbackLimit) {
@@ -793,6 +805,8 @@ export function adjustBudget(
       // If this purchase has subpurchases, pour their stipend into the bucket,
       // then deduct each subpurchase cost the same way.
       const bp = p as BasicPurchase;
+      console.log("X", budget.currency[DEFAULT_CURRENCY_ID]);
+
       if (bp.subpurchases) {
         if (subtypeId != null) {
           if (!budget.stipends[subtypeId]) budget.stipends[subtypeId] = {};
@@ -807,7 +821,7 @@ export function adjustBudget(
           if (!sub || !Array.isArray(sub.value)) continue;
 
           let subCost = purchaseValue(
-            sub.value as Value,
+            sub.value,
             sub.cost ?? { modifier: CostModifier.Full },
           );
 

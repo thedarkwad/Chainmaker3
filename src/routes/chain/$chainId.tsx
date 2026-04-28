@@ -16,6 +16,7 @@ import { getImagePaths } from "@/api/images";
 import { useImageUrlCache } from "@/chain/state/ImageUrlCache";
 import { adjustJumpOrganization } from "@/chain/state/calculations";
 import { recordRecentChain } from "@/app/state/recentChains";
+import { Drawback } from "@/chain/data/Purchase";
 
 /** Stable save function provided to child routes (e.g. add-doc). */
 export const ChainSaveCtx = createContext<() => Promise<void>>(async () => {});
@@ -33,7 +34,6 @@ export const Route = createFileRoute("/chain/$chainId")({
 function ChainLoader() {
   const { chainId } = Route.useParams();
   const chain = useChain();
-  const navigate = useNavigate();
   const { settings, updateSettings } = useTheme();
   const { firebaseUser, loading: authLoading } = useCurrentUser();
   const [chainLoading, setChainLoading] = useState(true);
@@ -85,6 +85,7 @@ function ChainLoader() {
         setChainOwnerUid(result.ownerUid);
         isPendingRef.current = (result as { isPending?: boolean }).isPending ?? false;
         useChainStore.getState().setChain(result.contents);
+
         useChainStore.getState().declareSynched();
         recordRecentChain(
           chainId,

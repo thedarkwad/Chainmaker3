@@ -1223,7 +1223,7 @@ function computePossibleCosts(
               modifiedTo: purchaseValueWithThreshold<TID.Currency>(
                 purchaseValue<TID.Currency>(c.cost, {
                   modifier: CostModifier.Reduced,
-                }) as Value<TID.Currency>,
+                }),
                 { modifier: CostModifier.Reduced },
                 isFirstCopy,
                 doc.currencies,
@@ -1263,7 +1263,7 @@ function computePossibleCosts(
       f(prereq => {
         if (
           isFirstCopy &&
-          prereq.type === "purchase" &&
+          prereq.type === "purchase" && //TODO: drawback self-prereqs
           (prereq.id as number) === (template.id as number)
         )
           return true;
@@ -2933,7 +2933,7 @@ function convertModifiedCost(
             purchaseValueWithThreshold(
               purchaseValue(v, {
                 modifier: CostModifier.Reduced,
-              }) as Value<TID.Currency>,
+              }),
               { modifier: CostModifier.Reduced },
               true,
               doc.currencies,

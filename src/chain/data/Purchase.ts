@@ -292,10 +292,20 @@ export const getUniversalSimpleValue = (p: Purchase): UniversalSimpleValue | und
   }
 };
 
-export const purchaseValue = <T extends TID.Currency | LID.Currency = LID.Currency>(
+export function purchaseValue<T extends TID.Currency | LID.Currency = LID.Currency>(
+  value: Value<T>,
+  mod: ModifiedCost<T>,
+): Value<T>;
+
+export function purchaseValue<T extends TID.Currency | LID.Currency = LID.Currency>(
+  value: number,
+  mod: ModifiedCost<T>,
+): number;
+
+export function purchaseValue<T extends TID.Currency | LID.Currency = LID.Currency>(
   value: Value<T> | number,
   mod: ModifiedCost<T>,
-): Value<T> | number => {
+): Value<T> | number {
   switch (mod.modifier) {
     case CostModifier.Full:
       return value;
