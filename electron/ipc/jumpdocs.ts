@@ -645,8 +645,8 @@ async function writeJumpdocZip(destPath: string, data: unknown, id: string): Pro
     if (/^thumb\.[a-z]+$/i.test(f)) {
       const raw = fs.readFileSync(path.join(tmpDir, f));
       const compressed = await sharp(raw)
-        .resize({ width: 128, height: 128, fit: "inside", withoutEnlargement: true })
-        .avif({ quality: 65 })
+        .resize({ width: 512, height: 512, fit: "inside", withoutEnlargement: true })
+        .avif({ quality: 90 })
         .toBuffer();
       zip.addFile("thumb.avif", compressed);
       break;

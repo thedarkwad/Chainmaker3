@@ -2915,12 +2915,16 @@ function convertModifiedCost(
 ): ModifiedCost {
   switch (m.modifier) {
     case CostModifier.Full:
-      if (floatingDiscount && v.every(({amount, currency}) => (amount < (doc.currencies.O?.[currency]?.discountFreeThreshold ?? 0))))
+      if (
+        floatingDiscount &&
+        v.every(
+          ({ amount, currency }) =>
+            amount < (doc.currencies.O?.[currency]?.discountFreeThreshold ?? 0),
+        )
+      )
         return { modifier: CostModifier.Free };
-      else if (floatingDiscount)
-        return {modifier: CostModifier.Reduced};
-      else
-        return m;
+      else if (floatingDiscount) return { modifier: CostModifier.Reduced };
+      else return m;
     case CostModifier.Reduced:
       if (floatingDiscount)
         return {
@@ -3719,22 +3723,27 @@ export function AnnotationInteractionHandler({
       let errors = Object.fromEntries(
         interactions.map((i, index) => [index, i.error(currentBuildData)]),
       );
-      let isError = false;
-      if (interactions.length > 1)
-        interactions = interactions.filter((_, index) => !errors[index]);
-      else isError = !!errors[0];
+      let numErrors = Object.values(errors).reduce(
+        (n, b) => n + (b === undefined ? 0 : 1),
+        0,
+      );
 
       let showPreview = false;
-      if (interactions.length > 1) showPreview = true;
-      else if (interactions[0].forcePreview(buildData) || isError)
-        showPreview = true;
-      else {
+
+      if (interactions.length > numErrors)
+        interactions = interactions.filter((_, index) => !errors[index]);
+      else showPreview = true;
+
+      showPreview ||= interactions.length > 1;
+      showPreview ||= interactions[0]?.forcePreview?.(buildData);
+
+      if (!showPreview) {
         let actions = (
           typeof interactions[0].actions == "function"
             ? interactions[0].actions(currentBuildData)
             : interactions[0].actions
         ).filter(a => a.condition(currentBuildData));
-        if (actions.length == 0) continue;
+        if (actions.length > 1) showPreview = true;
         else if (actions.length == 1) {
           if (!currentAction.current) {
             currentAction.current =
@@ -3757,7 +3766,7 @@ export function AnnotationInteractionHandler({
                 ? enqueueInteractions(a.interaction, a.character)
                 : enqueueInteractions([a]),
             );
-        } else if (actions.length > 1) showPreview = true;
+        };
       }
 
       if (showPreview) {
