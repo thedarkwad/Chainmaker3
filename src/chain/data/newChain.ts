@@ -296,7 +296,7 @@ export function buildNewChain({
     notes: {},
     purchaseCategories: {
       [PurchaseType.Perk]: createRegistry(perkCatO),
-      [PurchaseType.Item]: createRegistry({ 0: "Item" }),
+      [PurchaseType.Item]: createRegistry({ 0: "Weapon", 1: "Apparel", 2: "Equipment", 3: "Material", 4: "Food & Drug", 5: "Media", 6: "Wealth", 7: "Vehicle", 8: "Tool", 9: "Locale", 10: "Creature", 11: "Buisinesses & Contacts", 12: "Follower", 13: "Other"}),
     },
     jumpList: [jumpId],
     characterList: [charId],

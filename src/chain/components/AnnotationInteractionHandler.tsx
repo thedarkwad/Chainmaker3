@@ -81,7 +81,7 @@ import {
 } from "./annotationResolvers";
 import { formatCostDisplay, formatCostShort } from "@/ui/CostDropdown";
 import { convertWhitespace, objFilter } from "@/utilities/miscUtilities";
-import { Currency, DEFAULT_CURRENCY_ID } from "../data/Jump";
+import { Currency, DEFAULT_CURRENCY_ID, Origin } from "../data/Jump";
 import { formatDuration } from "@/utilities/units";
 import { basename } from "node:path";
 
@@ -164,7 +164,7 @@ export type ChainMutators = {
     doc: JumpDoc,
   ) => Id<GID.Purchase> | undefined;
   addOriginFromTemplate: (
-    ata: {
+    data: {
       template: OriginTemplate;
       tags: Record<string, string>;
       cost: SimpleValue<TID.Currency>;
@@ -3080,7 +3080,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
           const effectiveMax = chainCat?.multiple ? (docCat?.max ?? 1) : 1;
 
           const origins = jump.origins[charId] as
-            | Record<Id<LID.OriginCategory>, import("../data/Jump").Origin[]>
+            | Record<Id<LID.OriginCategory>, Origin[]>
             | undefined;
           const list = origins?.[categoryLid] ?? [];
 
@@ -3094,7 +3094,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             currency: convertCurrencyId(cost.currency, doc, jump.currencies),
           };
 
-          const newOrigin: import("../data/Jump").Origin = {
+          const newOrigin: Origin = {
             summary: applyTags(template.name, tags),
             ...(template.description
               ? { description: applyTags(template.description, tags) }
@@ -3108,8 +3108,8 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             ...(freebie !== undefined ? { freebie } : {}),
           };
 
-          if (!jump.origins[charId]) (jump.origins as any)[charId] = {};
-          const categoryOrigins = jump.origins[charId] as any;
+          if (!jump.origins[charId]) (jump.origins)[charId] = {};
+          const categoryOrigins = jump.origins[charId];
           if (!categoryOrigins[categoryLid]) categoryOrigins[categoryLid] = [];
           categoryOrigins[categoryLid].push(newOrigin);
 
