@@ -3077,7 +3077,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
 
           const chainCat = jump.originCategories.O[categoryLid];
           const docCat = doc.originCategories.O[template.type];
-          const effectiveMax = chainCat?.multiple ? (docCat?.max ?? 1) : 1;
+          const effectiveMax = chainCat?.multiple ? (docCat?.max ?? 9999) : 1;
 
           const origins = jump.origins[charId] as
             | Record<Id<LID.OriginCategory>, Origin[]>
