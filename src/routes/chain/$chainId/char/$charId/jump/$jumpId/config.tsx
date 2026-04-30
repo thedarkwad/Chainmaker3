@@ -34,6 +34,7 @@ import {
   useJumpCompanionStipend,
   useJumpOriginStipend,
   useJumpDefaultCurrencyAbbrev,
+  useResyncJumpFromDoc,
 } from "@/chain/state/hooks";
 import { Checkbox } from "@/ui/Checkbox";
 import { CollapsibleSection } from "@/ui/CollapsibleSection";
@@ -1233,6 +1234,7 @@ function SourceSection({ jumpId }: { jumpId: Id<GID.Jump> }) {
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
   const linkedDocName = useJumpDocName();
   const linkedDocPdfUrl = useJumpDocPdfUrl();
+  const resyncFromDoc = useResyncJumpFromDoc(jumpId);
 
   if (!data) return null;
 
@@ -1281,29 +1283,40 @@ function SourceSection({ jumpId }: { jumpId: Id<GID.Jump> }) {
           )}
 
           {segValue === "jumpdoc" && (
-            <div className="flex items-center justify-center gap-2">
-              {linkedDocName ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-center gap-2">
+                {linkedDocName ? (
+                  <button
+                    type="button"
+                    onClick={() => useViewerActionStore.getState().popOutViewer?.()}
+                    className="flex-1 min-w-0 max-w-fit px-3 py-1 rounded-full border border-accent2 bg-accent2-tint text-accent2 text-xs truncate hover:bg-accent2 hover:text-surface transition-colors flex flex-row gap-1 items-center"
+                    title={`Open ${linkedDocName} in a new window`}
+                  >
+                    <span className="font-medium">Jump:</span>{" "}
+                    <span className="truncate">{linkedDocName}</span> <ExternalLink size={14} />
+                  </button>
+                ) : (
+                  <span className="flex-1 min-w-0 px-3 py-1 rounded-full border border-edge text-xs text-ghost italic">
+                    Loading…
+                  </span>
+                )}
                 <button
                   type="button"
-                  onClick={() => useViewerActionStore.getState().popOutViewer?.()}
-                  className="flex-1 min-w-0 max-w-fit px-3 py-1 rounded-full border border-accent2 bg-accent2-tint text-accent2 text-xs truncate hover:bg-accent2 hover:text-surface transition-colors flex flex-row gap-1 items-center"
-                  title={`Open ${linkedDocName} in a new window`}
+                  onClick={() => setShowUnlinkConfirm(true)}
+                  className="shrink-0 px-3 py-1 text-xs border border-danger/40 text-danger rounded hover:bg-danger/10 transition-colors"
                 >
-                  <span className="font-medium">Jump:</span>{" "}
-                  <span className="truncate">{linkedDocName}</span> <ExternalLink size={14} />
+                  Unlink
                 </button>
-              ) : (
-                <span className="flex-1 min-w-0 px-3 py-1 rounded-full border border-edge text-xs text-ghost italic">
-                  Loading…
-                </span>
+              </div>
+              {linkedDocName && (
+                <button
+                  type="button"
+                  onClick={resyncFromDoc}
+                  className="w-full px-3 py-1.5 text-xs border border-accent/40 text-accent rounded hover:bg-accent/10 transition-colors"
+                >
+                  Resync with JumpDoc
+                </button>
               )}
-              <button
-                type="button"
-                onClick={() => setShowUnlinkConfirm(true)}
-                className="shrink-0 px-3 py-1 text-xs border border-danger/40 text-danger rounded hover:bg-danger/10 transition-colors"
-              >
-                Unlink
-              </button>
             </div>
           )}
 

@@ -1688,6 +1688,110 @@ export function useJumpDocId(jumpId: Id<GID.Jump>): string | undefined {
   });
 }
 
+/**
+ * Returns a callback that syncs the jump's currencies and purchase subtypes from the
+ * currently loaded JumpDoc. For each doc entry:
+ *   a) match by templateId (subtypes) or numeric key (currencies);
+ *   b) fall back to matching by name with no existing template link;
+ *   c) add if still not found.
+ * Resets name, abbrev, budget (currencies) and name, stipend (subtypes) on matched entries.
+ */
+export function useResyncJumpFromDoc(jumpId: Id<GID.Jump>) {
+  return useCallback(() => {
+    const doc = useJumpDocStore.getState().doc;
+    if (!doc) return;
+
+    setTracked("Resync with JumpDoc", chain => {
+      const jump = chain.jumps.O[jumpId];
+      if (!jump) return;
+
+      // Currencies — no templateId field; numeric key in jump registry == TID value
+      for (const [tidStr, docCur] of Object.entries(doc.currencies.O)) {
+        if (!docCur) continue;
+        const expectedLid = createId<LID.Currency>(+tidStr);
+
+        let foundLid: Id<LID.Currency> | undefined;
+        if (jump.currencies.O[expectedLid]) {
+          foundLid = expectedLid;
+        } else {
+          for (const [lidStr, cur] of Object.entries(jump.currencies.O)) {
+            if (cur && cur.name === docCur.name) {
+              foundLid = createId<LID.Currency>(+lidStr);
+              break;
+            }
+          }
+        }
+
+        if (foundLid !== undefined) {
+          const cur = jump.currencies.O[foundLid]!;
+          cur.name = docCur.name;
+          cur.abbrev = docCur.abbrev;
+          cur.budget = docCur.budget;
+        } else {
+          jump.currencies.O[expectedLid] = {
+            name: docCur.name,
+            abbrev: docCur.abbrev,
+            budget: docCur.budget,
+            essential: docCur.essential,
+          };
+          if ((expectedLid as number) >= (jump.currencies.fId as number)) {
+            jump.currencies.fId = createId<LID.Currency>((expectedLid as number) + 1);
+          }
+        }
+      }
+
+      // Purchase subtypes — match by templateId, then by name with no templateId
+      for (const [tidStr, docSt] of Object.entries(doc.purchaseSubtypes.O)) {
+        if (!docSt) continue;
+        if (isNaN(+tidStr)) continue;
+        const tid = createId<TID.PurchaseSubtype>(+tidStr);
+
+        let foundLid: Id<LID.PurchaseSubtype> | undefined;
+        for (const [lidStr, st] of Object.entries(jump.purchaseSubtypes.O)) {
+          if (st && st.templateId === tid) {
+            foundLid = createId<LID.PurchaseSubtype>(+lidStr);
+            break;
+          }
+        }
+        if (foundLid === undefined) {
+          for (const [lidStr, st] of Object.entries(jump.purchaseSubtypes.O)) {
+            if (st && st.name === docSt.name && st.templateId === undefined) {
+              foundLid = createId<LID.PurchaseSubtype>(+lidStr);
+              break;
+            }
+          }
+        }
+
+        const newStipend = (docSt.stipend as SimpleValue<TID.Currency>[]).map(s => ({
+          amount: s.amount,
+          currency: createId<LID.Currency>(s.currency as number),
+        }));
+
+        if (foundLid !== undefined) {
+          const st = jump.purchaseSubtypes.O[foundLid]!;
+          st.name = docSt.name;
+          st.stipend = newStipend;
+          st.templateId = tid;
+        } else {
+          const newLid = jump.purchaseSubtypes.fId;
+          jump.purchaseSubtypes.O[newLid] = {
+            name: docSt.name,
+            stipend: newStipend,
+            type: docSt.type,
+            essential: docSt.essential,
+            allowSubpurchases: docSt.allowSubpurchases,
+            placement: docSt.essential ? "normal" : "section",
+            templateId: tid,
+          };
+          jump.purchaseSubtypes.fId = createId<LID.PurchaseSubtype>((newLid as number) + 1);
+        }
+      }
+
+      chain.budgetFlag += 1;
+    });
+  }, [jumpId]);
+}
+
 /** All jumps in chain order — used for the supplement parent selector. */
 export function useAllJumps(): Jump[] {
   return useChainStore(
