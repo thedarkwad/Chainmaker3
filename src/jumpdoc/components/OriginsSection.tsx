@@ -8,7 +8,7 @@ import { Plus, X } from "lucide-react";
 import { RareFieldsGroup } from "./RareFieldsGroup";
 import { CollapsibleSection } from "@/ui/CollapsibleSection";
 import { TemplateCard } from "./TemplateCard";
-import { DescriptionArea, BlurNumberInput, ChoiceContextEditor } from "./JumpDocFields";
+import { DescriptionArea, BlurNumberInput, ChoiceContextEditor, InternalTagsField } from "./JumpDocFields";
 import { CostDropdown } from "@/ui/CostDropdown";
 import { CostModifier } from "@/chain/data/Purchase";
 import type { AddBoundsTarget, SectionSharedProps } from "./sectionTypes";
@@ -29,6 +29,7 @@ import {
   useJumpDocOriginRandom,
   useAddJumpDocPrereq,
   useRemoveJumpDocPrereq,
+  useDuplicateJumpDocOrigin,
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
@@ -251,6 +252,7 @@ const OriginCard = memo(function OriginCard({
   let synergyCats = useJumpDocOriginsGrouped().filter(({ catId }) => catId !== origin?.type);
   const modify = useModifyJumpDocOrigin(id);
   const removeOrigin = useRemoveJumpDocOrigin();
+  const duplicateOrigin = useDuplicateJumpDocOrigin();
   const removeBound = useRemoveBoundFromOrigin();
   const currencies = useJumpDocCurrenciesRegistry();
   const currencyIds = useJumpDocCurrencyIds();
@@ -282,6 +284,7 @@ const OriginCard = memo(function OriginCard({
           t.name = v;
         })
       }
+      onDuplicate={() => duplicateOrigin(id)}
       onAddBound={() => onAddBoundsRequest(`origin-${origin.type}`, id)}
       onRemoveBound={(i) => removeBound(id, i)}
       onDelete={() => removeOrigin(id)}
@@ -385,6 +388,26 @@ const OriginCard = memo(function OriginCard({
                   }
                 />
               </div>
+            ),
+          },
+          {
+            key: "internalTags",
+            isActive: origin.internalTags !== undefined,
+            dormant: () => (
+              <button
+                type="button"
+                className="flex items-center gap-0.5 text-xs text-ghost hover:text-accent transition-colors"
+                onClick={() => modify("Add Internal Tags", (t) => { t.internalTags = []; })}
+              >
+                <Plus size={10} /> Add Internal Tags
+              </button>
+            ),
+            active: () => (
+              <InternalTagsField
+                tags={origin.internalTags!}
+                onChange={(tags) => modify("Set Internal Tags", (t) => { t.internalTags = tags; })}
+                onUndefined={() => modify("Remove Internal Tags", (t) => { t.internalTags = undefined; })}
+              />
             ),
           },
           ...(synergyCats.length > 0

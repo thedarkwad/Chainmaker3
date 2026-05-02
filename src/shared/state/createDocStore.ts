@@ -47,6 +47,7 @@ export type BaseDocActions<T extends object> = {
   ) => void;
   closeUIBinding: (key: symbol) => void;
   declareSynched: () => void;
+  reset: () => void;
 };
 
 export type DocStore<T extends object> = BaseDocState<T> & BaseDocActions<T>;
@@ -59,43 +60,48 @@ export function createDocStore<T extends object>() {
   type S = DocStore<T>;
 
   const useStore = create<S>()(
-    subscribeWithSelector((set) => ({
+    subscribeWithSelector(set => ({
       doc: undefined,
       updates: new UpdateStack<T>(),
       dummyElements: [undefined, undefined] as unknown as S["dummyElements"],
 
-      setDoc: (d) => set({ doc: d }),
-      setDummyElement: (d) => set({ dummyElements: d }),
+      setDoc: d => set({ doc: d }),
+      setDummyElement: d => set({ dummyElements: d }),
 
       undo: () =>
-        set((s) => {
+        set(s => {
           if (!s.doc) return {};
           return produce(s, (t: Required<S>) => t.updates.undo(t.doc));
         }),
 
       redo: () =>
-        set((s) => {
+        set(s => {
           if (!s.doc) return {};
           return produce(s, (t: Required<S>) => t.updates.redo(t.doc));
         }),
 
       addActionUpdate: (name, doFn, undoFn, uiBinding) =>
-        set((s) => {
+        set(s => {
           if (!s.dummyElements[0]) return {};
           const [d1, d2] = s.dummyElements;
           d1!.focus();
           document.execCommand("insertText", false, "0");
           d1!.blur();
-          const newUpdates = produce(s.updates, (u) => {
+          const newUpdates = produce(s.updates, u => {
             u.commitActionUpdate(name, doFn, undoFn, uiBinding);
           });
-          return { updates: newUpdates, dummyElements: [d2, d1] as S["dummyElements"] };
+          return {
+            updates: newUpdates,
+            dummyElements: [d2, d1] as S["dummyElements"],
+          };
         }),
 
       addMergeableActionUpdate: (mergeKey, name, doFn, undoFn) =>
-        set((s) => {
+        set(s => {
           if (s.updates.canMerge(mergeKey)) {
-            const newUpdates = produce(s.updates, (u) => u.mergeLastAction(name, doFn));
+            const newUpdates = produce(s.updates, u =>
+              u.mergeLastAction(name, doFn),
+            );
             return { updates: newUpdates };
           }
           if (!s.dummyElements[0]) return {};
@@ -103,55 +109,65 @@ export function createDocStore<T extends object>() {
           d1!.focus();
           document.execCommand("insertText", false, "0");
           d1!.blur();
-          const newUpdates = produce(s.updates, (u) => {
+          const newUpdates = produce(s.updates, u => {
             u.commitActionUpdate(name, doFn, undoFn, undefined, mergeKey);
           });
-          return { updates: newUpdates, dummyElements: [d2, d1] as S["dummyElements"] };
+          return {
+            updates: newUpdates,
+            dummyElements: [d2, d1] as S["dummyElements"],
+          };
         }),
 
-      closeUIBinding: (key) =>
-        set((s) => {
-          const newUpdates = produce(s.updates, (u) => u.closeUIBinding(key));
+      closeUIBinding: key =>
+        set(s => {
+          const newUpdates = produce(s.updates, u => u.closeUIBinding(key));
           return { updates: newUpdates };
         }),
 
       declareSynched: () =>
-        set((s) => {
-          const newUpdates = produce(s.updates, (u) => u.declareSynched());
+        set(s => {
+          const newUpdates = produce(s.updates, u => u.declareSynched());
           return { updates: newUpdates };
         }),
+      reset: () => set({ updates: new UpdateStack<T>() }),
     })),
   );
 
   /** Records Immer patches into an open UpdateStack batch.
    *  Must be preceded by store.getState().updates.startUpdate and followed by endUpdate. */
-  const createPatch = (f: (doc: T) => void) => (s: S): Partial<S> => {
-    if (!s.doc) return {};
-    const [newDoc, patches, inversePatches] = produceWithPatches(s.doc, f);
-    const newUpdates = produce(s.updates, (u) => u.pushPatches(patches, inversePatches));
-    return { doc: newDoc as T, updates: newUpdates };
-  };
+  const createPatch =
+    (f: (doc: T) => void) =>
+    (s: S): Partial<S> => {
+      if (!s.doc) return {};
+      const [newDoc, patches, inversePatches] = produceWithPatches(s.doc, f);
+      const newUpdates = produce(s.updates, u =>
+        u.pushPatches(patches, inversePatches),
+      );
+      return { doc: newDoc as T, updates: newUpdates };
+    };
 
   /** Creates a browser undo slot, records Immer patches, and finalizes — all in one call.
    *  Use this for the vast majority of document mutations. */
-  const createTrackedAction = (name: string, f: (doc: T) => void) => (s: S): Partial<S> => {
-    if (!s.doc) return {};
-    const [d1, d2] = s.dummyElements;
-    d1?.focus();
-    document.execCommand("insertText", false, "0");
-    d1?.blur();
-    const [newDoc, patches, inversePatches] = produceWithPatches(s.doc, f);
-    const newUpdates = produce(s.updates, (u) => {
-      u.startUpdate(name);
-      u.pushPatches(patches, inversePatches);
-      u.finalizeUpdate(name);
-    });
-    return {
-      doc: newDoc as T,
-      updates: newUpdates,
-      dummyElements: [d2, d1] as S["dummyElements"],
+  const createTrackedAction =
+    (name: string, f: (doc: T) => void) =>
+    (s: S): Partial<S> => {
+      if (!s.doc) return {};
+      const [d1, d2] = s.dummyElements;
+      d1?.focus();
+      document.execCommand("insertText", false, "0");
+      d1?.blur();
+      const [newDoc, patches, inversePatches] = produceWithPatches(s.doc, f);
+      const newUpdates = produce(s.updates, u => {
+        u.startUpdate(name);
+        u.pushPatches(patches, inversePatches);
+        u.finalizeUpdate(name);
+      });
+      return {
+        doc: newDoc as T,
+        updates: newUpdates,
+        dummyElements: [d2, d1] as S["dummyElements"],
+      };
     };
-  };
 
   return { useStore, createTrackedAction, createPatch };
 }

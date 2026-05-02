@@ -4034,7 +4034,6 @@ function deepCopyPurchase(
   const targetJump = c.jumps.O[jumpId];
 
   // Shallow-clone, then fix up fields below
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const copy: any = { ...src, id: newId, charId, jumpId };
 
   // Cross-jump paste: collapse the source value into a single DEFAULT_CURRENCY amount

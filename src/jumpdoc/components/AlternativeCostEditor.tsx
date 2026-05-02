@@ -21,6 +21,8 @@ import {
   useJumpDocOrigin,
   useJumpDocDrawback,
   useJumpDocPurchase,
+  useJumpDocCompanion,
+  useJumpDocScenario,
 } from "@/jumpdoc/state/hooks";
 import { SegmentedControl } from "@/ui/SegmentedControl";
 import { Tip } from "@/ui/Tip";
@@ -244,6 +246,10 @@ export function PrereqChip({
     return <OriginPrereqChip id={prereq.id} onRemove={onRemove} />;
   if (prereq.type === "drawback")
     return <DrawbackPrereqChip id={prereq.id} onRemove={onRemove} />;
+  if (prereq.type === "companion")
+    return <CompanionPrereqChip id={prereq.id} onRemove={onRemove} />;
+  if (prereq.type === "scenario")
+    return <ScenarioPrereqChip id={prereq.id} onRemove={onRemove} />;
   return <PurchasePrereqChip id={prereq.id} onRemove={onRemove} />;
 }
 
@@ -280,6 +286,41 @@ function DrawbackPrereqChip({
     />
   );
 }
+
+function CompanionPrereqChip({
+  id,
+  onRemove,
+}: {
+  id: Id<TID.Companion>;
+  onRemove: () => void;
+}) {
+  const item = useJumpDocCompanion(id);
+  return (
+    <ChipPill
+      label="drawback"
+      name={item?.name ?? "(deleted)"}
+      onRemove={onRemove}
+    />
+  );
+}
+
+function ScenarioPrereqChip({
+  id,
+  onRemove,
+}: {
+  id: Id<TID.Scenario>;
+  onRemove: () => void;
+}) {
+  const item = useJumpDocScenario(id);
+  return (
+    <ChipPill
+      label="drawback"
+      name={item?.name ?? "(deleted)"}
+      onRemove={onRemove}
+    />
+  );
+}
+
 
 function PurchasePrereqChip({
   id,
@@ -326,26 +367,36 @@ function ChipPill({
 // PrerequisitePickerModal
 // ─────────────────────────────────────────────────────────────────────────────
 
+type PrerequisiteType = "origin" | "purchase" | "drawback" | "scenario" | "companion";
+
 export function PrerequisitePickerModal({
   title = "Add Prerequisite",
   onSelect,
   onClose,
+  exclusions = [],
 }: {
   title?: string;
   onSelect: (prereq: AlternativeCostPrerequisite) => void;
   onClose: () => void;
+  exclusions?: PrerequisiteType[];
 }) {
-  const { origins, drawbacks, purchases } = useJumpDocPrerequisiteItems();
+  const { origins, drawbacks, purchases, scenarios, companions } = useJumpDocPrerequisiteItems();
   const [filter, setFilter] = useState("");
   const lc = filter.toLowerCase();
 
-  const filteredOrigins = origins.filter(o =>
+  const filteredOrigins = exclusions.includes("origin") ? [] : origins.filter(o =>
     o.name.toLowerCase().includes(lc),
   );
-  const filteredDrawbacks = drawbacks.filter(d =>
+  const filteredDrawbacks = exclusions.includes("drawback") ? [] : drawbacks.filter(d =>
     d.name.toLowerCase().includes(lc),
   );
-  const filteredPurchases = purchases.filter(p =>
+  const filteredPurchases = exclusions.includes("purchase") ? [] : purchases.filter(p =>
+    p.name.toLowerCase().includes(lc),
+  );
+  const filteredScenarios = exclusions.includes("scenario") ? [] : scenarios.filter(p =>
+    p.name.toLowerCase().includes(lc),
+  );
+  const filteredCompanions = exclusions.includes("companion") ? [] : companions.filter(p =>
     p.name.toLowerCase().includes(lc),
   );
 
@@ -354,7 +405,9 @@ export function PrerequisitePickerModal({
   const hasMatches =
     filteredOrigins.length > 0 ||
     filteredDrawbacks.length > 0 ||
-    filteredPurchases.length > 0;
+    filteredPurchases.length > 0 ||
+    filteredScenarios.length > 0 ||
+    filteredCompanions.length > 0;
 
   // Group origins by category
   const originsByCategory = new Map<
@@ -421,18 +474,6 @@ export function PrerequisitePickerModal({
         </PickerGroup>
       )}
 
-      {filteredDrawbacks.length > 0 && (
-        <PickerGroup label="Drawbacks">
-          {filteredDrawbacks.map(d => (
-            <PickerItem
-              key={d.id as number}
-              name={d.name}
-              onClick={() => onSelect({ type: "drawback", id: d.id })}
-            />
-          ))}
-        </PickerGroup>
-      )}
-
       {filteredPurchases.length > 0 && (
         <PickerGroup label="Purchases">
           {[...purchasesBySubtype.entries()].map(
@@ -458,6 +499,42 @@ export function PrerequisitePickerModal({
               </div>
             ),
           )}
+        </PickerGroup>
+      )}
+
+      {filteredDrawbacks.length > 0 && (
+        <PickerGroup label="Drawbacks">
+          {filteredDrawbacks.map(d => (
+            <PickerItem
+              key={d.id as number}
+              name={d.name}
+              onClick={() => onSelect({ type: "drawback", id: d.id })}
+            />
+          ))}
+        </PickerGroup>
+      )}
+
+      {filteredScenarios.length > 0 && (
+        <PickerGroup label="Scenarios">
+          {filteredScenarios.map(d => (
+            <PickerItem
+              key={d.id as number}
+              name={d.name}
+              onClick={() => onSelect({ type: "scenario", id: d.id })}
+            />
+          ))}
+        </PickerGroup>
+      )}
+
+      {filteredCompanions.length > 0 && (
+        <PickerGroup label="Drawbacks">
+          {filteredCompanions.map(d => (
+            <PickerItem
+              key={d.id as number}
+              name={d.name}
+              onClick={() => onSelect({ type: "companion", id: d.id })}
+            />
+          ))}
         </PickerGroup>
       )}
 

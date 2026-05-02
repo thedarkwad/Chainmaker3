@@ -7,9 +7,10 @@ import { memo, useRef, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
 import { CollapsibleSection } from "@/ui/CollapsibleSection";
 import { TemplateCard } from "./TemplateCard";
-import { DescriptionArea, BlurNumberInput, ChoiceContextEditor } from "./JumpDocFields";
+import { DescriptionArea, BlurNumberInput, ChoiceContextEditor, InternalTagsField } from "./JumpDocFields";
 import { Checkbox } from "@/ui/Checkbox";
 import { AlternativeCostEditor } from "./AlternativeCostEditor";
+import { VariableCostEditor } from "./VariableCostEditor";
 import { PurchasePrerequisiteEditor, PurchasePrerequisitePickerModal } from "./PurchasesSection";
 import { RareFieldsGroup } from "./RareFieldsGroup";
 import { CostDropdown } from "@/ui/CostDropdown";
@@ -28,10 +29,11 @@ import {
   useJumpDocFirstCurrencyId,
   useAddJumpDocPrereq,
   useRemoveJumpDocPrereq,
+  useDuplicateJumpDocDrawback,
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
-import type { DrawbackDurationMod } from "@/chain/data/JumpDoc";
+import type { DrawbackDurationMod, VariableCost } from "@/chain/data/JumpDoc";
 
 export function DurationModActiveRow({
   value,
@@ -174,6 +176,7 @@ const DrawbackCard = memo(function DrawbackCard({
   const drawback = useJumpDocDrawback(id);
   const modify = useModifyJumpDocDrawback(id);
   const removeDrawback = useRemoveJumpDocDrawback();
+  const duplicateDrawback = useDuplicateJumpDocDrawback();
   const removeBound = useRemoveBoundFromDrawback();
   const addPrereq = useAddJumpDocPrereq("drawback", id as number);
   const removePrereq = useRemoveJumpDocPrereq("drawback", id as number);
@@ -202,24 +205,30 @@ const DrawbackCard = memo(function DrawbackCard({
           t.name = v;
         })
       }
+      onDuplicate={() => duplicateDrawback(id)}
       onAddBound={() => onAddBoundsRequest("drawback", id)}
       onRemoveBound={(i) => removeBound(id, i)}
       onDelete={() => removeDrawback(id)}
       onBecomeScrollTarget={() => descriptionRef.current?.focus()}
       headerExtra={
-        currencies && (
-          <CostDropdown
-            value={drawback.cost}
-            cost={fullCost}
-            currencies={currencies}
-            hideModifier
-            onChange={(v) =>
-              modify("Set Drawback Cost", (t) => {
-                t.cost = v;
-              })
-            }
-          />
-        )
+        <div className="flex items-center gap-1 shrink-0">
+          {currencies && Array.isArray(drawback.cost) && (
+            <CostDropdown
+              value={drawback.cost}
+              cost={fullCost}
+              currencies={currencies}
+              hideModifier
+              onChange={(v) =>
+                modify("Set Drawback Cost", (t) => {
+                  t.cost = v;
+                })
+              }
+            />
+          )}
+          {!Array.isArray(drawback.cost) && (
+            <span className="text-xs text-muted mx-1">Variable Value</span>
+          )}
+        </div>
       }
     >
       <DescriptionArea
@@ -264,8 +273,35 @@ const DrawbackCard = memo(function DrawbackCard({
           Can Be Taken Multiple Times
         </Checkbox>
       </div>
+
       <RareFieldsGroup
         fields={[
+          {
+            key: "variableCost",
+            isActive: !Array.isArray(drawback.cost),
+            dormant: () => (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                onClick={() =>
+                  modify("Enable Variable Cost", (t) => {
+                    t.cost = { [firstCurrencyId]: "" } as VariableCost;
+                  })
+                }
+              >
+                use variable cost
+              </button>
+            ),
+            active: () => (
+              <div className="pt-1.5 border-t border-line">
+                <VariableCostEditor
+                  value={drawback.cost as VariableCost}
+                  onCommit={(name, updated) => modify(name, (t) => { t.cost = updated; })}
+                  onRemove={() => modify("Disable Variable Cost", (t) => { t.cost = []; })}
+                />
+              </div>
+            ),
+          },
           {
             key: "durationMod",
             isActive: !!drawback.durationMod,
@@ -364,6 +400,26 @@ const DrawbackCard = memo(function DrawbackCard({
                 prerequisites={drawback.prerequisites}
                 onAdd={addPrereq}
                 onRemove={removePrereq}
+              />
+            ),
+          },
+          {
+            key: "internalTags",
+            isActive: drawback.internalTags !== undefined,
+            dormant: () => (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                onClick={() => modify("Add Internal Tags", t => { t.internalTags = []; })}
+              >
+                <Plus size={8} /> add internal tag
+              </button>
+            ),
+            active: () => (
+              <InternalTagsField
+                tags={drawback.internalTags!}
+                onChange={tags => modify("Edit Internal Tags", (t) => { t.internalTags = tags; })}
+                onUndefined={() => modify("Remove Internal Tags", t => { t.internalTags = undefined; })}
               />
             ),
           },

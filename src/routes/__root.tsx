@@ -129,7 +129,12 @@ function RootContent() {
 
     function confirmNavigateAway(): boolean {
       if (!hasUnsavedChanges()) return true;
-      return window.confirm("You have unsaved changes. Discard them and continue?");
+      if (window.confirm("You have unsaved changes. Discard them and continue?")) {
+        useChainStore.getState().reset();
+        useJumpDocStore.getState().reset();
+        return true;
+      }
+      return false;
     }
 
     function closeChain() {

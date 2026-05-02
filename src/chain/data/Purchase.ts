@@ -1,28 +1,5 @@
 import { PossibleCost } from "../components/AnnotationInteractionHandler";
-import { ImgData } from "./AltForm";
 import { createId, GID, Id, LID, Lookup, PartialLookup, TID } from "./types";
-
-export type StoredAltCostPrerequisite =
-  | { type: "origin"; categoryName: string; originName: string }
-  | { type: "drawback"; docId: string; templateId: Id<TID.Drawback> }
-  | { type: "purchase"; docId: string; templateId: Id<TID.Purchase> };
-
-/** Stored prerequisite for a BasicPurchase; used for cascade-removal when a required item is removed. */
-export type StoredPurchasePrerequisite =
-  | { type: "purchase"; docId: string; templateId: Id<TID.Purchase>; positive: boolean }
-  | { type: "drawback"; docId: string; templateId: Id<TID.Drawback>; positive: boolean }
-  | { type: "scenario"; docId: string; templateId: Id<TID.Scenario>; positive: boolean }
-  | { type: "origin"; docId: string; templateId: Id<TID.Origin>; positive: boolean };
-
-export type StoredAlternativeCost = {
-  /** Resolved to LID currencies at add-time. */
-  value: Value;
-  /** OR semantics — any one satisfied is sufficient. */
-  prerequisites: StoredAltCostPrerequisite[];
-  mandatory: boolean;
-  /** When true, origin discounts apply on top of this alt cost instead of being overridden by it. */
-  beforeDiscounts?: boolean;
-};
 
 export const enum PurchaseType {
   Perk,
@@ -174,7 +151,14 @@ export type AbstractPurchase = {
 
 export type JumpPurchase<T extends TID | unknown = unknown> = AbstractPurchase & {
   jumpId: Id<GID.Jump>;
-  template?: { jumpdoc: string; id: T extends TID ? Id<T> : unknown; originalCost?: PossibleCost};
+  template?: { 
+    jumpdoc: string;
+    id: T extends TID ? Id<T> : unknown;
+    originalCost?: PossibleCost, 
+    tags?: Record<string, string>,
+    originalDescription?: string,
+    originalName?: string,
+  };
   boosts?: { purchaseId: Id<GID.Purchase>; description: string }[];
   value: Value;
 };

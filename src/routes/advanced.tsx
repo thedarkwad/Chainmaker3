@@ -2,29 +2,27 @@ import { AppHeader } from "@/app/components/AppHeader";
 import { PortalNav } from "@/app/components/PortalNav";
 import { UserDropdown } from "@/app/components/UserDropdown";
 import { useTheme } from "@/providers/ThemeProvider";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import Markdown from "react-markdown";
-import doc from "@/help.md?raw";
+import remarkGfm from "remark-gfm";
+import doc from "@/advanced.md?raw";
 import { Root, Blockquote, Paragraph, Text } from "mdast";
 import { Plugin } from "unified";
 import { useMemo, type ReactNode } from "react";
 
-export const Route = createFileRoute("/guide")({
+export const Route = createFileRoute("/advanced")({
   component: RouteComponent,
 });
 
 const remarkPureAlerts: Plugin<[], Root> = () => (tree) => {
   tree.children.forEach((node) => {
-    // Only process blockquotes
     if (node.type !== "blockquote") return;
 
     const blockquote = node as Blockquote;
 
-    // Check for paragraph as first child
     const firstPara = blockquote.children[0] as Paragraph;
     if (firstPara?.type !== "paragraph") return;
 
-    // Check for text as first child of that paragraph
     const firstText = firstPara.children[0] as Text;
     if (firstText?.type !== "text") return;
 
@@ -68,10 +66,7 @@ function extractTOC(markdown: string) {
   while ((match = headingRegex.exec(markdown)) !== null) {
     const level = match[1].length;
     const text = match[2].trim();
-
-    const slug = slugify(text);
-
-    toc.push({ level, text, slug });
+    toc.push({ level, text, slug: slugify(text) });
   }
 
   return toc;
@@ -80,11 +75,11 @@ function extractTOC(markdown: string) {
 function RouteComponent() {
   const { settings, updateSettings } = useTheme();
 
-  let toc = useMemo(() => extractTOC(doc), []);
+  const toc = useMemo(() => extractTOC(doc), []);
 
   return (
     <>
-      <title>Jumpdoc Creation Guide | ChainMaker</title>
+      <title>Template Expression Language | ChainMaker</title>
       <div className="flex h-dvh flex-col bg-radial-[at_100%_0%] from-accent2/30 via-canvas to-transparent">
         <AppHeader
           nav={<PortalNav />}
@@ -113,12 +108,12 @@ function RouteComponent() {
             <div className="max-w-3xl mt-2 md:mt-0 mx-10 md:mx-0 flex flex-col gap-1 text-sm leading-relaxed text-muted">
               <div className="flex flex-col bg-surface/80 border border-edge px-2 pb-2 rounded h-fit">
               <Markdown
-                remarkPlugins={[remarkPureAlerts]}
+                remarkPlugins={[remarkGfm, remarkPureAlerts]}
                 components={{
                   h1: ({ children, ...props }) => (
                     <h1
                       id={slugify(childrenToText(children))}
-                      className="text-3xl font-bold text-accent2/60 text-center md:text-left"
+                      className="text-lg font-bold text-accent2 text-center md:text-left mt-2 mb-1 pl-2"
                       {...props}
                     >
                       {children}
@@ -127,14 +122,18 @@ function RouteComponent() {
                   h2: ({ children, ...props }) => (
                     <h2
                       id={slugify(childrenToText(children))}
-                      className="text-xl font-bold text-accent2 text-center md:text-left"
+                      className="text-sm font-semibold text-accent-ring uppercase tracking-wider mt-2 my-1a"
                       {...props}
                     >
                       {children}
                     </h2>
                   ),
-                  h3: (props) => <h3 className="text-accent2 font-bold" {...props} />,
-                  p: (props) => <p className="my-1" {...props} />,
+                  h3: (props) => (
+                    <h3 
+                    className="text-sm font-semibold text-accent-ring uppercase tracking-wider mt-2 my-1 " {...props} />
+                  ),
+                  p: (props) => <p className="my-2 leading-relaxed" {...props} />,
+                  hr: () => <hr className="my-3 border-line" />,
                   blockquote: ({ className, ...props }) => (
                     <blockquote
                       className={`border px-4 py-2 my-4 mx-4 rounded self-center ${
@@ -144,34 +143,55 @@ function RouteComponent() {
                           ? "border-accent bg-accent-tint"
                           : className?.includes("image")
                             ? "border-2 border-accent-ring bg-white flex flex-row flex-wrap mx:flex-no-wrap items-center justify-center gap-2 [&_img]:max-w-full [&_img]:md:max-w-100"
-                            : "border-accent2 bg-accent2-tint"
+                            : "border-l-4 border-accent2/40 bg-accent2/5 rounded-r"
                       }`}
                       {...props}
                     />
                   ),
                   ul: (props) => (
                     <ul
-                      className="list-disc list-inside pl-4 [&_li]:my-3 [&_li]:marker:text-accent"
+                      className="my-2 pl-5 space-y-1 [&_li]:marker:text-accent list-disc list-outside"
                       {...props}
                     />
                   ),
                   ol: (props) => (
                     <ol
-                      className="-mt-2 leading-tight list-[lower-alpha] list-inside marker:font-semibold  marker:text-ghost pl-4"
+                      className="my-2 pl-5 space-y-1 list-decimal list-outside marker:text-accent marker:font-semibold"
                       {...props}
                     />
                   ),
-                  li: (props) => (
-                    <li
-                      className='[&>ul]:pl-15 [&>ul]:list-["⟶\00a0\00a0\00a0"] [&_ul]:text-muted/70'
-                      {...props}
-                    />
+                  li: (props) => <li className="leading-relaxed" {...props} />,
+                  a: (props) => (
+                    <a className="text-accent-ring underline underline-offset-2 decoration-accent-ring/40 hover:decoration-accent-ring transition-colors" {...props} />
                   ),
-                  a: (props) => <a className="text-accent-ring hover:underline" {...props} />,
                   strong: (props) => (
-                    <strong className="text-accent-ring/90 font-bold" {...props} />
+                    <strong className="text-ink font-semibold" {...props} />
                   ),
-                  em: (props) => <em className="text-ink/60 font-semibold italic" {...props} />,
+                  em: (props) => <em className="text-muted italic" {...props} />,
+                  code: ({ children, className, ...props }: any) => {
+                    // Block code is handled by `pre` — inline code has no className.
+                    if (!className) {
+                      return (
+                        <code className="font-mono inline-block text-accent bg-accent/10 border border-accent/20 px-1 py-0.5 rounded text-[0.85em]" {...props}>
+                          {children}
+                        </code>
+                      );
+                    }
+                    return <code className={`${className} font-mono text-xs`} {...props}>{children}</code>;
+                  },
+                  table: (props) => (
+                    <table className="text-xs border-collapse my-4 max-w-max self-center" {...props} />
+                  ),
+                  thead: (props) => <thead {...props} />,
+                  th: (props) => (
+                    <th className="border border-edge bg-accent2/10 px-3 py-1.5 text-left font-semibold text-accent2 text-xs uppercase tracking-wide" {...props} />
+                  ),
+                  td: (props) => (
+                    <td className="border border-edge px-3 py-1.5 text-muted" {...props} />
+                  ),
+                  tr: (props) => (
+                    <tr className="even:bg-tint/50" {...props} />
+                  ),
                   img: (props) => (
                     <div className="flex flex-col">
                       <div className="self-center px-4 py-2 my-4 mx-4 rounded-xl overflow-hidden bg-white relative isolate">

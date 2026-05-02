@@ -12,6 +12,7 @@ import {
   DescriptionArea,
   BlurNumberInput,
   ChoiceContextEditor,
+  InternalTagsField,
 } from "./JumpDocFields";
 import { OriginBenefitSection } from "./OriginBenefitSection";
 import {
@@ -19,12 +20,13 @@ import {
   PrerequisitePickerModal,
   PrereqChip,
 } from "./AlternativeCostEditor";
+import { VariableCostEditor } from "./VariableCostEditor";
 import {
   PurchasePrerequisiteEditor,
   PurchasePrerequisitePickerModal,
 } from "./PurchasesSection";
 import { RareFieldsGroup } from "./RareFieldsGroup";
-import type { AlternativeCostPrerequisite } from "@/chain/data/JumpDoc";
+import type { AlternativeCostPrerequisite, VariableCost } from "@/chain/data/JumpDoc";
 import { CostDropdown } from "@/ui/CostDropdown";
 import { CostModifier } from "@/chain/data/Purchase";
 import type { SectionSharedProps } from "./sectionTypes";
@@ -43,11 +45,11 @@ import {
   useJumpDocFirstCurrencyId,
   useAddJumpDocPrereq,
   useRemoveJumpDocPrereq,
+  useDuplicateJumpDocCompanion,
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
 import { SegmentedControl } from "@/ui/SegmentedControl";
-import { Tip } from "@/ui/Tip";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FreebiesEditor
@@ -59,7 +61,7 @@ function FreebiesEditor({
   onRemove,
 }: {
   freebies: AlternativeCostPrerequisite[];
-  onAdd: (item: AlternativeCostPrerequisite) => void;
+  onAdd: (item: AlternativeCostPrerequisite & {type: "purchase" | "drawback" | "origin"}) => void;
   onRemove: (index: number) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -84,8 +86,10 @@ function FreebiesEditor({
       {pickerOpen && (
         <PrerequisitePickerModal
           title="Add Freebie"
+          exclusions={["companion", "scenario"]}
           onSelect={item => {
-            onAdd(item);
+            if (item.type != "companion" && item.type != "scenario")
+              onAdd(item);
             setPickerOpen(false);
           }}
           onClose={() => setPickerOpen(false)}
@@ -256,6 +260,7 @@ const CompanionCard = memo(function CompanionCard({
   const companion = useJumpDocCompanion(id);
   const modify = useModifyJumpDocCompanion(id);
   const removeCompanion = useRemoveJumpDocCompanion();
+  const duplicateCompanion = useDuplicateJumpDocCompanion();
   const removeBound = useRemoveBoundFromCompanion();
   const addPrereq = useAddJumpDocPrereq("companion", id as number);
   const removePrereq = useRemoveJumpDocPrereq("companion", id as number);
@@ -334,24 +339,30 @@ const CompanionCard = memo(function CompanionCard({
           t.name = v;
         })
       }
+      onDuplicate={() => duplicateCompanion(id)}
       onAddBound={() => onAddBoundsRequest("companion", id)}
       onRemoveBound={i => removeBound(id, i)}
       onDelete={() => removeCompanion(id)}
       onBecomeScrollTarget={() => descriptionRef.current?.focus()}
       headerExtra={
-        currencies && (
-          <CostDropdown<TID.Currency>
-            value={companion.cost}
-            cost={fullCost}
-            currencies={currencies}
-            hideModifier
-            onChange={v =>
-              modify("Set Companion Cost", t => {
-                t.cost = v;
-              })
-            }
-          />
-        )
+        <div className="flex items-center gap-1 shrink-0">
+          {currencies && Array.isArray(companion.cost) && (
+            <CostDropdown<TID.Currency>
+              value={companion.cost}
+              cost={fullCost}
+              currencies={currencies}
+              hideModifier
+              onChange={v =>
+                modify("Set Companion Cost", t => {
+                  t.cost = v;
+                })
+              }
+            />
+          )}
+          {!Array.isArray(companion.cost) && (
+            <span className="text-xs text-muted mx-1">Variable Value</span>
+          )}
+        </div>
       }
     >
       <DescriptionArea
@@ -527,6 +538,32 @@ const CompanionCard = memo(function CompanionCard({
       <RareFieldsGroup
         fields={[
           {
+            key: "variableCost",
+            isActive: !Array.isArray(companion.cost),
+            dormant: () => (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                onClick={() =>
+                  modify("Enable Variable Cost", t => {
+                    t.cost = { [firstCurrencyId]: "" } as VariableCost;
+                  })
+                }
+              >
+                use variable cost
+              </button>
+            ),
+            active: () => (
+              <div className="pt-1.5 border-t border-line">
+                <VariableCostEditor
+                  value={companion.cost as VariableCost}
+                  onCommit={(name, updated) => modify(name, t => { t.cost = updated; })}
+                  onRemove={() => modify("Disable Variable Cost", t => { t.cost = []; })}
+                />
+              </div>
+            ),
+          },
+          {
             key: "prerequisites",
             isActive: !!companion.prerequisites?.length,
             dormant: () => (
@@ -572,9 +609,11 @@ const CompanionCard = memo(function CompanionCard({
                 {freebiePickerOpen && (
                   <PrerequisitePickerModal
                     title="Add Freebie"
+                    exclusions={["companion", "scenario"]}
                     onSelect={item => {
                       modify("Add Companion Freebie", t => {
                         if (!t.freebies) t.freebies = [];
+                        if (item.type == "scenario" || item.type == "companion") return;
                         t.freebies.push(item);
                       });
                       setFreebiePickerOpen(false);
@@ -641,6 +680,26 @@ const CompanionCard = memo(function CompanionCard({
                     if (t.alternativeCosts) t.alternativeCosts[i] = updated;
                   })
                 }
+              />
+            ),
+          },
+          {
+            key: "internalTags",
+            isActive: companion.internalTags !== undefined,
+            dormant: () => (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                onClick={() => modify("Add Internal Tags", t => { t.internalTags = []; })}
+              >
+                <Plus size={8} /> add internal tag
+              </button>
+            ),
+            active: () => (
+              <InternalTagsField
+                tags={companion.internalTags!}
+                onChange={tags => modify("Edit Internal Tags", t => { t.internalTags = tags; })}
+                onUndefined={() => modify("Remove Internal Tags", t => { t.internalTags = undefined; })}
               />
             ),
           },

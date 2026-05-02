@@ -19,6 +19,7 @@ type Actions = ChainActions &
   ReturnType<typeof UpdateStackActions> & {
     setDummyElement: (d: [HTMLDivElement, HTMLDivElement]) => void;
     clearPendingNavigation: () => void;
+    reset: () => void;
   };
 
 export const useChainStore = create<ChainState & Actions>()(
@@ -27,6 +28,7 @@ export const useChainStore = create<ChainState & Actions>()(
     dummyElements: [,],
     calculatedData: {},
     ...UpdateStackActions(set),
+    reset: () => set({ updates: new UpdateStack() }),
     setChain: (c) => set({ chain: c }),
     setDummyElement: (d) => set({ dummyElements: d }),
     clearPendingNavigation: () => set({ pendingNavigation: undefined }),

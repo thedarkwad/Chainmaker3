@@ -1,4 +1,11 @@
-import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useBlocker,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
 import { ChevronDown, Download, Loader2, Save, Share } from "lucide-react";
 import { createContext, useCallback, useEffect, useRef, useState } from "react";
 import { zipSync } from "fflate";
@@ -10,13 +17,20 @@ import { activeDocHandlers } from "@/electron-api/activeDocHandlers";
 import { AppHeader, navButtonClass } from "@/app/components/AppHeader";
 import { useTheme } from "@/providers/ThemeProvider";
 import { useCurrentUser } from "@/app/state/auth";
-import { loadChain, saveChain, autosaveChain, forceReplaceChain } from "@/api/chains";
-import { registerClipboardTab, deregisterClipboardTab } from "@/chain/state/clipboard";
+import {
+  loadChain,
+  saveChain,
+  autosaveChain,
+  forceReplaceChain,
+} from "@/api/chains";
+import {
+  registerClipboardTab,
+  deregisterClipboardTab,
+} from "@/chain/state/clipboard";
 import { getImagePaths } from "@/api/images";
 import { useImageUrlCache } from "@/chain/state/ImageUrlCache";
 import { adjustJumpOrganization } from "@/chain/state/calculations";
 import { recordRecentChain } from "@/app/state/recentChains";
-import { Drawback } from "@/chain/data/Purchase";
 
 /** Stable save function provided to child routes (e.g. add-doc). */
 export const ChainSaveCtx = createContext<() => Promise<void>>(async () => {});
@@ -76,14 +90,19 @@ function ChainLoader() {
 
     (async () => {
       try {
-        const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
+        const idToken = firebaseUser
+          ? await firebaseUser.getIdToken()
+          : undefined;
         // chainId in the URL is the publicUid
-        const result = await loadChain({ data: { publicUid: chainId, idToken } });
+        const result = await loadChain({
+          data: { publicUid: chainId, idToken },
+        });
         if (cancelled) return;
         chainMongoIdRef.current = result.chainMongoId;
         editsRef.current = result.edits;
         setChainOwnerUid(result.ownerUid);
-        isPendingRef.current = (result as { isPending?: boolean }).isPending ?? false;
+        isPendingRef.current =
+          (result as { isPending?: boolean }).isPending ?? false;
         useChainStore.getState().setChain(result.contents);
 
         useChainStore.getState().declareSynched();
@@ -95,13 +114,15 @@ function ChainLoader() {
 
         // Batch-resolve all internal alt-form image IDs in a single call.
         const altforms =
-          (result.contents as { altforms?: { O?: Record<string, unknown> } }).altforms?.O ?? {};
-        const imgIds = Object.values(altforms).flatMap((af) => {
-          const img = (af as { image?: { type?: string; imgId?: string } })?.image;
+          (result.contents as { altforms?: { O?: Record<string, unknown> } })
+            .altforms?.O ?? {};
+        const imgIds = Object.values(altforms).flatMap(af => {
+          const img = (af as { image?: { type?: string; imgId?: string } })
+            ?.image;
           return img?.type === "internal" && img.imgId ? [img.imgId] : [];
         });
         if (imgIds.length > 0) {
-          getImagePaths({ data: imgIds }).then((paths) => {
+          getImagePaths({ data: imgIds }).then(paths => {
             useImageUrlCache.getState().setUrls(paths);
           });
         }
@@ -132,18 +153,45 @@ function ChainLoader() {
 
   useEffect(adjustJumpOrganization, [chainId, !chain]);
 
+  if (import.meta.env.VITE_PLATFORM !== "electron")
+    useBlocker({
+      shouldBlockFn: ({ next }) => {
+        if (
+          chainId &&
+          "chainId" in next.params &&
+          next.params.chainId === chainId
+        )
+          return false;
+        if (useChainStore.getState().updates.cumulativePatches.length > 0) {
+          if (
+            !confirm(
+              "Are you sure you want to leave? You have unsaved changes.",
+            )
+          )
+            return true;
+          useChainStore.getState().reset();
+        }
+        return false;
+      },
+    });
+
   async function handleSave(manual: boolean) {
     if (!chainId) return;
-    if (manual && document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    const { updates } = useChainStore.getState();
-    const patches = updates.cumulativePatches;
+    if (manual && document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+    const patches = useChainStore.getState().updates.cumulativePatches;
     if (!patches.length && !isPendingRef.current) return;
     const chainMongoId = chainMongoIdRef.current;
     const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
     setSaving(true);
     try {
       const result = await saveChain({
-        data: { chainId: chainMongoId ?? "", idToken, patches, edits: editsRef.current },
+        data: {
+          chainId: chainMongoId ?? "",
+          idToken,
+          patches,
+          edits: editsRef.current,
+        },
       });
       if (result.status === "ok") {
         editsRef.current = result.edits;
@@ -152,7 +200,9 @@ function ChainLoader() {
       } else if (result.status === "bad_patches") {
         const contents = useChainStore.getState().chain;
         if (contents) {
-          const r = await forceReplaceChain({ data: { chainId: chainMongoId ?? "", idToken, contents } });
+          const r = await forceReplaceChain({
+            data: { chainId: chainMongoId ?? "", idToken, contents },
+          });
           if (r.status === "ok") {
             editsRef.current = r.edits;
             useChainStore.getState().declareSynched();
@@ -174,8 +224,7 @@ function ChainLoader() {
 
   async function handleAutoSave() {
     if (import.meta.env.VITE_PLATFORM === "electron") {
-      const { updates } = useChainStore.getState();
-      if (!updates.cumulativePatches.length) return;
+      if (!useChainStore.getState().updates.cumulativePatches.length) return;
       await autosaveChain();
     } else {
       await handleSave(false);
@@ -183,7 +232,7 @@ function ChainLoader() {
   }
 
   // Keep refs in sync every render so the intervals always call the latest closures.
-  handleSaveRef.current = () =>  handleSave(true);
+  handleSaveRef.current = () => handleSave(true);
   handleAutoSaveRef.current = handleAutoSave;
 
   // Stable save function for child routes — always calls the latest handleSave via ref.
@@ -206,7 +255,7 @@ function ChainLoader() {
     activeDocHandlers.saveAs = () => {
       api.chains
         .saveChainAs()
-        .then((result) => {
+        .then(result => {
           if (!result.ok) return;
           toast.success("Chain saved to new location.");
         })
@@ -220,8 +269,8 @@ function ChainLoader() {
   }, []);
 
   // Derive nav context from deepest matched route params + pathname.
-  const matches = useRouterState({ select: (s) => s.matches });
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const matches = useRouterState({ select: s => s.matches });
+  const pathname = useRouterState({ select: s => s.location.pathname });
   const deepParams = (matches.at(-1)?.params ?? {}) as Record<string, string>;
   const currentCharId = deepParams.charId ?? null;
   const currentJumpId = deepParams.jumpId ?? null;
@@ -230,13 +279,18 @@ function ChainLoader() {
   const navCharId: string | null = (() => {
     if (currentCharId) return currentCharId;
     if (!chain) return null;
-    const primary = chain.characterList.map((id) => chain.characters.O[id]).find((c) => c?.primary);
+    const primary = chain.characterList
+      .map(id => chain.characters.O[id])
+      .find(c => c?.primary);
     return primary ? String(primary.id as number) : null;
   })();
 
   // Prefer the active jump; fall back to the first jump in the chain.
   const jumpIdForNav =
-    currentJumpId ?? (chain?.jumpList[0] != null ? String(+(chain.jumpList[0] as number)) : null);
+    currentJumpId ??
+    (chain?.jumpList[0] != null
+      ? String(+(chain.jumpList[0] as number))
+      : null);
 
   const inJump = pathname.includes("/jump/");
   const inSummary = pathname.includes("/summary");
@@ -294,7 +348,11 @@ function ChainLoader() {
         </span>
       )}
 
-      <Link to={"/chain/$chainId/config"} params={{ chainId }} className={navButtonClass(inConfig)}>
+      <Link
+        to={"/chain/$chainId/config"}
+        params={{ chainId }}
+        className={navButtonClass(inConfig)}
+      >
         <span className="lg:hidden">Config</span>
         <span className="hidden lg:inline">Chain Settings</span>
       </Link>
@@ -333,10 +391,14 @@ function ChainLoader() {
     setExportMenuOpen(false);
     try {
       const imageUrlCache = useImageUrlCache.getState().urls;
-      const altforms = (chain as { altforms?: { O?: Record<string, unknown> } }).altforms?.O ?? {};
+      const altforms =
+        (chain as { altforms?: { O?: Record<string, unknown> } }).altforms?.O ??
+        {};
 
       const files: Record<string, Uint8Array> = {};
-      files["data.json"] = new TextEncoder().encode(JSON.stringify(chain, null, 2));
+      files["data.json"] = new TextEncoder().encode(
+        JSON.stringify(chain, null, 2),
+      );
 
       for (const af of Object.values(altforms)) {
         const img = (af as { image?: { type?: string; imgId?: string } }).image;
@@ -364,7 +426,9 @@ function ChainLoader() {
       }
 
       const zipped = zipSync(files);
-      const blob = new Blob([zipped.buffer as ArrayBuffer], { type: "application/octet-stream" });
+      const blob = new Blob([zipped.buffer as ArrayBuffer], {
+        type: "application/octet-stream",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -384,21 +448,32 @@ function ChainLoader() {
         disabled={saving || chainLoading}
         className="p-1.5 rounded text-white/70 hover:text-white transition-colors disabled:opacity-40"
       >
-        {saving ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
+        {saving ? (
+          <Loader2 size={17} className="animate-spin" />
+        ) : (
+          <Save size={17} />
+        )}
       </button>
       <div className="relative">
         <button
           title="Export chain"
-          onClick={() => setExportMenuOpen((v) => !v)}
+          onClick={() => setExportMenuOpen(v => !v)}
           disabled={chainLoading || exporting}
           className="flex items-center gap-0.5 p-1.5 rounded text-white/70 hover:text-white transition-colors disabled:opacity-40"
         >
-          {exporting ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />}
+          {exporting ? (
+            <Loader2 size={17} className="animate-spin" />
+          ) : (
+            <Download size={17} />
+          )}
           <ChevronDown size={11} />
         </button>
         {exportMenuOpen && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setExportMenuOpen(false)} />
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setExportMenuOpen(false)}
+            />
             <div className="absolute right-0 top-full mt-1 z-50 min-w-36 rounded-lg border border-edge bg-surface shadow-lg overflow-hidden">
               <button
                 type="button"

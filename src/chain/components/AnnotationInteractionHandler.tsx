@@ -1,11 +1,4 @@
-import {
-  ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { toast } from "react-toastify";
 import { SegmentedControl } from "@/ui/SegmentedControl";
@@ -55,6 +48,7 @@ import {
 import withReactContent from "sweetalert2-react-content";
 import Swal from "sweetalert2";
 import {
+  AlternativeCost,
   AlternativeCostPrerequisite,
   Annotation,
   BasicPurchaseTemplate,
@@ -68,35 +62,191 @@ import {
   PurchaseTemplate,
   ScenarioTemplate,
   stripTemplating,
+  VariableCost,
 } from "../data/JumpDoc";
 import { InteractionPreviewCard } from "./InteractionPreviewCard";
 import { CompanionMultiSelect } from "./CompanionMultiSelect";
 import { NewCompanionModal } from "./NewCompanionModal";
 import {
   applyTags,
+  applyTagsWithCost,
   extractTags,
-  originTemplateInfo,
-  resolveOriginTemplate,
-  TagField,
-} from "./annotationResolvers";
+  type UserInputTags,
+} from "../../utilities/tags";
 import { formatCostDisplay, formatCostShort } from "@/ui/CostDropdown";
-import { convertWhitespace, objFilter } from "@/utilities/miscUtilities";
+import {
+  convertWhitespace,
+  objFilter,
+  objMap,
+} from "@/utilities/miscUtilities";
 import { Currency, DEFAULT_CURRENCY_ID, Origin } from "../data/Jump";
 import { formatDuration } from "@/utilities/units";
-import { basename } from "node:path";
 
 const MySwal = withReactContent(Swal);
+
+export type InternalTagsMap = Record<
+  string,
+  (build: JumpDocBuildData) => string
+>;
+
+export function useJumpDocInternalTags(doc: JumpDoc | null): InternalTagsMap {
+  return useMemo(() => {
+    if (!doc) return {};
+    const tags = [
+      ...Object.values(doc.availableCompanions.O),
+      ...Object.values(doc.availableDrawbacks.O),
+      ...Object.values(doc.availablePurchases.O),
+      ...Object.values(doc.availableScenarios.O),
+      ...Object.values(doc.origins.O),
+    ].flatMap(p => p?.internalTags ?? []);
+
+    const incrementer = <A extends TID, B extends GID>(
+      r: Registry<A, { internalTags?: string[] }>,
+      lookup: (build: JumpDocBuildData) => PartialIndex<A, B>,
+    ) => {
+      const relevantEntries = Object.fromEntries(
+        tags.map(t => [
+          t,
+          Object.keys(r.O)
+            .filter(id => (r.O[id as any]?.internalTags ?? []).includes(t))
+            .map(Number) as Id<A>[],
+        ]),
+      );
+      return (build: JumpDocBuildData, t: string) => {
+        const lookupResolved = lookup(build);
+        let count = 0;
+        for (const id of relevantEntries[t] ?? []) {
+          count += lookupResolved[id]?.length ?? 0;
+        }
+        return count;
+      };
+    };
+    const incrementers = [
+      incrementer(doc.availablePurchases, build => build.purchases),
+      incrementer(doc.availableDrawbacks, build => build.drawbacks),
+      incrementer(doc.availableCompanions, build => build.companionImports),
+      incrementer(doc.availableScenarios, build => build.scenarios),
+    ];
+
+    const originTagIds = Object.fromEntries(
+      tags.map(t => [
+        t,
+        new Set(
+          Object.keys(doc.origins.O)
+            .filter(id => (doc.origins.O[id as any]?.internalTags ?? []).includes(t))
+            .map(Number) as Id<TID.Origin>[],
+        ),
+      ]),
+    );
+    const originIncrementer = (build: JumpDocBuildData, t: string) =>
+      build.origins.filter(o => o.template?.id !== undefined && originTagIds[t]?.has(o.template.id)).length;
+
+    return Object.fromEntries(
+      tags.map(t => [
+        t,
+        (build: JumpDocBuildData) =>
+          String(incrementers.reduce((n, inc) => n + inc(build, t), 0) + originIncrementer(build, t)),
+      ]),
+    );
+  }, [doc]);
+}
 
 export type AnnotationInteractionHandlerProps = {
   jumpId: Id<GID.Jump>;
   charId: Id<GID.Character>;
   doc: JumpDoc;
+  internalTags: InternalTagsMap;
 };
 
 export type PossibleCost = ModifiedCost<TID.Currency> & {
   cost: Value<TID.Currency>;
   floatingDiscountOption?: boolean;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Template-placeholder utilities (origin-option randomness explainer)
+// ─────────────────────────────────────────────────────────────────────────────
+
+type TemplatePlaceholder =
+  | { kind: "range"; lo: number; hi: number }
+  | { kind: "choice"; options: string[] };
+
+export function parseTemplatePlaceholders(name: string): {
+  placeholders: TemplatePlaceholder[];
+  annotated: string; // name with each ${…} replaced by its variable letter
+} {
+  const placeholders: TemplatePlaceholder[] = [];
+  const varNames = "xyzabcde";
+  const annotated = name.replace(/\$\{([^}]+)\}/g, (_, expr: string) => {
+    const rangeMatch = /^(\d+)-(\d+)$/.exec(expr);
+    if (rangeMatch)
+      placeholders.push({
+        kind: "range",
+        lo: +rangeMatch[1]!,
+        hi: +rangeMatch[2]!,
+      });
+    else placeholders.push({ kind: "choice", options: expr.split("|") });
+    return varNames[placeholders.length - 1] ?? "?";
+  });
+  return { placeholders, annotated };
+}
+
+export function describeChoiceOptions(options: string[]): string {
+  if (options.length === 2) return `"${options[0]}" or "${options[1]}"`;
+  return (
+    options
+      .slice(0, -1)
+      .map(o => `"${o}"`)
+      .join(", ") + `, or "${options[options.length - 1]}"`
+  );
+}
+
+export function originTemplateInfo(name: string) {
+  const { placeholders, annotated } = parseTemplatePlaceholders(name);
+  if (placeholders.length === 0)
+    return {
+      main: name,
+    };
+
+  const isOnlyPlaceholder =
+    placeholders.length === 1 && name.replace(/\$\{[^}]+\}/g, "").trim() === "";
+
+  if (isOnlyPlaceholder) {
+    const p = placeholders[0]!;
+    const desc =
+      p.kind === "range"
+        ? `Randomized between ${p.lo} and ${p.hi}`
+        : `Equal chance of ${describeChoiceOptions(p.options)}`;
+    return { main: desc };
+  }
+
+  const varNames = "xyzabcde";
+  return {
+    main: annotated,
+    aux: placeholders.map((p, idx) => {
+      const v = varNames[idx] ?? "?";
+      return p.kind === "range"
+        ? `${v} is randomized between ${p.lo} and ${p.hi}`
+        : `${v} has an equal chance of being ${describeChoiceOptions(p.options)}`;
+    }),
+  };
+}
+
+/** Resolves `${n-m}` and `${A|B|C}` placeholders in a template origin name. */
+export function resolveOriginTemplate(name: string): string {
+  return name.replace(/\$\{([^}]+)\}/g, (_, expr: string) => {
+    const rangeMatch = /^(\d+)-(\d+)$/.exec(expr);
+    if (rangeMatch) {
+      const lo = parseInt(rangeMatch[1]!, 10);
+      const hi = parseInt(rangeMatch[2]!, 10);
+      return String(lo + Math.floor(Math.random() * (hi - lo + 1)));
+    }
+    const choices = expr.split("|");
+    return choices[Math.floor(Math.random() * choices.length)]!;
+  });
+}
+
+// Other Helpers
 
 export const purchaseValueWithThreshold = <
   T extends TID.Currency | LID.Currency = LID.Currency,
@@ -115,13 +265,13 @@ export const purchaseValueWithThreshold = <
           amount: Math.min(val.amount, 0),
           currency: val.currency,
         }));
-      // intentional fallthrough
+      // falls through
       else;
     case CostModifier.Reduced:
       return value.map(val => ({
         amount:
           freebieAllowed &&
-          val.amount < (currencies.O[val.currency]?.discountFreeThreshold ?? 0)
+          val.amount <= (currencies.O[val.currency]?.discountFreeThreshold ?? 0)
             ? Math.min(0, val.amount)
             : Math.min(val.amount, Math.floor(val.amount / 2)),
         currency: val.currency,
@@ -130,6 +280,9 @@ export const purchaseValueWithThreshold = <
       return mod.modifiedTo as Value<T>;
   }
 };
+
+const extractTagsWithExclusions = (s: string, exclusions: string[]) =>
+  objFilter(extractTags(s), (_, s) => !exclusions.includes(s));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Wrapper for Chain Mutation Hooks
@@ -151,7 +304,9 @@ export type ChainMutators = {
   navigate: (target: MutatorNavTarget) => void;
   addPurchaseFromTemplate: (
     data: {
-      template: BasicPurchaseTemplate | DrawbackTemplate;
+      template: (BasicPurchaseTemplate | DrawbackTemplate) & {
+        cost: Value<TID.Currency>;
+      };
       type: "purchase" | "drawback";
       tags: Record<string, string>;
       cost: PossibleCost;
@@ -179,6 +334,11 @@ export type ChainMutators = {
     cost: PossibleCost,
     doc: JumpDoc,
   ) => void;
+  setNameDescription: (
+    id: Id<GID.Purchase>,
+    name: string,
+    description: string,
+  ) => void;
   repriceOrigin: (
     templateId: Id<TID.Origin>,
     jumpId: Id<GID.Jump>,
@@ -199,8 +359,11 @@ export type ChainMutators = {
   ) => Id<GID.Purchase> | undefined;
   addCompanionImport: (
     data: {
-      template: CompanionTemplate;
+      template: CompanionTemplate & {
+        cost: Value<TID.Currency>;
+      };
       companionIds: Id<GID.Character>[];
+      tags: Record<string, string>;
     },
     jumpId: Id<GID.Jump>,
     charId: Id<GID.Character>,
@@ -215,6 +378,8 @@ export type ChainMutators = {
   addFollower: (
     data: {
       template: CompanionTemplate;
+      cost: PossibleCost;
+      tags: Record<string, string>;
     },
     jumpId: Id<GID.Jump>,
     charId: Id<GID.Character>,
@@ -267,20 +432,17 @@ export function createListener(
     doc: JumpDoc,
     mutators: ChainMutators,
   ) => void,
-  deps: (build: JumpDocBuildData) => readonly unknown[],
+  deps: (build: JumpDocBuildData, chain: Chain) => readonly unknown[],
 ): BuildListener {
   let prev: readonly unknown[] | undefined;
   return {
-    condition: build => {
-      const next = deps(build);
-      if (!prev) {
-        prev = next;
-        return true;
-      }
-      return next.some((d, i) => d !== prev![i]);
+    condition: (build, chain) => {
+      const next = deps(build, chain);
+      let ret = !prev || next.some((d, i) => d !== prev?.[i]);
+      prev = next;
+      return ret;
     },
     action: (build, chain, doc, mutators) => {
-      prev = deps(build);
       action(build, chain, doc, mutators);
     },
   };
@@ -378,37 +540,44 @@ const valuesEqualTID = (
 };
 
 /** Reprices TID-linked purchases whose stored cost no longer matches any currently valid cost option. */
-export function createRepricePurchasesListener(): BuildListener {
+export function createRepricePurchasesListener(
+  internalTags: Record<string, (build: JumpDocBuildData) => string>,
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>
+): BuildListener {
   return createListener(
     (build, currentChain, doc, mutators) => {
       const repriced: string[] = [];
-      for (const tidStr in build.purchases) {
-        const tid = createId<TID.Purchase>(+tidStr);
-        const template = doc.availablePurchases.O[tid];
-        if (!template) continue;
-        const gids = build.purchases[tid] ?? [];
 
+      const repriceGids = (
+        gids: Id<GID.Purchase>[],
+        template: PurchaseTemplate<TID>,
+        skipRewardFreebie: boolean,
+      ) => {
         for (let i = 0; i < gids.length; i++) {
           const gid = gids[i]!;
           const p = currentChain.purchases.O[gid] as JumpPurchase | undefined;
-          if (
-            (p as BasicPurchase).reward ??
+          if (skipRewardFreebie && (
+            (p as BasicPurchase).reward != null ||
             (p as BasicPurchase).freebie !== undefined
-          )
-            continue;
+          )) continue;
           if (!p?.template?.originalCost) continue;
           const originalCost = p.template.originalCost as PossibleCost;
-          const originalEffective = purchaseValue(
-            originalCost.cost,
-            originalCost,
-          );
+          const originalEffective = purchaseValue(originalCost.cost, originalCost);
 
-          const possibleCosts = computePossibleCosts(
-            template,
-            build,
-            doc,
-            i === 0,
-          );
+          const resolvedCost: Value<TID.Currency> = Array.isArray(template.cost)
+            ? template.cost as Value<TID.Currency>
+            : Object.entries(template.cost as VariableCost).map(([currIdStr, expr]) => ({
+                currency: createId<TID.Currency>(+currIdStr),
+                amount: evalVariableCostExpr(expr ?? "", {
+                  ...(p.template?.tags ?? {}),
+                  ...objMap(internalTags, l => l(build)),
+                }),
+              }));
+
+          const dummyTemplate = { ...template, cost: resolvedCost } as PurchaseTemplate<TID> & { cost: Value<TID.Currency> };
+          const possibleCosts = computePossibleCosts(dummyTemplate, build, doc, i === 0);
+
           const allCosts = [possibleCosts.default, ...possibleCosts.options];
           const costsToCheck = originalCost.floatingDiscountOption
             ? allCosts.filter(c => c.floatingDiscountOption)
@@ -417,35 +586,143 @@ export function createRepricePurchasesListener(): BuildListener {
           const stillValid = costsToCheck.some(c =>
             valuesEqualTID(
               originalEffective,
-              purchaseValueWithThreshold(
-                c.cost,
-                c,
-                i == 0,
-                doc.currencies,
-              ) as Value<TID.Currency>,
+              purchaseValueWithThreshold(c.cost, c, i === 0, doc.currencies) as Value<TID.Currency>,
             ),
           );
 
           if (!stillValid) {
             repriced.push(p.name);
-            mutators.repricePurchase(
-              gid,
-              { ...possibleCosts.default, floatingDiscountOption: undefined },
-              doc,
-            );
+            mutators.repricePurchase(gid, { ...possibleCosts.default, floatingDiscountOption: undefined }, doc);
           }
         }
+      };
+
+      for (const tidStr in build.purchases) {
+        const tid = createId<TID.Purchase>(+tidStr);
+        const template = doc.availablePurchases.O[tid];
+        if (template) repriceGids(build.purchases[tid] ?? [], template, true);
       }
+
+      for (const tidStr in build.drawbacks) {
+        const tid = createId<TID.Drawback>(+tidStr);
+        const template = doc.availableDrawbacks.O[tid];
+        if (template) repriceGids(build.drawbacks[tid] ?? [], template, false);
+      }
+
+      for (const tidStr in build.companionImports) {
+        const tid = createId<TID.Companion>(+tidStr);
+        const template = doc.availableCompanions.O[tid];
+        if (template) repriceGids(build.companionImports[tid] ?? [], { ...template, allowMultiple: !template.specificCharacter }, false);
+      }
+
       if (repriced.length)
         toast.info(`Prices adjusted on ${fmtNames(repriced)}`);
     },
-    build => [
+    (build, chain) => [
+      [build.origins
+        .map(o => o.template?.id ?? "")
+        .sort()
+        .join(","),
+      chain.jumps.O[jumpId].purchases[charId]?.length, 
+      chain.jumps.O[jumpId].drawbacks[charId]?.length,
+      chain.jumps.O[jumpId].scenarios[charId]?.length, 
+    ]
+    ],
+  );
+}
+
+/** Re-applies template tags to purchase/drawback/scenario/companion names and descriptions when tag values change. */
+export function createReapplyTagsListener(
+  internalTags: Record<string, (build: JumpDocBuildData) => string>,
+  jumpId: Id<GID.Jump>,
+  charId: Id<GID.Character>
+): BuildListener {
+  type TemplateEntry = { name: string; description?: string };
+
+  function resolveTemplate(
+    p: JumpPurchase,
+    doc: JumpDoc,
+  ): TemplateEntry | undefined {
+    const id = p.template!.id;
+    if (p.type === PurchaseType.Drawback)
+      return doc.availableDrawbacks.O[id as any] as TemplateEntry | undefined;
+    if (p.type === PurchaseType.Scenario)
+      return doc.availableScenarios.O[id as any] as TemplateEntry | undefined;
+    if (p.type === PurchaseType.Companion)
+      return doc.availableCompanions.O[id as any] as TemplateEntry | undefined;
+    return (doc.availablePurchases.O[id as any] ??
+      doc.availableCompanions.O[id as any]) as TemplateEntry | undefined;
+  }
+
+  return createListener(
+    (build, chain, doc, mutators) => {
+      const allGids: Id<GID.Purchase>[] = [
+        ...Object.values(build.purchases).flatMap(arr => arr ?? []),
+        ...Object.values(build.drawbacks).flatMap(arr => arr ?? []),
+        ...Object.values(build.scenarios).flatMap(arr => arr ?? []),
+        ...Object.values(build.companionImports).flatMap(arr => arr ?? []),
+      ];
+
+      const updated: string[] = [];
+
+      for (const gid of allGids) {
+        const p = chain.purchases.O[gid] as JumpPurchase | undefined;
+        if (!p?.template?.tags || !p.template.originalCost) continue;
+
+        const tmpl = resolveTemplate(p, doc);
+        if (!tmpl) continue;
+
+        const userTags = p.template.tags;
+        const internalTagsResolved = objMap(internalTags, f => f(build));
+        const tags = { ...userTags, ...internalTagsResolved };
+
+        const originalCost = p.template.originalCost as PossibleCost;
+        const value = originalCost.cost;
+        const cost = purchaseValue<TID.Currency>(
+          originalCost.cost,
+          originalCost,
+        );
+
+        let newName: string;
+        let newDesc: string;
+        if (p.type === PurchaseType.Scenario) {
+          newName = applyTags(tmpl.name, tags);
+          newDesc = applyTags(tmpl.description ?? "", tags);
+        } else {
+          newName = applyTagsWithCost(
+            tmpl.name,
+            tags,
+            value,
+            cost,
+            doc.currencies,
+          );
+          newDesc = applyTagsWithCost(
+            tmpl.description ?? "",
+            tags,
+            value,
+            cost,
+            doc.currencies,
+          );
+        }
+
+        const origName = p.template.originalName ?? "";
+        const origDesc = p.template.originalDescription ?? "";
+        if (!origName.startsWith(newName) || !origDesc.startsWith(newDesc)) {
+          updated.push(p.name);
+          mutators.setNameDescription(gid, newName, newDesc);
+        }
+      }
+
+      if (updated.length) toast.info(`Text updated on ${fmtNames(updated)}`);
+    },
+    (build, chain) => [
       build.origins
         .map(o => o.template?.id ?? "")
         .sort()
         .join(","),
-      Object.keys(build.drawbacks).length,
-      Object.keys(build.purchases).length,
+      chain.jumps.O[jumpId].purchases[charId]?.length,
+      chain.jumps.O[jumpId].drawbacks[charId]?.length,
+      chain.jumps.O[jumpId].scenarios[charId]?.length,
     ],
   );
 }
@@ -853,29 +1130,31 @@ function TagFieldsSection({
   choiceContext,
   onChangeTag,
 }: {
-  tags: TagField[];
+  tags: Partial<UserInputTags>;
   tagValues: Record<string, string>;
   choiceContext?: string;
   onChangeTag: (name: string, value: string) => void;
 }) {
+  const inputClass =
+    "h-min bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full";
   return (
     <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 p-2 rounded-md border-edge bg-tint border">
-      {tags.map(tag => (
-        <label key={tag.name} className="contents">
+      {Object.entries(tags).map(([name, type]) => (
+        <label key={name} className="contents">
           <div
-            className={`text-xs font-semibold text-muted text-right min-w-min max-w-max w-30 justify-self-end ${!tag.multiline ? "self-stretch items-center flex" : ""}`}
+            className={`text-xs font-semibold text-muted text-right min-w-min max-w-max w-30 justify-self-end ${type !== "paragraph" ? "self-stretch items-center flex" : ""}`}
           >
-            {tag.name
+            {name
               .split(" ")
-              .map(w => w[0].toUpperCase() + w.slice(1))
+              .map(w => w[0]!.toUpperCase() + w.slice(1))
               .join(" ")}
             :
           </div>
-          {tag.multiline ? (
+          {type === "paragraph" ? (
             <textarea
               className="bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
               rows={3}
-              value={tagValues[tag.name] ?? ""}
+              value={tagValues[name] ?? ""}
               ref={el => {
                 if (el) {
                   el.style.height = "auto";
@@ -886,22 +1165,38 @@ function TagFieldsSection({
                 const el = e.currentTarget;
                 el.style.height = "auto";
                 el.style.height = `${el.scrollHeight}px`;
-                onChangeTag(tag.name, e.target.value);
+                onChangeTag(name, e.target.value);
               }}
+            />
+          ) : type === "boolean" ? (
+            <input
+              type="checkbox"
+              className="justify-self-start"
+              checked={tagValues[name] === "true"}
+              onChange={e =>
+                onChangeTag(name, e.target.checked ? "true" : "false")
+              }
+            />
+          ) : type === "numeric" ? (
+            <input
+              type="number"
+              className={inputClass}
+              value={tagValues[name] ?? ""}
+              onChange={e => onChangeTag(name, e.target.value)}
             />
           ) : (
             <input
               type="text"
-              className="h-min bg-transparent border border-edge rounded px-2 py-1 text-sm text-ink! focus:outline-none focus:border-accent-ring w-full"
-              value={tagValues[tag.name] ?? ""}
-              onChange={e => onChangeTag(tag.name, e.target.value)}
+              className={inputClass}
+              value={tagValues[name] ?? ""}
+              onChange={e => onChangeTag(name, e.target.value)}
             />
           )}
         </label>
       ))}
       <div />
       {choiceContext && (
-        <div className="text-xs text-ghost flex flex-col gap-1.5 max-w-sm">
+        <div className="text-xs text-muted/90 flex flex-col gap-1.5 max-w-sm">
           {convertWhitespace(choiceContext)}
         </div>
       )}
@@ -1070,7 +1365,9 @@ function computeBuildData(
       switch (purchase.type) {
         case PurchaseType.Perk:
         case PurchaseType.Item:
-          add(purchases, purchase.template.id, purchase.id);
+          if ((purchase as BasicPurchase).follower)
+            add(companionImports, purchase.template.id, purchase.id);
+          else add(purchases, purchase.template.id, purchase.id);
           break;
         case PurchaseType.Companion:
           add(companionImports, purchase.template.id, purchase.id);
@@ -1138,6 +1435,11 @@ function getPrereqError(
       has = (build.scenarios[prereq.id] ?? []).length > 0;
       name = (doc.availableScenarios.O[prereq.id] ?? []).name;
       break;
+    case "companion":
+      if (doc.availableCompanions.O[prereq.id] === undefined) return;
+      has = (build.companionImports[prereq.id] ?? []).length > 0;
+      name = (doc.availableCompanions.O[prereq.id] ?? []).name;
+      break;
     case "origin":
       if (doc.origins.O[prereq.id] === undefined) return;
       has = build.origins.some(o => o.template?.id == prereq.id);
@@ -1147,8 +1449,40 @@ function getPrereqError(
   if (has && !prereq.positive) return `Incompatible with "${name}".`;
 }
 
+function altCostPrereqsMet(
+  altCost: AlternativeCost,
+  build: JumpDocBuildData,
+  templateId: number,
+  isFirstCopy: boolean,
+): boolean {
+  if (altCost.prerequisites.length === 0) return true;
+  const notMet = (prereq: AlternativeCostPrerequisite): boolean => {
+    if (
+      isFirstCopy &&
+      prereq.type === "purchase" &&
+      (prereq.id as number) === templateId
+    )
+      return true;
+    switch (prereq.type) {
+      case "purchase":
+        return (build.purchases[prereq.id] ?? []).length === 0;
+      case "drawback":
+        return (build.drawbacks[prereq.id] ?? []).length === 0;
+      case "scenario":
+        return (build.scenarios[prereq.id] ?? []).length === 0;
+      case "companion":
+        return (build.companionImports[prereq.id] ?? []).length === 0;
+      case "origin":
+        return !build.origins.some(o => o.template?.id === prereq.id);
+    }
+  };
+  return altCost.AND
+    ? !altCost.prerequisites.some(notMet)
+    : !altCost.prerequisites.every(notMet);
+}
+
 function computePossibleCosts(
-  template: PurchaseTemplate<TID>,
+  template: PurchaseTemplate<TID> & { cost: Value<TID.Currency> },
   build: JumpDocBuildData,
   doc: JumpDoc,
   isFirstCopy: boolean,
@@ -1178,7 +1512,7 @@ function computePossibleCosts(
   }
 
   let floatingDiscount = (c: PossibleCost) =>
-    (purchaseValue(c.cost, c)).every(
+    purchaseValue(c.cost, c).every(
       c => c.amount <= (maxFloatingDiscountThreshold[c.currency] ?? 0),
     );
 
@@ -1201,7 +1535,7 @@ function computePossibleCosts(
             ...c,
             modifier: CostModifier.Free,
           };
-        //intentional fallthrough
+        // falls through
         else;
       case "discounted":
         if (
@@ -1254,29 +1588,7 @@ function computePossibleCosts(
   let costOptions = [];
 
   for (const altCost of template.alternativeCosts ?? []) {
-    let f = (a: (p: AlternativeCostPrerequisite) => boolean) =>
-      altCost.AND
-        ? altCost.prerequisites.some(a)
-        : altCost.prerequisites.every(a);
-    if (
-      altCost.prerequisites.length > 0 &&
-      f(prereq => {
-        if (
-          isFirstCopy &&
-          prereq.type === "purchase" && //TODO: drawback self-prereqs
-          (prereq.id as number) === (template.id as number)
-        )
-          return true;
-        switch (prereq.type) {
-          case "purchase":
-            return (build.purchases[prereq.id] ?? []).length === 0;
-          case "drawback":
-            return (build.drawbacks[prereq.id] ?? []).length === 0;
-          case "origin":
-            return !build.origins.some(o => o.template?.id === prereq.id);
-        }
-      })
-    )
+    if (!altCostPrereqsMet(altCost, build, template.id as number, isFirstCopy))
       break;
     let newCost: PossibleCost = {
       cost: template.cost,
@@ -1297,25 +1609,82 @@ function computePossibleCosts(
   return { default: cost, options: costOptions };
 }
 
+type PurchaseState = {
+  tags: Record<string, string>;
+  duration?: number;
+};
+
+function evalVariableCostExpr(
+  expr: string,
+  tags: Record<string, string>,
+): number {
+  if (!expr.trim()) return 0;
+  const n = Number(applyTags(`\${${expr}}`, tags));
+  return isNaN(n) ? 0 : Math.max(0, n);
+}
+
 export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
   type: A extends TID.Purchase ? "purchase" : "drawback",
   template: A extends TID.Purchase ? BasicPurchaseTemplate : DrawbackTemplate,
   doc: JumpDoc,
   jumpId: Id<GID.Jump>,
   charId: Id<GID.Character>,
+  internalTags: Record<string, (build: JumpDocBuildData) => string>,
   override?: {
     cost: PossibleCost;
     type: "scenario" | "import";
     source?: Id<TID.Scenario> | Id<TID.Companion>;
   },
-): AnnotationInteraction<Record<string, string>> {
-  const tags = extractTags([template.name, template.description]);
-  const hasTags = tags.length > 0;
+): AnnotationInteraction<PurchaseState> {
+  const userTags = extractTagsWithExclusions(
+    template.name +
+      "\n" +
+      (template.description ?? "") +
+      "\n" +
+      (Array.isArray(template.cost)
+        ? ""
+        : Object.values(template.cost)
+            .map(s => `\${${s}}`)
+            .join(" ")),
+    Object.keys(internalTags),
+  );
+  const hasTags = Object.keys(userTags).length > 0;
 
   const copies = (build: JumpDocBuildData) =>
     (type == "purchase" ? build.purchases : build.drawbacks)[
       template.id as any
     ] ?? [];
+
+  const isVariableCost = Array.isArray(template.cost)
+    ? (_: JumpDocBuildData) => false
+    : (build: JumpDocBuildData) => {
+        const isFirstCopy = copies(build).length === 0;
+        for (const altCost of template.alternativeCosts ?? []) {
+          if (
+            altCostPrereqsMet(altCost, build, template.id, isFirstCopy) &&
+            altCost.mandatory
+          )
+            return false;
+        }
+        return true;
+      };
+
+  const dummyTemplate = Array.isArray(template.cost)
+    ? (_build: JumpDocBuildData, _state: PurchaseState) =>
+        template as PurchaseTemplate<TID> & { cost: Value<TID.Currency> }
+    : (build: JumpDocBuildData, state: PurchaseState) =>
+        ({
+          ...template,
+          cost: Object.entries(template.cost as VariableCost).map(
+            ([currIdStr, expr]) => ({
+              currency: createId<TID.Currency>(+currIdStr),
+                  amount: evalVariableCostExpr(expr ?? "", {
+                    ...(state.tags ?? {}),
+                    ...objMap(internalTags, l => l(build)),
+                  }),
+            }),
+          ),
+        }) as PurchaseTemplate<TID> & { cost: Value<TID.Currency> };
 
   const baseDescription = (build: JumpDocBuildData) => {
     let activeBoosters =
@@ -1328,10 +1697,15 @@ export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
     return `${template.description}\n\n${activeBoosters.map(b => b.description).join("\n\n")}`;
   };
 
-  let getCost = (build: JumpDocBuildData) =>
+  let getCost = (build: JumpDocBuildData, state: PurchaseState) =>
     override
       ? { default: override.cost, options: [] }
-      : computePossibleCosts(template, build, doc, copies(build).length === 0);
+      : computePossibleCosts(
+          dummyTemplate(build, state),
+          build,
+          doc,
+          copies(build).length === 0,
+        );
 
   let error = (build: JumpDocBuildData) => {
     let prereqErrors = (template.prerequisites ?? [])
@@ -1352,8 +1726,8 @@ export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
 
   let actions: (
     build: JumpDocBuildData,
-  ) => AnnotationAction<Record<string, string>>[] = build => {
-    let cost = getCost(build);
+  ) => AnnotationAction<PurchaseState>[] = build => {
+    let cost = getCost(build, { tags: {} });
     const seen = new Set<string>();
     const flatCosts = [cost.default, ...cost.options].filter(c => {
       const key = formatCostShort(c.cost, c, doc.currencies);
@@ -1374,92 +1748,100 @@ export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
           return [];
         },
       },
-      ...flatCosts.map(c => ({
-        name: `Add (${formatCostShort(c.cost, c, doc.currencies)})`,
-        condition: (build: JumpDocBuildData) =>
-          copies(build).length == 0 || template.allowMultiple,
-        execute: (
-          _: JumpDocBuildData,
-          mutators: ChainMutators,
-          state: Record<string, string>,
-        ) => {
-          const customDuration =
-            state._duration !== undefined
-              ? parseInt(state._duration, 10)
-              : undefined;
-          const newId = mutators.addPurchaseFromTemplate(
-            {
-              template,
-              cost: { ...c, floatingDiscountOption: undefined },
-              tags: state,
-              type,
-              reward:
-                override?.type == "scenario"
-                  ? (override?.source as any)
-                  : undefined,
-              freebie:
-                override?.type === "import"
-                  ? (override.source as Id<TID.Companion>)
-                  : undefined,
-              customDuration:
-                customDuration !== undefined && !isNaN(customDuration)
-                  ? customDuration
-                  : undefined,
-            },
-            jumpId,
-            charId,
-            doc,
-          );
-          navAfterAdd(newId, mutators);
-          return [];
-        },
-      })),
-      ...floatingDiscountCosts.map(c => ({
-        name: `Use Floating Discount (${formatCostDisplay(
-          c.cost,
-          c,
-          doc.currencies,
-        )})`,
-        condition: (build: JumpDocBuildData) =>
-          copies(build).length == 0 || template.allowMultiple,
-        execute: (
-          _: JumpDocBuildData,
-          mutators: ChainMutators,
-          state: Record<string, string>,
-        ) => {
-          const customDuration =
-            state._duration !== undefined
-              ? parseInt(state._duration, 10)
-              : undefined;
-          const newId = mutators.addPurchaseFromTemplate(
-            {
-              template,
-              cost: c,
-              tags: state,
-              type,
-              reward:
-                override?.type == "scenario"
-                  ? (override?.source as any)
-                  : undefined,
-              freebie:
-                override?.type === "import"
-                  ? (override.source as Id<TID.Companion>)
-                  : undefined,
-              customDuration:
-                customDuration !== undefined && !isNaN(customDuration)
-                  ? customDuration
-                  : undefined,
-            },
-            jumpId,
-            charId,
-            doc,
-          );
-          navAfterAdd(newId, mutators);
-          return [];
-        },
-      })),
+      ...flatCosts.map((c, i) => {
+        let possibleCost = (state: PurchaseState) =>
+          ({
+            ...c,
+            cost:
+              i == 0 && isVariableCost(build)
+                ? dummyTemplate(build, state).cost
+                : c.cost,
+            floatingDiscountOption: undefined,
+          }) satisfies PossibleCost;
+        return {
+          name: (_: JumpDocBuildData, state: PurchaseState) =>
+            `Add (${formatCostShort(possibleCost(state).cost, c, doc.currencies)})`,
+          condition: (build: JumpDocBuildData) =>
+            copies(build).length == 0 || template.allowMultiple,
+          execute: (
+            _: JumpDocBuildData,
+            mutators: ChainMutators,
+            state: PurchaseState,
+          ) => {
+            const newId = mutators.addPurchaseFromTemplate(
+              {
+                template: dummyTemplate(build, state) as any,
+                cost: possibleCost(state),
+                tags: state.tags,
+                type,
+                reward:
+                  override?.type == "scenario"
+                    ? (override?.source as Id<TID.Scenario>)
+                    : undefined,
+                freebie:
+                  override?.type === "import"
+                    ? (override.source as Id<TID.Companion>)
+                    : undefined,
+                customDuration: state.duration,
+              },
+              jumpId,
+              charId,
+              doc,
+            );
+            navAfterAdd(newId, mutators);
+            return [];
+          },
+        };
+      }),
+      ...floatingDiscountCosts.map((c, i) => {
+        let possibleCost = (state: PurchaseState) =>
+          ({
+            ...c,
+            cost:
+              i == 0 && isVariableCost(build)
+                ? dummyTemplate(build, state).cost
+                : c.cost,
+            floatingDiscountOption: true,
+          }) satisfies PossibleCost;
+        return {
+          name: (_: JumpDocBuildData, state: PurchaseState) =>
+            `Use Floating Discount (${formatCostShort(possibleCost(state).cost, c, doc.currencies)}})`,
+          condition: (build: JumpDocBuildData) =>
+            copies(build).length == 0 || template.allowMultiple,
+          execute: (
+            _: JumpDocBuildData,
+            mutators: ChainMutators,
+            state: PurchaseState,
+          ) => {
+            const newId = mutators.addPurchaseFromTemplate(
+              {
+                template: dummyTemplate(build, state) as any,
+                cost: possibleCost(state),
+                tags: state.tags,
+                type,
+                reward:
+                  override?.type == "scenario"
+                    ? (override?.source as any)
+                    : undefined,
+                freebie:
+                  override?.type === "import"
+                    ? (override.source as Id<TID.Companion>)
+                    : undefined,
+                customDuration: state.duration,
+              },
+              jumpId,
+              charId,
+              doc,
+            );
+            navAfterAdd(newId, mutators);
+            return [];
+          },
+        };
+      }),
     ];
   };
+
+  //TODO: multiple specific character companions
 
   const subtypePlacement =
     type === "purchase"
@@ -1486,22 +1868,26 @@ export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
   const isUserChoiceDuration = durationMod?.type === "choice";
 
   return {
-    initialize: (): Record<string, string> =>
-      isUserChoiceDuration ? { _duration: "1" } : {},
+    initialize: _ => ({
+      tags: {},
+      ...(isUserChoiceDuration ? { duration: 1 } : {}),
+    }),
     error,
     preview: (props: {
       buildData: JumpDocBuildData;
-      state: Record<string, string>;
-      setState: (partial: Partial<Record<string, string>>) => void;
+      state: PurchaseState;
+      setState: (partial: Partial<PurchaseState>) => void;
     }) =>
       hasTags || isUserChoiceDuration ? (
         <div className="flex flex-col gap-2">
           {hasTags && (
             <TagFieldsSection
-              tags={tags}
-              tagValues={props.state}
+              tags={userTags}
+              tagValues={props.state.tags}
               choiceContext={template.choiceContext}
-              onChangeTag={(name, value) => props.setState({ [name]: value })}
+              onChangeTag={(name, value) =>
+                props.setState({ tags: { ...props.state.tags, [name]: value } })
+              }
             />
           )}
           {isUserChoiceDuration && (
@@ -1510,8 +1896,10 @@ export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
               <input
                 type="number"
                 min={1}
-                value={props.state._duration ?? "1"}
-                onChange={e => props.setState({ _duration: e.target.value })}
+                value={props.state.duration ?? 1}
+                onChange={e =>
+                  props.setState({ duration: Number(e.target.value) })
+                }
                 className="w-16 text-xs bg-canvas border border-edge rounded px-2 py-1 focus:outline-none focus:border-accent-ring transition-colors"
               />
               <span className="text-xs text-ghost shrink-0">yr</span>
@@ -1520,30 +1908,44 @@ export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
         </div>
       ) : null,
     typeName: type[0].toUpperCase() + type.slice(1),
-    name: (_, tagValues) =>
-      hasTags ? applyTags(template.name, tagValues) : template.name,
-    description: (build, tagValues) =>
-      hasTags
-        ? applyTags(baseDescription(build), tagValues)
-        : baseDescription(build),
-    costStr: build =>
+    name: (build, state) =>
+      applyTagsWithCost(
+        template.name,
+        { ...state.tags, ...objMap(internalTags, f => f(build)) },
+        dummyTemplate(build, state).cost,
+        getCost(build, state).default.cost,
+        doc.currencies,
+      ),
+    description: (build, state) =>
+      applyTagsWithCost(
+        baseDescription(build),
+        { ...state.tags, ...objMap(internalTags, f => f(build)) },
+        dummyTemplate(build, state).cost,
+        getCost(build, state).default.cost,
+        doc.currencies,
+      ),
+    costStr: (build, state) =>
       formatCostDisplay(
-        getCost(build).default.cost,
-        getCost(build).default,
+        getCost(build, state).default.cost,
+        getCost(build, state).default,
         doc.currencies,
       ),
-    shortCostStr: build =>
-      formatCostShort(
-        getCost(build).default.cost,
-        getCost(build).default,
-        doc.currencies,
-      ),
+    shortCostStr: (build, state) =>
+      isVariableCost(build)
+        ? "variable"
+        : formatCostShort(
+            getCost(build, state).default.cost,
+            getCost(build, state).default,
+            doc.currencies,
+          ),
     info: build =>
       copies(build).length > 0
         ? `${copies(build).length} cop${copies(build).length === 1 ? "y" : "ies"} already held`
         : undefined,
     actions,
-    forcePreview: _ => tags.length > 0 || isUserChoiceDuration,
+    forcePreview: build =>
+      !(!template.allowMultiple && copies(build).length) &&
+      (hasTags || isUserChoiceDuration),
   };
 }
 
@@ -1844,9 +2246,17 @@ export function originInteraction(
 ): AnnotationInteraction<OriginInteractionState> {
   const groups = buildOriginOptionGroups(optionIndices, doc);
   const tags = template
-    ? extractTags([template.name, template.description ?? ""])
-    : [];
-  const hasTags = tags.length > 0;
+    ? extractTags(
+        template.name +
+          "\n" +
+          (template.description ?? "") +
+          "\n" +
+          (Array.isArray(template.cost)
+            ? ""
+            : Object.values(template.cost).join(" ")),
+      )
+    : {};
+  const hasTags = Object.keys(tags).length > 0;
 
   const optionsTypeName =
     groups.length === 1 ? groups[0]!.categoryName : "Origin Options";
@@ -2050,7 +2460,14 @@ export function originInteraction(
     typeName,
     name: template
       ? hasTags
-        ? (_, state) => applyTags(template.name, state.tags)
+        ? (build, state) =>
+            applyTagsWithCost(
+              template.name,
+              state.tags,
+              [template.cost],
+              [getCost(build)],
+              doc.currencies,
+            )
         : template.name
       : `Set ${optionsTypeName}`,
     description: template?.description || undefined,
@@ -2263,6 +2680,7 @@ function buildFreebieInteractions(
   doc: JumpDoc,
   jumpId: Id<GID.Jump>,
   companionCharIds: Id<GID.Character>[],
+  internalTags: Record<string, (build: JumpDocBuildData) => string>,
 ): {
   interaction: [AnnotationInteraction<object>];
   character: Id<GID.Character>;
@@ -2292,6 +2710,7 @@ function buildFreebieInteractions(
                 doc,
                 jumpId,
                 companionCharId,
+                internalTags,
                 freeOverride,
               ) as AnnotationInteraction<object>,
             ],
@@ -2308,6 +2727,7 @@ function buildFreebieInteractions(
                 doc,
                 jumpId,
                 companionCharId,
+                internalTags,
                 freeOverride,
               ) as AnnotationInteraction<object>,
             ],
@@ -2410,8 +2830,16 @@ function CompanionPreviewInner({
   selfCharId: Id<GID.Character>;
 }) {
   const allChars = useAllCharacters();
-  const tags = extractTags([template.name, template.description]);
-  const hasTags = tags.length > 0;
+  const tags = extractTags(
+    template.name +
+      "\n" +
+      (template.description ?? "") +
+      "\n" +
+      (Array.isArray(template.cost)
+        ? ""
+        : Object.values(template.cost).join(" ")),
+  );
+  const hasTags = Object.keys(tags).length > 0;
   const selectableChars = allChars.filter(c => c.id !== selfCharId);
   const selectedChars = state.selectedIds
     .map(id => selectableChars.find(c => c.id === id))
@@ -2504,16 +2932,64 @@ export function companionImportInteraction(
   doc: JumpDoc,
   jumpId: Id<GID.Jump>,
   charId: Id<GID.Character>,
+  internalTags: Record<string, (build: JumpDocBuildData) => string>,
 ): AnnotationInteraction<CompanionInteractionState> {
+  const userTags = extractTagsWithExclusions(
+    template.name +
+      "\n" +
+      (template.description ?? "") +
+      "\n" +
+      (Array.isArray(template.cost)
+        ? ""
+        : Object.values(template.cost)
+            .map(s => `\${${s}}`)
+            .join(" ")),
+    Object.keys(internalTags),
+  );
+  const hasTags = Object.keys(userTags).length > 0;
+
   const copies = (build: JumpDocBuildData) =>
-    build.companionImports[template.id as any] ?? [];
-  const getCost = (build: JumpDocBuildData) =>
+    build.companionImports[template.id] ?? [];
+
+  const dummyTemplate = Array.isArray(template.cost)
+    ? (_build:JumpDocBuildData, _state: CompanionInteractionState) =>
+        ({
+          ...template,
+          allowMultiple: !template.specificCharacter,
+        }) as CompanionTemplate & { cost: Value<TID.Currency> }
+    : (build:JumpDocBuildData, state: CompanionInteractionState) =>
+        ({
+          ...template,
+          allowMultiple: !template.specificCharacter,
+          cost: Object.entries(template.cost as VariableCost).map(
+            ([currIdStr, expr]) => ({
+              currency: createId<TID.Currency>(+currIdStr),
+              amount: evalVariableCostExpr(expr ?? "", {...state.tags, ...objMap(internalTags, f => f(build))}),
+            }),
+          ),
+        }) as CompanionTemplate & { cost: Value<TID.Currency> };
+
+  const getCost = (build: JumpDocBuildData, state: CompanionInteractionState) =>
     computePossibleCosts(
-      { ...template, allowMultiple: !template.specificCharacter },
+      dummyTemplate(build, state) as any,
       build,
       doc,
       copies(build).length === 0,
     );
+
+  const isVariableCost = Array.isArray(template.cost)
+    ? (_: JumpDocBuildData) => false
+    : (build: JumpDocBuildData) => {
+        const isFirstCopy = copies(build).length === 0;
+        for (const altCost of template.alternativeCosts ?? []) {
+          if (
+            altCostPrereqsMet(altCost, build, template.id, isFirstCopy) &&
+            altCost.mandatory
+          )
+            return false;
+        }
+        return true;
+      };
 
   const error = (build: JumpDocBuildData) => {
     const prereqErrors = (template.prerequisites ?? [])
@@ -2592,8 +3068,8 @@ export function companionImportInteraction(
       },
     },
     {
-      name: build => {
-        const cost = getCost(build);
+      name: (build, state) => {
+        const cost = getCost(build, state);
         return `Add (${formatCostDisplay(cost.default.cost, cost.default, doc.currencies)})`;
       },
       condition: build =>
@@ -2604,9 +3080,20 @@ export function companionImportInteraction(
         state.selectedIds.length === 0
           ? "You must select or create at least one character in order to add them as a companion."
           : undefined,
-      execute: (_, mutators, state) => {
+      execute: (build, mutators, state) => {
+        const tmpl = dummyTemplate(build, state);
+        const resolvedCost = getCost(build, state).default;
         if (state.follower) {
-          const newId = mutators.addFollower({ template }, jumpId, charId, doc);
+          const newId = mutators.addFollower(
+            {
+              template: tmpl,
+              cost: { ...resolvedCost, floatingDiscountOption: undefined },
+              tags: state.tags,
+            },
+            jumpId,
+            charId,
+            doc,
+          );
           if (newId !== undefined)
             mutators.navigate({ sub: "purchases", scrollTo: newId });
           return [];
@@ -2619,7 +3106,7 @@ export function companionImportInteraction(
             species: state.charSpecies,
           });
           const newId = mutators.addCompanionImport(
-            { template, companionIds: [newCharId] },
+            { template: tmpl, companionIds: [newCharId], tags: state.tags },
             jumpId,
             charId,
             doc,
@@ -2632,29 +3119,31 @@ export function companionImportInteraction(
             doc,
             jumpId,
             [newCharId],
+            internalTags,
           );
         }
         const newId = mutators.addCompanionImport(
-          { template, companionIds: state.selectedIds },
+          { template: tmpl, companionIds: state.selectedIds, tags: state.tags },
           jumpId,
           charId,
           doc,
         );
         if (newId !== undefined)
-          mutators.navigate({ sub: "purchases", scrollTo: newId });
+          mutators.navigate({ sub: "companions", scrollTo: newId });
         return buildFreebieInteractions(
           template.id,
           template.freebies ?? [],
           doc,
           jumpId,
           state.selectedIds,
+          internalTags,
         );
       },
     },
   ];
 
   return {
-    initialize: () => ({
+    initialize: _ => ({
       follower: false,
       selectedIds: [],
       charName: template.characterInfo?.[0]?.name ?? "",
@@ -2665,31 +3154,59 @@ export function companionImportInteraction(
     }),
     error,
     preview: props => (
-      <CompanionPreviewInner
-        template={template}
-        adding={
-          copies(props.buildData).length === 0 || !template.specificCharacter
-        }
-        state={props.state}
-        setState={props.setState}
-        selfCharId={charId}
-      />
+      <>
+        {hasTags && (
+          <TagFieldsSection
+            tags={userTags}
+            tagValues={props.state.tags}
+            choiceContext={template.choiceContext}
+            onChangeTag={(name, value) =>
+              props.setState({ tags: { ...props.state.tags, [name]: value } })
+            }
+          />
+        )}
+        <CompanionPreviewInner
+          template={template}
+          adding={
+            copies(props.buildData).length === 0 || !template.specificCharacter
+          }
+          state={props.state}
+          setState={props.setState}
+          selfCharId={charId}
+        />
+      </>
     ),
     typeName: "Companion Import",
-    name: template.name,
-    description: template.description || undefined,
-    costStr: build =>
+    name: (build, state) =>
+      applyTagsWithCost(
+        template.name,
+        { ...state.tags, ...objMap(internalTags, f => f(build)) },
+        dummyTemplate(build, state).cost,
+        getCost(build, state).default.cost,
+        doc.currencies,
+      ),
+    description: (build, state) =>
+      applyTagsWithCost(
+        template.description,
+        { ...state.tags, ...objMap(internalTags, f => f(build)) },
+        dummyTemplate(build, state).cost,
+        getCost(build, state).default.cost,
+        doc.currencies,
+      ),
+    costStr: (build, state) =>
       formatCostDisplay(
-        getCost(build).default.cost,
-        getCost(build).default,
+        getCost(build, state).default.cost,
+        getCost(build, state).default,
         doc.currencies,
       ),
-    shortCostStr: build =>
-      formatCostShort(
-        getCost(build).default.cost,
-        getCost(build).default,
-        doc.currencies,
-      ),
+    shortCostStr: (build, state) =>
+      isVariableCost(build)
+        ? "variable"
+        : formatCostShort(
+            getCost(build, state).default.cost,
+            getCost(build, state).default,
+            doc.currencies,
+          ),
     info: build =>
       copies(build).length > 0
         ? `${copies(build).length} cop${copies(build).length === 1 ? "y" : "ies"} already held`
@@ -2704,9 +3221,14 @@ export function scenarioInteraction(
   doc: JumpDoc,
   jumpId: Id<GID.Jump>,
   charId: Id<GID.Character>,
+  internalTags: Record<string, (b: JumpDocBuildData) => string>,
 ): AnnotationInteraction<ScenarioInteractionState> {
-  const tags = extractTags([template.name, template.description]);
-  const hasTags = tags.length > 0;
+  const userTags = extractTagsWithExclusions(
+    template.name + "\n" + (template.description ?? "") + "\n",
+    Object.keys(internalTags),
+  );
+  const hasTags = Object.keys(userTags).length > 0;
+
   const rewardGroups = template.rewardGroups ?? [];
 
   const copies = (build: JumpDocBuildData) =>
@@ -2750,11 +3272,11 @@ export function scenarioInteraction(
     {
       name: "Add",
       condition: build => copies(build).length == 0 || template.allowMultiple,
-      execute: (_, mutators, { tags: tagValues, selectedOutcome }) => {
+      execute: (build, mutators, { tags: tagValues, selectedOutcome }) => {
         const newId = mutators.addScenarioFromTemplate(
           {
             template,
-            tags: tagValues,
+            tags: { ...tagValues, ...objMap(internalTags, f => f(build)) },
             rewardGroupIndex:
               rewardGroups.length > 0 ? selectedOutcome : undefined,
           },
@@ -2795,6 +3317,7 @@ export function scenarioInteraction(
                 doc,
                 jumpId,
                 charId,
+                internalTags,
                 freeOverride,
               ) as AnnotationInteraction<object>,
             ];
@@ -2814,6 +3337,7 @@ export function scenarioInteraction(
                 doc,
                 jumpId,
                 charId,
+                internalTags,
               ) as AnnotationInteraction<object>,
             ];
           });
@@ -2833,7 +3357,7 @@ export function scenarioInteraction(
         <>
           {hasTags && (
             <TagFieldsSection
-              tags={tags}
+              tags={userTags}
               tagValues={props.state.tags}
               choiceContext={template.choiceContext}
               onChangeTag={(name, value) =>
@@ -2853,12 +3377,16 @@ export function scenarioInteraction(
       );
     },
     typeName: "Scenario",
-    name: (_, { tags: tagValues }) =>
-      hasTags ? applyTags(template.name, tagValues) : template.name,
-    description: (_, { tags: tagValues }) =>
-      hasTags
-        ? applyTags(template.description, tagValues)
-        : template.description,
+    name: (build, { tags: tagValues }) =>
+      applyTags(template.name, {
+        ...tagValues,
+        ...objMap(internalTags, f => f(build)),
+      }),
+    description: (build, { tags: tagValues }) =>
+      applyTags(template.description, {
+        ...tagValues,
+        ...objMap(internalTags, f => f(build)),
+      }),
     info: build =>
       copies(build).length > 0
         ? `${copies(build).length} cop${copies(build).length === 1 ? "y" : "ies"} already held`
@@ -2919,7 +3447,7 @@ function convertModifiedCost(
         floatingDiscount &&
         v.every(
           ({ amount, currency }) =>
-            amount < (doc.currencies.O?.[currency]?.discountFreeThreshold ?? 0),
+            amount <= (doc.currencies.O?.[currency]?.discountFreeThreshold ?? 0),
         )
       )
         return { modifier: CostModifier.Free };
@@ -2995,11 +3523,25 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
                 (template as BasicPurchaseTemplate).subtype,
             )[0] as Id<LID.PurchaseSubtype>;
             if (subtype === undefined) return;
+            const resolvedName = applyTagsWithCost(
+              template.name,
+              tags,
+              template.cost,
+              cost.cost,
+              doc.currencies,
+            );
+            const resolvedDescription = applyTagsWithCost(
+              template.description ?? "",
+              tags,
+              template.cost,
+              cost.cost,
+              doc.currencies,
+            );
             newId = registryAdd(c.purchases, {
               charId,
               jumpId,
-              name: applyTags(template.name, tags),
-              description: applyTags(template.description, tags),
+              name: resolvedName,
+              description: resolvedDescription,
               type: jump.purchaseSubtypes.O[subtype].type,
               cost: convertModifiedCost(
                 template.cost,
@@ -3018,19 +3560,36 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
                 id: template.id as any,
                 jumpdoc: "",
                 originalCost: cost,
+                tags,
+                originalName: resolvedName,
+                originalDescription: resolvedDescription,
               },
               usesFloatingDiscount: cost.floatingDiscountOption ?? false,
             });
             if (!jump.purchases[charId]) jump.purchases[charId] = [];
             jump.purchases[charId]!.push(newId);
           } else {
+            const resolvedName = applyTagsWithCost(
+              template.name,
+              tags,
+              template.cost,
+              cost.cost,
+              doc.currencies,
+            );
+            const resolvedDescription = applyTagsWithCost(
+              template.description ?? "",
+              tags,
+              template.cost,
+              cost.cost,
+              doc.currencies,
+            );
             newId = registryAdd(c.purchases, {
               charId,
               jumpId,
               duration: 1,
               overrides: {},
-              name: applyTags(template.name, tags),
-              description: applyTags(template.description, tags),
+              name: resolvedName,
+              description: resolvedDescription,
               type: PurchaseType.Drawback,
               cost: convertModifiedCost(
                 template.cost,
@@ -3044,6 +3603,9 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
                 id: template.id as any,
                 jumpdoc: "",
                 originalCost: cost,
+                tags,
+                originalName: resolvedName,
+                originalDescription: resolvedDescription,
               },
               ...(freebie !== undefined ? { freebie } : {}),
               ...(customDuration !== undefined ? { customDuration } : {}),
@@ -3095,9 +3657,23 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
           };
 
           const newOrigin: Origin = {
-            summary: applyTags(template.name, tags),
+            summary: applyTagsWithCost(
+              template.name,
+              tags,
+              [template.cost],
+              [cost],
+              doc.currencies,
+            ),
             ...(template.description
-              ? { description: applyTags(template.description, tags) }
+              ? {
+                  description: applyTagsWithCost(
+                    template.description,
+                    tags,
+                    [template.cost],
+                    [cost],
+                    doc.currencies,
+                  ),
+                }
               : {}),
             value: convertedCost,
             template: {
@@ -3108,7 +3684,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             ...(freebie !== undefined ? { freebie } : {}),
           };
 
-          if (!jump.origins[charId]) (jump.origins)[charId] = {};
+          if (!jump.origins[charId]) jump.origins[charId] = {};
           const categoryOrigins = jump.origins[charId];
           if (!categoryOrigins[categoryLid]) categoryOrigins[categoryLid] = [];
           categoryOrigins[categoryLid].push(newOrigin);
@@ -3168,17 +3744,25 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             }
           }
           newId = c.purchases.fId;
+          const resolvedName = applyTags(template.name, tags);
+          const resolvedDescription = applyTags(template.description, tags);
           const scenario: Scenario = {
             id: newId,
             charId,
             jumpId,
-            name: applyTags(template.name, tags),
-            description: applyTags(template.description, tags),
+            name: resolvedName,
+            description: resolvedDescription,
             type: PurchaseType.Scenario,
             cost: { modifier: CostModifier.Full },
             value: initValue,
             rewards,
-            template: { id: template.id as any, jumpdoc: "" },
+            template: {
+              id: template.id as any,
+              jumpdoc: "",
+              tags,
+              originalName: resolvedName,
+              originalDescription: resolvedDescription,
+            },
           };
           c.purchases.O[newId] = scenario as never;
           c.purchases.fId = createId<GID.Purchase>((newId as number) + 1);
@@ -3190,22 +3774,37 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
       },
       [],
     ),
+    setNameDescription: useCallback((id, name, description) => {
+      setTracked("Rename purchase", c => {
+        const p = c.purchases.O[id] as JumpPurchase | undefined;
+        if (!p?.template) return;
+        p.name = name;
+        p.description = description;
+        p.template.originalName = name;
+        p.template.originalDescription = description;
+        c.budgetFlag += 1;
+      });
+    }, []),
     repricePurchase: useCallback((id, cost, doc) => {
       setTracked("Reprice purchase", c => {
         const p = c.purchases.O[id] as JumpPurchase | undefined;
         if (!p || !p.template) return;
         const jump = c.jumps.O[p.jumpId];
         if (!jump) return;
-        let templateValue: Value<TID.Currency>;
+        let templateValue: Value<TID.Currency> | VariableCost;
         if (p.type == PurchaseType.Drawback)
           templateValue = doc.availableDrawbacks.O[p.template.id as any].cost;
         else if (p.type == PurchaseType.Companion)
           templateValue = doc.availableCompanions.O[p.template.id as any].cost;
         else
           templateValue = doc.availablePurchases.O[p.template.id as any].cost;
-        p.value = convertValue(templateValue, doc, jump.currencies);
+        p.value = convertValue(
+          Array.isArray(templateValue) ? templateValue : cost.cost,
+          doc,
+          jump.currencies,
+        );
         p.cost = convertModifiedCost(
-          templateValue,
+          Array.isArray(templateValue) ? templateValue : cost.cost,
           cost,
           doc,
           jump.currencies,
@@ -3335,29 +3934,26 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
       [],
     ),
     addCompanionImport: useCallback(
-      ({ template, companionIds }, jumpId, charId, doc) => {
+      ({ template, companionIds, tags }, jumpId, charId, doc) => {
         let newId: Id<GID.Purchase> | undefined;
         setTracked("Add companion import", c => {
           const jump = c.jumps.O[jumpId];
           if (!jump) return;
-          const allowances: Record<Id<LID.Currency>, number> = {} as any;
+          const allowances: Record<Id<LID.Currency>, number> = {};
           for (const tidStr in template.allowances) {
             const tid = createId<TID.Currency>(+tidStr);
             const lid = convertCurrencyId(tid, doc, jump.currencies);
-            allowances[lid] = (template.allowances as any)[tid] as number;
+            allowances[lid] = template.allowances[tid];
           }
           const stipend: Record<
             Id<LID.Currency>,
             Record<Id<LID.PurchaseSubtype>, number>
-          > = {} as any;
+          > = {};
           for (const tidCurrStr in template.stipend) {
             const tidCurr = createId<TID.Currency>(+tidCurrStr);
             const lidCurr = convertCurrencyId(tidCurr, doc, jump.currencies);
-            const inner = (template.stipend as any)[tidCurr];
-            const convertedInner: Record<
-              Id<LID.PurchaseSubtype>,
-              number
-            > = {} as any;
+            const inner = template.stipend[tidCurr];
+            const convertedInner: Record<Id<LID.PurchaseSubtype>, number> = {};
             for (const tidSubStr in inner) {
               const tidSub = createId<TID.PurchaseSubtype>(+tidSubStr);
               const lidSub = convertSubtypeId(
@@ -3380,7 +3976,13 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             type: PurchaseType.Companion,
             cost: { modifier: CostModifier.Full },
             value: convertValue(template.cost, doc, jump.currencies),
-            template: { id: template.id, jumpdoc: "" },
+            template: {
+              id: template.id,
+              jumpdoc: "",
+              tags,
+              originalName: template.name,
+              originalDescription: template.description,
+            },
             importData: {
               characters: companionIds,
               allowances: allowances as any,
@@ -3411,39 +4013,55 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
       },
       [createCompanion],
     ),
-    addFollower: useCallback(({ template }, jumpId, charId, doc) => {
-      let newId: Id<GID.Purchase> | undefined;
-      setTracked("Add follower", c => {
-        const jump = c.jumps.O[jumpId];
-        if (!jump) return;
-        const subtypeEntry = Object.entries(jump.purchaseSubtypes.O).find(
-          ([, st]) => st?.type === PurchaseType.Item,
-        );
-        if (!subtypeEntry) return;
-        const subtype = createId<LID.PurchaseSubtype>(+subtypeEntry[0]);
-        newId = c.purchases.fId;
-        const purchase: BasicPurchase = {
-          id: newId,
-          charId,
-          jumpId,
-          name: template.name,
-          description: template.description,
-          type: PurchaseType.Item,
-          cost: { modifier: CostModifier.Full },
-          value: convertValue(template.cost, doc, jump.currencies),
-          template: { id: template.id as any, jumpdoc: "" },
-          subtype,
-          categories: [],
-          tags: [],
-          follower: true,
-        };
-        c.purchases.O[newId] = purchase as never;
-        c.purchases.fId = createId<GID.Purchase>((newId as number) + 1);
-        if (!jump.purchases[charId]) jump.purchases[charId] = [];
-        jump.purchases[charId]!.push(newId);
-        c.budgetFlag += 1;
-      });
-    }, []),
+    addFollower: useCallback(
+      ({ template, cost, tags }, jumpId, charId, doc) => {
+        let newId: Id<GID.Purchase> | undefined;
+        setTracked("Add follower", c => {
+          const jump = c.jumps.O[jumpId];
+          if (!jump) return;
+          const subtypeEntry = Object.entries(jump.purchaseSubtypes.O).find(
+            ([, st]) => st?.type === PurchaseType.Item,
+          );
+          if (!subtypeEntry) return;
+          const subtype = createId<LID.PurchaseSubtype>(+subtypeEntry[0]);
+          newId = c.purchases.fId;
+          const purchase: BasicPurchase = {
+            id: newId,
+            charId,
+            jumpId,
+            name: template.name,
+            description: template.description,
+            type: PurchaseType.Item,
+            cost: convertModifiedCost(
+              cost.cost,
+              cost,
+              doc,
+              jump.currencies,
+              cost.floatingDiscountOption ?? false,
+            ),
+            value: convertValue(cost.cost, doc, jump.currencies),
+            template: {
+              id: template.id,
+              jumpdoc: "",
+              tags,
+              originalName: template.name,
+              originalDescription: template.description,
+            },
+            subtype,
+            categories: [],
+            tags: [],
+            follower: true,
+          };
+          c.purchases.O[newId] = purchase as never;
+          c.purchases.fId = createId<GID.Purchase>((newId as number) + 1);
+          if (!jump.purchases[charId]) jump.purchases[charId] = [];
+          jump.purchases[charId]!.push(newId);
+          c.budgetFlag += 1;
+        });
+        return newId;
+      },
+      [],
+    ),
     removeCharacters: useCallback(
       ids => {
         for (const id of ids) removeCharacterFn(id);
@@ -3563,6 +4181,7 @@ export function AnnotationInteractionHandler({
   jumpId,
   charId,
   doc,
+  internalTags,
 }: AnnotationInteractionHandlerProps) {
   const addListener = useViewerActionStore(s => s.addListener);
   const removeListener = useViewerActionStore(s => s.removeListener);
@@ -3579,12 +4198,13 @@ export function AnnotationInteractionHandler({
   const allListeners = useMemo(
     () => [
       createPrereqRemovalListener(),
-      createRepricePurchasesListener(),
+      createRepricePurchasesListener(internalTags, jumpId, charId),
       createBoosterTextListener(),
       createScenarioRewardListener(),
       createOriginSynergyListener(jumpId, charId),
       createOriginStipendListener(jumpId, charId),
       ...(character.char?.primary ? [createDurationListener(jumpId, doc)] : []),
+      createReapplyTagsListener(internalTags, jumpId, charId),
     ],
     [jumpId, charId, doc],
   );
@@ -3607,12 +4227,12 @@ export function AnnotationInteractionHandler({
       suppressNavigateRef.current = true;
       const p = {
         chainId,
-        charId: String(charId as number),
-        jumpId: String(jumpId as number),
+        charId: String(charId),
+        jumpId: String(jumpId),
       };
       const scrollSearch =
         target.sub !== "" && target.scrollTo !== undefined
-          ? { scrollTo: String(target.scrollTo as number) }
+          ? { scrollTo: String(target.scrollTo) }
           : {};
       if (target.sub === "") {
         rawNavigate({
@@ -3672,7 +4292,7 @@ export function AnnotationInteractionHandler({
     let newBuildData = computeBuildData(chain, jumpId, charId, doc);
     storeBuildData(newBuildData);
     listeners.forEach(l => {
-      if (l.condition(newBuildData))
+      if (l.condition(newBuildData, chain))
         l.action(newBuildData, chain, doc, mutators);
     });
   }, [!!chain, budgetFlag]);
@@ -3766,7 +4386,7 @@ export function AnnotationInteractionHandler({
                 ? enqueueInteractions(a.interaction, a.character)
                 : enqueueInteractions([a]),
             );
-        };
+        }
       }
 
       if (showPreview) {

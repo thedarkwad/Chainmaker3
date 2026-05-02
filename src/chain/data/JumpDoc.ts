@@ -1,7 +1,7 @@
 import { Duration } from "@/utilities/units";
 import { Currency, OriginCategory, PurchaseSubtype } from "./Jump";
 import { RewardType, SimpleValue, Value } from "./Purchase";
-import { createId, Id, Lookup, Registry, TID } from "./types";
+import { createId, Id, Lookup, PartialLookup, Registry, TID } from "./types";
 
 export type DocOriginCategory = OriginCategory & { max?: number } & (
     | { singleLine: true; options: FreeFormOrigin[] }
@@ -73,6 +73,8 @@ export type OriginTemplate = {
   /** Stipend entries granted to the character while this origin is held. */
   originStipend?: OriginStipendEntry[];
 
+  internalTags?: string[];
+
   /** Origins that affect the cost or availability of this choice. */
   synergies?: Id<TID.Origin>[];
   /** How a qualifying origin affects this choice: discounts it, makes it free, or restricts it to origin holders only. */
@@ -80,11 +82,12 @@ export type OriginTemplate = {
   prerequisites?: JumpDocPrerequisite[];
 };
 
-/** Prerequisite for an alternative cost — always "requires" semantics, no positive/negative distinction. */
 export type AlternativeCostPrerequisite =
   | { type: "purchase"; id: Id<TID.Purchase> }
   | { type: "drawback"; id: Id<TID.Drawback> }
-  | { type: "origin"; id: Id<TID.Origin> };
+  | { type: "origin"; id: Id<TID.Origin> }
+  | { type: "companion"; id: Id<TID.Companion> }
+  | { type: "scenario"; id: Id<TID.Scenario> }
 
 export type AlternativeCost = {
   value: Value<TID.Currency>;
@@ -98,7 +101,10 @@ export type JumpDocPrerequisite =
   | { type: "purchase"; id: Id<TID.Purchase>; positive: boolean }
   | { type: "drawback"; id: Id<TID.Drawback>; positive: boolean }
   | { type: "scenario"; id: Id<TID.Scenario>; positive: boolean }
-  | { type: "origin"; id: Id<TID.Origin>; positive: boolean };
+  | { type: "origin"; id: Id<TID.Origin>; positive: boolean }
+  | { type: "companion"; id: Id<TID.Companion>; positive: boolean };
+
+export type VariableCost = PartialLookup<TID.Currency, string>;
 
 /** Alias for JumpDocPrerequisite — used by the purchase/drawback/companion/origin prerequisite editor. */
 export type PurchasePrerequisite = JumpDocPrerequisite;
@@ -108,8 +114,10 @@ export type PurchaseTemplate<T extends TID> = {
   id: Id<T>;
   description: string;
   choiceContext?: string;
-  cost: Value<TID.Currency>;
+  cost: Value<TID.Currency> | VariableCost;
   allowMultiple: boolean;
+
+  internalTags?: string[];
 
   bounds?: PageRect[];
 

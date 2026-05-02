@@ -20,7 +20,7 @@ export type JumpDocBuildData = {
 
 export type BuildListener = {
   action: (build: JumpDocBuildData, chain: Chain, doc: JumpDoc, mutators: ChainMutators) => void;
-  condition: (build: JumpDocBuildData) => boolean;
+  condition: (build: JumpDocBuildData,chain: Chain) => boolean;
  };
 
 export type AnnotationAction<A> = {

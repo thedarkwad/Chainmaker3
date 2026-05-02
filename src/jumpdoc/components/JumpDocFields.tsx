@@ -15,28 +15,40 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Plus, X } from "lucide-react";
+import { TagField } from "@/ui/TagField";
+import { Tip } from "@/ui/Tip";
 import { BlurNumberInput } from "@/ui/BlurNumberInput";
 export { BlurNumberInput } from "@/ui/BlurNumberInput";
 import {
   useJumpDocCurrencyIds,
   useJumpDocCurrency,
-  useJumpDocOriginsGrouped,
   useJumpDocPurchaseSubtypeIds,
   useJumpDocPurchaseSubtype,
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID, LID } from "@/chain/data/types";
 import type { SimpleValue } from "@/chain/data/Purchase";
+import { VariableCost } from "@/chain/data/JumpDoc";
+import { extractTags } from "@/utilities/tags";
+import { Link } from "@tanstack/react-router";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Layout
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Labeled two-column form row. Label is fixed-width on the left. */
-export function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+export function FieldRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex items-start gap-2 min-w-0 justify-items-center font-semibold">
-      <span className="text-xs text-muted shrink-0 py-1 leading-none">{label}</span>
+      <span className="text-xs text-muted shrink-0 py-1 leading-none">
+        {label}
+      </span>
       <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
@@ -52,7 +64,10 @@ export function BlurInput({
   onCommit,
   className = "",
   ...props
-}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange" | "onBlur" | "value"> & {
+}: Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "onChange" | "onBlur" | "value"
+> & {
   value: string;
   onCommit: (v: string) => void;
 }) {
@@ -68,7 +83,7 @@ export function BlurInput({
       {...props}
       value={local}
       step={50}
-      onChange={(e) => setLocal(e.target.value)}
+      onChange={e => setLocal(e.target.value)}
       onFocus={() => {
         focused.current = true;
       }}
@@ -80,7 +95,6 @@ export function BlurInput({
     />
   );
 }
-
 
 /** Auto-resizing description textarea. */
 export function DescriptionArea({
@@ -123,12 +137,15 @@ export function DescriptionArea({
 
   return (
     <textarea
-      ref={(el) => {
-        (internalRef as React.RefObject<HTMLTextAreaElement | null>).current = el;
-        if (textareaRef) (textareaRef as React.RefObject<HTMLTextAreaElement | null>).current = el;
+      ref={el => {
+        (internalRef as React.RefObject<HTMLTextAreaElement | null>).current =
+          el;
+        if (textareaRef)
+          (textareaRef as React.RefObject<HTMLTextAreaElement | null>).current =
+            el;
       }}
       defaultValue={value}
-      onChange={(e) => {
+      onChange={e => {
         local.current = e.target.value;
         const el = e.currentTarget;
         el.style.height = "auto";
@@ -152,23 +169,19 @@ export function DescriptionArea({
 // Currency helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function CurrencySelect<T extends LID.Currency | TID.Currency = TID.Currency>({
-  value,
-  onChange,
-}: {
-  value: Id<T>;
-  onChange: (id: Id<T>) => void;
-}) {
+export function CurrencySelect<
+  T extends LID.Currency | TID.Currency = TID.Currency,
+>({ value, onChange }: { value: Id<T>; onChange: (id: Id<T>) => void }) {
   const currencyIds = useJumpDocCurrencyIds();
   return (
     <div className="relative shrink-0">
       <select
         value={String(value)}
-        onChange={(e) => onChange(+e.target.value as Id<T>)}
+        onChange={e => onChange(+e.target.value as Id<T>)}
         className="appearance-none bg-canvas border border-edge rounded px-2 py-1 pr-6 text-xs text-ink focus:outline-none focus:border-accent-ring transition-colors"
       >
         {currencyIds.length === 0 && <option value="0">—</option>}
-        {currencyIds.map((cid) => (
+        {currencyIds.map(cid => (
           <CurrencyOption key={cid} id={cid} />
         ))}
       </select>
@@ -185,23 +198,19 @@ function CurrencyOption({ id }: { id: Id<TID.Currency> }) {
   return <option value={String(id)}>{c?.abbrev ?? "?"}</option>;
 }
 
-export function PurchaseSubtypeSelect<T extends TID.PurchaseSubtype = TID.PurchaseSubtype>({
-  value,
-  onChange,
-}: {
-  value: Id<T>;
-  onChange: (id: Id<T>) => void;
-}) {
+export function PurchaseSubtypeSelect<
+  T extends TID.PurchaseSubtype = TID.PurchaseSubtype,
+>({ value, onChange }: { value: Id<T>; onChange: (id: Id<T>) => void }) {
   const subtypeIds = useJumpDocPurchaseSubtypeIds();
   return (
     <div className="relative shrink-0">
       <select
         value={String(value)}
-        onChange={(e) => onChange(+e.target.value as Id<T>)}
+        onChange={e => onChange(+e.target.value as Id<T>)}
         className="appearance-none bg-canvas border border-edge rounded px-2 py-1 pr-6 text-xs text-ink focus:outline-none focus:border-accent-ring transition-colors"
       >
         {subtypeIds.length === 0 && <option value="0">—</option>}
-        {subtypeIds.map((sid) => (
+        {subtypeIds.map(sid => (
           <SubtypeOption key={sid} id={sid} />
         ))}
       </select>
@@ -233,13 +242,13 @@ export function SimpleValueEditor({
     <div className="flex items-center gap-1">
       <BlurNumberInput
         value={value.amount}
-        onCommit={(n) => onChange({ ...value, amount: n })}
+        onCommit={n => onChange({ ...value, amount: n })}
         className="w-16"
         min={-99999}
       />
       <CurrencySelect
         value={value.currency}
-        onChange={(cid) => onChange({ ...value, currency: cid })}
+        onChange={cid => onChange({ ...value, currency: cid })}
       />
     </div>
   );
@@ -290,13 +299,13 @@ export function ValueEditor({
         <div key={i} className="flex items-center gap-1">
           <BlurNumberInput
             value={sv.amount}
-            onCommit={(n) => updateEntry(i, { ...sv, amount: n })}
+            onCommit={n => updateEntry(i, { ...sv, amount: n })}
             className="w-16"
             min={-99999}
           />
           <CurrencySelect
             value={sv.currency}
-            onChange={(cid) => updateEntry(i, { ...sv, currency: cid })}
+            onChange={cid => updateEntry(i, { ...sv, currency: cid })}
           />
           <button
             onClick={() => removeEntry(i)}
@@ -328,25 +337,8 @@ const ORIGIN_COLOR = "#22c55e";
 // ChoiceContextEditor — tag pill display + choiceContext textarea
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TAG_RE = /\$\{([^}]+)\}/g;
-
-export function extractUniqueTags(...texts: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const text of texts) {
-    for (const [, tag] of text.matchAll(TAG_RE)) {
-      const key = tag.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(tag);
-      }
-    }
-  }
-  return out;
-}
-
 function toTitleCase(tag: string): string {
-  return tag.replace(/[\s_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return tag.replace(/[\s_-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
 /**
@@ -357,24 +349,34 @@ function toTitleCase(tag: string): string {
 export function ChoiceContextEditor({
   name,
   description,
+  cost,
   choiceContext,
   onCommit,
 }: {
   name: string;
   description: string;
+  cost?: VariableCost;
   choiceContext: string | undefined;
   onCommit: (v: string | undefined) => void;
 }) {
-  const customTags = extractUniqueTags(name, description);
+  const customTags = Object.keys(
+    extractTags(
+      [
+        name,
+        description,
+        ...Object.values(cost ?? {}).map(s => `\${${s}}`),
+      ].join(" "),
+    ),
+  );
   if (customTags.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">
-        Customizable Fields
+      <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">
+        Customizable Fields <Link to="/advanced" target="_blank" className="text-accent/50 hover:text-accent/70 hover:underline">(Advanced Usage Guide)</Link>
       </p>
       <div className="flex flex-wrap gap-1">
-        {customTags.map((tag) => (
+        {customTags.map(tag => (
           <span
             key={tag.toLowerCase()}
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20"
@@ -386,7 +388,7 @@ export function ChoiceContextEditor({
       </div>
       <DescriptionArea
         value={choiceContext ?? ""}
-        onCommit={(v) => onCommit(v.trim() || undefined)}
+        onCommit={v => onCommit(v.trim() || undefined)}
         placeholder="Explain what readers should enter for each field…"
       />
     </div>
@@ -409,7 +411,7 @@ export function AllowMultipleRow({
       <input
         type="checkbox"
         checked={value}
-        onChange={(e) => onChange(e.target.checked)}
+        onChange={e => onChange(e.target.checked)}
         className="accent-accent w-3.5 h-3.5"
       />
       <span className="text-xs text-muted">Allow multiple</span>
@@ -444,7 +446,10 @@ function BoostedByMultiselect({
     if (!open) return;
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (!containerRef.current?.contains(target) && !dropdownRef.current?.contains(target)) {
+      if (
+        !containerRef.current?.contains(target) &&
+        !dropdownRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -453,15 +458,15 @@ function BoostedByMultiselect({
   }, [open]);
 
   const selectedSet = new Set(selected);
-  const availableOptions = available.filter((b) => !selectedSet.has(b.id));
-  const selectedItems = available.filter((b) => selectedSet.has(b.id));
+  const availableOptions = available.filter(b => !selectedSet.has(b.id));
+  const selectedItems = available.filter(b => selectedSet.has(b.id));
 
   function handleToggle() {
     if (!open && containerRef.current) {
       const r = containerRef.current.getBoundingClientRect();
       setDropdownPos({ top: r.bottom + 4, left: r.left });
     }
-    setOpen((o) => !o);
+    setOpen(o => !o);
   }
 
   const dropdown =
@@ -477,7 +482,7 @@ function BoostedByMultiselect({
             }}
             className="w-52 bg-canvas border border-edge rounded-md shadow-lg max-h-52 overflow-y-auto"
           >
-            {availableOptions.map((b) => (
+            {availableOptions.map(b => (
               <button
                 key={b.id}
                 onClick={() => {
@@ -488,7 +493,9 @@ function BoostedByMultiselect({
               >
                 {b.name}
                 {b.kind === "drawback" && (
-                  <span className="ml-1.5 text-[10px] text-red-400 opacity-70">drawback</span>
+                  <span className="ml-1.5 text-[10px] text-red-400 opacity-70">
+                    drawback
+                  </span>
                 )}
               </button>
             ))}
@@ -499,7 +506,7 @@ function BoostedByMultiselect({
 
   return (
     <div ref={containerRef} className="flex flex-wrap gap-1 items-center">
-      {selectedItems.map((b) => (
+      {selectedItems.map(b => (
         <span
           key={b.id}
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
@@ -510,7 +517,10 @@ function BoostedByMultiselect({
           }}
         >
           {b.name}
-          <button onClick={() => onRemove(b.id)} className="hover:opacity-70 transition-opacity">
+          <button
+            onClick={() => onRemove(b.id)}
+            className="hover:opacity-70 transition-opacity"
+          >
             <X size={9} />
           </button>
         </span>
@@ -548,14 +558,22 @@ export function BoostedEditor({
   onRemove,
   onCommitDescription,
 }: {
-  boosted: { description: string; booster: number; boosterKind?: "purchase" | "drawback" }[];
-  capstoneBoosterItems: { id: number; name: string; kind: "purchase" | "drawback" }[];
+  boosted: {
+    description: string;
+    booster: number;
+    boosterKind?: "purchase" | "drawback";
+  }[];
+  capstoneBoosterItems: {
+    id: number;
+    name: string;
+    kind: "purchase" | "drawback";
+  }[];
   onAdd: (boosterId: number, boosterKind: "purchase" | "drawback") => void;
   onRemove: (boosterId: number) => void;
   onCommitDescription: (boosterId: number, desc: string) => void;
 }) {
   const available = capstoneBoosterItems;
-  const selectedIds = boosted.map((b) => b.booster);
+  const selectedIds = boosted.map(b => b.booster);
 
   return (
     <div className="flex flex-col gap-2">
@@ -568,9 +586,10 @@ export function BoostedEditor({
           onRemove={onRemove}
         />
       </div>
-      {boosted.map((entry) => {
+      {boosted.map(entry => {
         const idNum = entry.booster;
-        const boosterName = available.find((b) => b.id === idNum)?.name ?? "Booster";
+        const boosterName =
+          available.find(b => b.id === idNum)?.name ?? "Booster";
         return (
           <div
             key={idNum}
@@ -585,11 +604,60 @@ export function BoostedEditor({
             </span>
             <DescriptionArea
               value={entry.description}
-              onCommit={(desc) => onCommitDescription(idNum, desc)}
+              onCommit={desc => onCommitDescription(idNum, desc)}
             />
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// InternalTagsField
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TAGS_TIP = (
+  <Tip>
+    <p className="font-semibold mb-1">Internal Tags</p>
+    <p>
+      Tag this item so other purchases can reference how many times it has been
+      taken. Use <code className="font-mono">{`\${TagName}`}</code> in a name,
+      description, or cost to insert that count. Can be used in arithmetic expressions, too (e.g. {"${#TagName + 1}"}).
+    </p>
+  </Tip>
+);
+
+export function InternalTagsField({
+  tags,
+  onChange,
+  onUndefined,
+}: {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+  onUndefined: () => void;
+}) {
+  return (
+    <div className="pt-1.5 border-t border-line flex flex-col gap-1">
+      <div className="flex items-center gap-1">
+        <p className="text-[10px] font-semibold text-ghost uppercase tracking-wider">
+          Internal Tags <Link to="/advanced" target="_blank" className="text-accent/50 hover:text-accent/70 hover:underline">(Usage Guide)</Link>
+        </p>
+        {TAGS_TIP}
+        <button
+          type="button"
+          onClick={onUndefined}
+          className="text-ghost hover:text-danger transition-colors p-0.5"
+        >
+          <X size={10} />
+        </button>
+      </div>
+      <TagField
+        values={tags}
+        onAdd={val => onChange([...tags, val])}
+        onRemove={val => onChange(tags.filter(t => t !== val))}
+        placeholder="Add tag…"
+      />
     </div>
   );
 }

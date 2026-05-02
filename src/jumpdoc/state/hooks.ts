@@ -27,7 +27,13 @@ import type {
 } from "@/chain/data/JumpDoc";
 import type { SimpleValue } from "@/chain/data/Purchase";
 import type { Currency, PurchaseSubtype } from "@/chain/data/Jump";
-import { TID, type Id, type Registry, registryAdd, createId } from "@/chain/data/types";
+import {
+  TID,
+  type Id,
+  type Registry,
+  registryAdd,
+  createId,
+} from "@/chain/data/types";
 import { PurchaseType, RewardType } from "@/chain/data/Purchase";
 import type { ScenarioRewardTemplate } from "@/chain/data/JumpDoc";
 import { ParsedEntry } from "@/routes/jumpdoc/$docId/index";
@@ -35,19 +41,19 @@ import { ParsedEntry } from "@/routes/jumpdoc/$docId/index";
 // ── Top-level doc ─────────────────────────────────────────────────────────────
 
 /** Returns the top-level JumpDoc object. Re-renders on any change. */
-export const useJumpDoc = () => useJumpDocStore((s) => s.doc);
+export const useJumpDoc = () => useJumpDocStore(s => s.doc);
 
 /** Returns the JumpDoc name, or undefined if no doc is loaded. */
-export const useJumpDocName = () => useJumpDocStore((s) => s.doc?.name);
+export const useJumpDocName = () => useJumpDocStore(s => s.doc?.name);
 
 /** Returns the JumpDoc PDF URL, or undefined if no doc is loaded. */
-export const useJumpDocPdfUrl = () => useJumpDocStore((s) => s.doc?.url);
+export const useJumpDocPdfUrl = () => useJumpDocStore(s => s.doc?.url);
 
 /** Returns a stable callback that renames the JumpDoc. */
 export function useRenameJumpDoc() {
   return (name: string) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Rename JumpDoc", (d) => {
+      createJumpDocTrackedAction("Rename JumpDoc", d => {
         d.name = name;
       }),
     );
@@ -56,7 +62,9 @@ export function useRenameJumpDoc() {
 
 export function useModifyJumpDoc() {
   return (actionName: string, updater: (doc: JumpDoc) => void) => {
-    useJumpDocStore.setState(createJumpDocTrackedAction(actionName, (d) => updater(d)));
+    useJumpDocStore.setState(
+      createJumpDocTrackedAction(actionName, d => updater(d)),
+    );
   };
 }
 
@@ -66,26 +74,30 @@ export function useModifyJumpDoc() {
  * Returns the currencies registry cast to LID namespace for use with
  * CostDropdown (which expects Registry<LID.Currency, Currency>).
  */
-export function useJumpDocCurrenciesRegistry(): Registry<TID.Currency, Currency> | undefined {
-  return useJumpDocStore((s) => s.doc?.currencies);
+export function useJumpDocCurrenciesRegistry():
+  | Registry<TID.Currency, Currency>
+  | undefined {
+  return useJumpDocStore(s => s.doc?.currencies);
 }
 
 export function useJumpDocCurrencyIds(): Id<TID.Currency>[] {
   return useJumpDocStore(
-    useShallow((s) =>
-      s.doc ? (Object.keys(s.doc.currencies.O).map(Number) as Id<TID.Currency>[]) : [],
+    useShallow(s =>
+      s.doc
+        ? (Object.keys(s.doc.currencies.O).map(Number) as Id<TID.Currency>[])
+        : [],
     ),
   );
 }
 
 export function useJumpDocCurrency(id: Id<TID.Currency>): Currency | undefined {
-  return useJumpDocStore((s) => s.doc?.currencies.O[id]);
+  return useJumpDocStore(s => s.doc?.currencies.O[id]);
 }
 
 export function useModifyJumpDocCurrency(id: Id<TID.Currency>) {
   return (actionName: string, updater: (c: Currency) => void) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction(actionName, (d) => {
+      createJumpDocTrackedAction(actionName, d => {
         const c = d.currencies.O[id];
         if (c) updater(c);
       }),
@@ -97,7 +109,7 @@ export function useAddJumpDocCurrency() {
   return (): Id<TID.Currency> => {
     let newId!: Id<TID.Currency>;
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Currency", (d) => {
+      createJumpDocTrackedAction("Add Currency", d => {
         newId = registryAdd(d.currencies, {
           name: "",
           abbrev: "??",
@@ -113,7 +125,7 @@ export function useAddJumpDocCurrency() {
 export function useRemoveJumpDocCurrency() {
   return (id: Id<TID.Currency>) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Currency", (d) => {
+      createJumpDocTrackedAction("Remove Currency", d => {
         delete d.currencies.O[id];
         // Clear defaultCurrency on any subtype referencing this currency
         for (const sub of Object.values(d.purchaseSubtypes.O)) {
@@ -124,15 +136,21 @@ export function useRemoveJumpDocCurrency() {
         // Remove exchanges that reference this currency
         if (d.availableCurrencyExchanges) {
           d.availableCurrencyExchanges = d.availableCurrencyExchanges.filter(
-            (ex) => ex.oCurrency !== id && ex.tCurrency !== id,
+            ex => ex.oCurrency !== id && ex.tCurrency !== id,
           );
         }
         // Reset originStipend/companionStipend to currency 0 if they referenced the deleted one.
         // SimpleValue on JumpDoc stores TID IDs in a LID-typed field (pre-existing inconsistency).
-        if (d.originStipend && (d.originStipend.currency as number) === (id as number)) {
+        if (
+          d.originStipend &&
+          (d.originStipend.currency as number) === (id as number)
+        ) {
           (d.originStipend as { currency: number }).currency = 0;
         }
-        if (d.companionStipend && (d.companionStipend.currency as number) === (id as number)) {
+        if (
+          d.companionStipend &&
+          (d.companionStipend.currency as number) === (id as number)
+        ) {
           (d.companionStipend as { currency: number }).currency = 0;
         }
       }),
@@ -145,24 +163,34 @@ export function useRemoveJumpDocCurrency() {
 const EMPTY_DOC_EXCHANGES: DocCurrencyExchange[] = [];
 
 export function useJumpDocExchanges(): DocCurrencyExchange[] {
-  return useJumpDocStore((s) => s.doc?.availableCurrencyExchanges ?? EMPTY_DOC_EXCHANGES);
+  return useJumpDocStore(
+    s => s.doc?.availableCurrencyExchanges ?? EMPTY_DOC_EXCHANGES,
+  );
 }
 
 export function useAddJumpDocExchange() {
   return (oCurrency: Id<TID.Currency>, tCurrency: Id<TID.Currency>) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Exchange", (d) => {
+      createJumpDocTrackedAction("Add Exchange", d => {
         if (!d.availableCurrencyExchanges) d.availableCurrencyExchanges = [];
-        d.availableCurrencyExchanges.push({ oCurrency, tCurrency, oamount: 0, tamount: 0 });
+        d.availableCurrencyExchanges.push({
+          oCurrency,
+          tCurrency,
+          oamount: 0,
+          tamount: 0,
+        });
       }),
     );
   };
 }
 
 export function useModifyJumpDocExchange() {
-  return (actionName: string, updater: (exs: DocCurrencyExchange[]) => void) => {
+  return (
+    actionName: string,
+    updater: (exs: DocCurrencyExchange[]) => void,
+  ) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction(actionName, (d) => {
+      createJumpDocTrackedAction(actionName, d => {
         if (!d.availableCurrencyExchanges) d.availableCurrencyExchanges = [];
         updater(d.availableCurrencyExchanges);
       }),
@@ -173,7 +201,7 @@ export function useModifyJumpDocExchange() {
 export function useRemoveJumpDocExchange() {
   return (idx: number) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Exchange", (d) => {
+      createJumpDocTrackedAction("Remove Exchange", d => {
         d.availableCurrencyExchanges?.splice(idx, 1);
       }),
     );
@@ -183,7 +211,7 @@ export function useRemoveJumpDocExchange() {
 export function useAddBoundToExchange() {
   return (idx: number, rects: PageRect[]) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Bound to Exchange", (d) => {
+      createJumpDocTrackedAction("Add Bound to Exchange", d => {
         const ex = d.availableCurrencyExchanges?.[idx];
         if (!ex) return;
         if (!ex.bounds) ex.bounds = [];
@@ -196,7 +224,7 @@ export function useAddBoundToExchange() {
 export function useRemoveBoundFromExchange() {
   return (idx: number, boundIdx: number) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Bound from Exchange", (d) => {
+      createJumpDocTrackedAction("Remove Bound from Exchange", d => {
         d.availableCurrencyExchanges?.[idx]?.bounds?.splice(boundIdx, 1);
       }),
     );
@@ -207,8 +235,12 @@ export function useRemoveBoundFromExchange() {
 
 export function useJumpDocOriginCategoryIds(): Id<TID.OriginCategory>[] {
   return useJumpDocStore(
-    useShallow((s) =>
-      s.doc ? (Object.keys(s.doc.originCategories.O).map(Number) as Id<TID.OriginCategory>[]) : [],
+    useShallow(s =>
+      s.doc
+        ? (Object.keys(s.doc.originCategories.O).map(
+            Number,
+          ) as Id<TID.OriginCategory>[])
+        : [],
     ),
   );
 }
@@ -216,13 +248,13 @@ export function useJumpDocOriginCategoryIds(): Id<TID.OriginCategory>[] {
 export function useJumpDocOriginCategory(
   id: Id<TID.OriginCategory>,
 ): DocOriginCategory | undefined {
-  return useJumpDocStore((s) => s.doc?.originCategories.O[id]);
+  return useJumpDocStore(s => s.doc?.originCategories.O[id]);
 }
 
 export function useModifyJumpDocOriginCategory(id: Id<TID.OriginCategory>) {
   return (actionName: string, updater: (c: DocOriginCategory) => void) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction(actionName, (d) => {
+      createJumpDocTrackedAction(actionName, d => {
         const c = d.originCategories.O[id];
         if (c) updater(c);
       }),
@@ -234,7 +266,7 @@ export function useAddJumpDocOriginCategory() {
   return (): Id<TID.OriginCategory> => {
     let newId!: Id<TID.OriginCategory>;
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Origin Category", (d) => {
+      createJumpDocTrackedAction("Add Origin Category", d => {
         newId = registryAdd(d.originCategories, {
           name: "",
           max: 1,
@@ -250,7 +282,7 @@ export function useAddJumpDocOriginCategory() {
 export function useRemoveJumpDocOriginCategory() {
   return (id: Id<TID.OriginCategory>) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Origin Category", (d) => {
+      createJumpDocTrackedAction("Remove Origin Category", d => {
         delete d.originCategories.O[id];
       }),
     );
@@ -261,8 +293,12 @@ export function useRemoveJumpDocOriginCategory() {
 
 export function useJumpDocPurchaseSubtypeIds(): Id<TID.PurchaseSubtype>[] {
   return useJumpDocStore(
-    useShallow((s) =>
-      s.doc ? (Object.keys(s.doc.purchaseSubtypes.O).map(Number) as Id<TID.PurchaseSubtype>[]) : [],
+    useShallow(s =>
+      s.doc
+        ? (Object.keys(s.doc.purchaseSubtypes.O).map(
+            Number,
+          ) as Id<TID.PurchaseSubtype>[])
+        : [],
     ),
   );
 }
@@ -270,13 +306,16 @@ export function useJumpDocPurchaseSubtypeIds(): Id<TID.PurchaseSubtype>[] {
 export function useJumpDocPurchaseSubtype(
   id: Id<TID.PurchaseSubtype>,
 ): PurchaseSubtype<TID.Currency> | undefined {
-  return useJumpDocStore((s) => s.doc?.purchaseSubtypes.O[id]);
+  return useJumpDocStore(s => s.doc?.purchaseSubtypes.O[id]);
 }
 
 export function useModifyJumpDocPurchaseSubtype(id: Id<TID.PurchaseSubtype>) {
-  return (actionName: string, updater: (s: PurchaseSubtype<TID.Currency>) => void) => {
+  return (
+    actionName: string,
+    updater: (s: PurchaseSubtype<TID.Currency>) => void,
+  ) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction(actionName, (d) => {
+      createJumpDocTrackedAction(actionName, d => {
         const sub = d.purchaseSubtypes.O[id];
         if (sub) updater(sub);
       }),
@@ -285,10 +324,12 @@ export function useModifyJumpDocPurchaseSubtype(id: Id<TID.PurchaseSubtype>) {
 }
 
 export function useAddJumpDocPurchaseSubtype() {
-  return (type: PurchaseType.Perk | PurchaseType.Item): Id<TID.PurchaseSubtype> => {
+  return (
+    type: PurchaseType.Perk | PurchaseType.Item,
+  ): Id<TID.PurchaseSubtype> => {
     let newId!: Id<TID.PurchaseSubtype>;
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Purchase Subtype", (d) => {
+      createJumpDocTrackedAction("Add Purchase Subtype", d => {
         newId = registryAdd(d.purchaseSubtypes, {
           name: "",
           stipend: [],
@@ -306,7 +347,7 @@ export function useAddJumpDocPurchaseSubtype() {
 export function useRemoveJumpDocPurchaseSubtype() {
   return (id: Id<TID.PurchaseSubtype>) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Purchase Subtype", (d) => {
+      createJumpDocTrackedAction("Remove Purchase Subtype", d => {
         delete d.purchaseSubtypes.O[id];
       }),
     );
@@ -317,20 +358,24 @@ export function useRemoveJumpDocPurchaseSubtype() {
 
 export function useJumpDocOriginIds(): Id<TID.Origin>[] {
   return useJumpDocStore(
-    useShallow((s) =>
-      s.doc ? (Object.keys(s.doc.origins.O).map(Number) as Id<TID.Origin>[]) : [],
+    useShallow(s =>
+      s.doc
+        ? (Object.keys(s.doc.origins.O).map(Number) as Id<TID.Origin>[])
+        : [],
     ),
   );
 }
 
-export function useJumpDocOrigin(id: Id<TID.Origin>): OriginTemplate | undefined {
-  return useJumpDocStore((s) => s.doc?.origins.O[id]);
+export function useJumpDocOrigin(
+  id: Id<TID.Origin>,
+): OriginTemplate | undefined {
+  return useJumpDocStore(s => s.doc?.origins.O[id]);
 }
 
 export function useModifyJumpDocOrigin(id: Id<TID.Origin>) {
   return (actionName: string, updater: (t: OriginTemplate) => void) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction(actionName, (d) => {
+      createJumpDocTrackedAction(actionName, d => {
         const t = d.origins.O[id];
         if (t) updater(t);
       }),
@@ -346,7 +391,7 @@ export function useAddJumpDocOrigin() {
   ): Id<TID.Origin> => {
     let newId!: Id<TID.Origin>;
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Origin", (d) => {
+      createJumpDocTrackedAction("Add Origin", d => {
         newId = registryAdd(d.origins, {
           name: parsed?.title ?? "",
           cost: {
@@ -367,14 +412,15 @@ export function useAddJumpDocFreeFormOption() {
   return (bounds?: PageRect[], categoryId?: Id<TID.OriginCategory>): number => {
     let newId!: number;
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Free-Form Option", (d) => {
+      createJumpDocTrackedAction("Add Free-Form Option", d => {
         (d.originCategories.O[categoryId!] as CatWithOptions).options.push({
           name: "",
           type: "freeform",
           cost: { amount: 0, currency: 0 as any },
           bounds: bounds,
         });
-        newId = (d.originCategories.O[categoryId!] as CatWithOptions).options.length;
+        newId = (d.originCategories.O[categoryId!] as CatWithOptions).options
+          .length;
       }),
     );
     return newId;
@@ -387,16 +433,19 @@ function removeOriginFromDoc(d: JumpDoc, id: Id<TID.Origin>) {
 
   // Remove from other origins' synergies
   for (const origin of Object.values(d.origins.O)) {
-    if (origin?.synergies) origin.synergies = origin.synergies.filter((s) => s !== id);
+    if (origin?.synergies)
+      origin.synergies = origin.synergies.filter(s => s !== id);
   }
 
   // Remove origin from purchases and strip it from alternative cost prerequisites
   for (const purchase of Object.values(d.availablePurchases.O)) {
     if (!purchase) continue;
-    purchase.origins = (purchase.origins ?? []).filter((o) => o !== id);
+    purchase.origins = (purchase.origins ?? []).filter(o => o !== id);
     if (purchase.alternativeCosts) {
       for (const ac of purchase.alternativeCosts) {
-        ac.prerequisites = ac.prerequisites.filter((p) => !(p.type === "origin" && p.id === id));
+        ac.prerequisites = ac.prerequisites.filter(
+          p => !(p.type === "origin" && p.id === id),
+        );
       }
     }
   }
@@ -404,10 +453,13 @@ function removeOriginFromDoc(d: JumpDoc, id: Id<TID.Origin>) {
   // Remove origin from companions and strip it from alternative cost prerequisites
   for (const companion of Object.values(d.availableCompanions.O)) {
     if (!companion) continue;
-    if (companion.origins) companion.origins = companion.origins.filter((o) => o !== id);
+    if (companion.origins)
+      companion.origins = companion.origins.filter(o => o !== id);
     if (companion.alternativeCosts) {
       for (const ac of companion.alternativeCosts) {
-        ac.prerequisites = ac.prerequisites.filter((p) => !(p.type === "origin" && p.id === id));
+        ac.prerequisites = ac.prerequisites.filter(
+          p => !(p.type === "origin" && p.id === id),
+        );
       }
     }
   }
@@ -416,14 +468,18 @@ function removeOriginFromDoc(d: JumpDoc, id: Id<TID.Origin>) {
   for (const drawback of Object.values(d.availableDrawbacks.O)) {
     if (drawback?.alternativeCosts) {
       for (const ac of drawback.alternativeCosts) {
-        ac.prerequisites = ac.prerequisites.filter((p) => !(p.type === "origin" && p.id === id));
+        ac.prerequisites = ac.prerequisites.filter(
+          p => !(p.type === "origin" && p.id === id),
+        );
       }
     }
   }
   for (const scenario of Object.values(d.availableScenarios.O)) {
     if (scenario?.alternativeCosts) {
       for (const ac of scenario.alternativeCosts) {
-        ac.prerequisites = ac.prerequisites.filter((p) => !(p.type === "origin" && p.id === id));
+        ac.prerequisites = ac.prerequisites.filter(
+          p => !(p.type === "origin" && p.id === id),
+        );
       }
     }
   }
@@ -432,7 +488,7 @@ function removeOriginFromDoc(d: JumpDoc, id: Id<TID.Origin>) {
 export function useRemoveJumpDocOrigin() {
   return (id: Id<TID.Origin>) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Origin", (d) => {
+      createJumpDocTrackedAction("Remove Origin", d => {
         removeOriginFromDoc(d, id);
       }),
     );
@@ -442,7 +498,7 @@ export function useRemoveJumpDocOrigin() {
 export function useAddBoundToOrigin() {
   return (id: Id<TID.Origin>, rects: PageRect[]) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Bound to Origin", (d) => {
+      createJumpDocTrackedAction("Add Bound to Origin", d => {
         const t = d.origins.O[id];
         if (t) {
           if (!t.bounds) t.bounds = [];
@@ -457,20 +513,26 @@ export function useAddBoundToOrigin() {
 
 export function useJumpDocPurchaseIds(): Id<TID.Purchase>[] {
   return useJumpDocStore(
-    useShallow((s) =>
-      s.doc ? (Object.keys(s.doc.availablePurchases.O).map(Number) as Id<TID.Purchase>[]) : [],
+    useShallow(s =>
+      s.doc
+        ? (Object.keys(s.doc.availablePurchases.O).map(
+            Number,
+          ) as Id<TID.Purchase>[])
+        : [],
     ),
   );
 }
 
-export function useJumpDocPurchase(id: Id<TID.Purchase>): BasicPurchaseTemplate | undefined {
-  return useJumpDocStore((s) => s.doc?.availablePurchases.O[id]);
+export function useJumpDocPurchase(
+  id: Id<TID.Purchase>,
+): BasicPurchaseTemplate | undefined {
+  return useJumpDocStore(s => s.doc?.availablePurchases.O[id]);
 }
 
 export function useModifyJumpDocPurchase(id: Id<TID.Purchase>) {
   return (actionName: string, updater: (t: BasicPurchaseTemplate) => void) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction(actionName, (d) => {
+      createJumpDocTrackedAction(actionName, d => {
         const t = d.availablePurchases.O[id];
         if (t) updater(t);
       }),
@@ -480,7 +542,12 @@ export function useModifyJumpDocPurchase(id: Id<TID.Purchase>) {
 
 // ── Symmetric prerequisite add / remove ───────────────────────────────────────
 
-type PrereqSourceType = "purchase" | "drawback" | "scenario" | "origin" | "companion";
+type PrereqSourceType =
+  | "purchase"
+  | "drawback"
+  | "scenario"
+  | "origin"
+  | "companion";
 
 /** Returns the prerequisites array for a template, initialising it if absent. Returns null if the template doesn't exist. */
 function getDocPrereqs(
@@ -523,27 +590,55 @@ function getDocPrereqs(
  * When the entry is an incompatibility (`positive: false`), also adds the
  * reverse entry to the target template so the relationship is symmetric.
  */
-export function useAddJumpDocPrereq(sourceType: PrereqSourceType, sourceId: number) {
+export function useAddJumpDocPrereq(
+  sourceType: PrereqSourceType,
+  sourceId: number,
+) {
   return (prereq: JumpDocPrerequisite) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Prerequisite", (d) => {
+      createJumpDocTrackedAction("Add Prerequisite", d => {
         const srcPrereqs = getDocPrereqs(d, sourceType, sourceId);
         if (srcPrereqs) srcPrereqs.push(prereq);
 
         if (!prereq.positive) {
           const reversePrereq: JumpDocPrerequisite =
             sourceType === "purchase"
-              ? { type: "purchase", id: sourceId as Id<TID.Purchase>, positive: false }
+              ? {
+                  type: "purchase",
+                  id: sourceId as Id<TID.Purchase>,
+                  positive: false,
+                }
               : sourceType === "drawback"
-                ? { type: "drawback", id: sourceId as Id<TID.Drawback>, positive: false }
+                ? {
+                    type: "drawback",
+                    id: sourceId as Id<TID.Drawback>,
+                    positive: false,
+                  }
                 : sourceType === "scenario"
-                  ? { type: "scenario", id: sourceId as Id<TID.Scenario>, positive: false }
-                  : { type: "origin", id: sourceId as Id<TID.Origin>, positive: false };
+                  ? {
+                      type: "scenario",
+                      id: sourceId as Id<TID.Scenario>,
+                      positive: false,
+                    }
+                  : sourceType === "companion"
+                    ? {
+                        type: "companion",
+                        id: sourceId as Id<TID.Companion>,
+                        positive: false,
+                      }
+                    : {
+                        type: "origin",
+                        id: sourceId as Id<TID.Origin>,
+                        positive: false,
+                      };
           const tgtPrereqs = getDocPrereqs(d, prereq.type, prereq.id as number);
           if (
             tgtPrereqs &&
             !tgtPrereqs.some(
-              (p) => p.type === reversePrereq.type && p.id === reversePrereq.id && !p.positive,
+              p =>
+                p.type === reversePrereq.type &&
+                p.id === reversePrereq.id &&
+                !p.positive,
             )
           ) {
             tgtPrereqs.push(reversePrereq);
@@ -559,21 +654,27 @@ export function useAddJumpDocPrereq(sourceType: PrereqSourceType, sourceId: numb
  * When the removed entry is an incompatibility (`positive: false`), also
  * removes the reverse entry from the target template.
  */
-export function useRemoveJumpDocPrereq(sourceType: PrereqSourceType, sourceId: number) {
+export function useRemoveJumpDocPrereq(
+  sourceType: PrereqSourceType,
+  sourceId: number,
+) {
   return (index: number) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Prerequisite", (d) => {
+      createJumpDocTrackedAction("Remove Prerequisite", d => {
         const srcPrereqs = getDocPrereqs(d, sourceType, sourceId);
         if (!srcPrereqs) return;
         const prereq = srcPrereqs[index];
         if (!prereq) return;
         srcPrereqs.splice(index, 1);
 
-        if (!prereq.positive && prereq.type != "origin" && sourceType !== "companion") {
+        if (
+          !prereq.positive &&
+          prereq.type != "origin"
+        ) {
           const tgtPrereqs = getDocPrereqs(d, prereq.type, prereq.id as number);
           if (tgtPrereqs) {
             const reverseIdx = tgtPrereqs.findIndex(
-              (p) => p.type === sourceType && p.id === sourceId && !p.positive,
+              p => p.type === sourceType && p.id === sourceId && !p.positive,
             );
             if (reverseIdx !== -1) tgtPrereqs.splice(reverseIdx, 1);
           }
@@ -591,7 +692,7 @@ export function useAddJumpDocPurchase() {
   ): Id<TID.Purchase> => {
     let newId!: Id<TID.Purchase>;
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Purchase", (d) => {
+      createJumpDocTrackedAction("Add Purchase", d => {
         newId = registryAdd(d.availablePurchases, {
           name: parsed?.title ?? "",
           description: parsed?.desc ?? "",
@@ -618,7 +719,7 @@ export function useAddJumpDocPurchase() {
 export function useRemoveJumpDocPurchase() {
   return (id: Id<TID.Purchase>) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Purchase", (d) => {
+      createJumpDocTrackedAction("Remove Purchase", d => {
         delete d.availablePurchases.O[id];
       }),
     );
@@ -628,7 +729,7 @@ export function useRemoveJumpDocPurchase() {
 export function useAddBoundToPurchase() {
   return (id: Id<TID.Purchase>, rects: PageRect[]) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Bound to Purchase", (d) => {
+      createJumpDocTrackedAction("Add Bound to Purchase", d => {
         const t = d.availablePurchases.O[id];
         if (t) {
           if (!t.bounds) t.bounds = [];
@@ -643,20 +744,26 @@ export function useAddBoundToPurchase() {
 
 export function useJumpDocDrawbackIds(): Id<TID.Drawback>[] {
   return useJumpDocStore(
-    useShallow((s) =>
-      s.doc ? (Object.keys(s.doc.availableDrawbacks.O).map(Number) as Id<TID.Drawback>[]) : [],
+    useShallow(s =>
+      s.doc
+        ? (Object.keys(s.doc.availableDrawbacks.O).map(
+            Number,
+          ) as Id<TID.Drawback>[])
+        : [],
     ),
   );
 }
 
-export function useJumpDocDrawback(id: Id<TID.Drawback>): DrawbackTemplate | undefined {
-  return useJumpDocStore((s) => s.doc?.availableDrawbacks.O[id]);
+export function useJumpDocDrawback(
+  id: Id<TID.Drawback>,
+): DrawbackTemplate | undefined {
+  return useJumpDocStore(s => s.doc?.availableDrawbacks.O[id]);
 }
 
 export function useModifyJumpDocDrawback(id: Id<TID.Drawback>) {
   return (actionName: string, updater: (t: DrawbackTemplate) => void) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction(actionName, (d) => {
+      createJumpDocTrackedAction(actionName, d => {
         const t = d.availableDrawbacks.O[id];
         if (t) updater(t);
       }),
@@ -668,20 +775,23 @@ export function useAddJumpDocDrawback() {
   return (bounds?: PageRect[], parsed?: ParsedEntry): Id<TID.Drawback> => {
     let newId!: Id<TID.Drawback>;
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Drawback", (d) => {
-        newId = registryAdd<TID.Drawback, DrawbackTemplate>(d.availableDrawbacks, {
-          name: parsed?.title ?? "",
-          boosted: [],
-          description: parsed?.desc ?? "",
-          cost: [
-            {
-              amount: parsed?.amount ?? 0,
-              currency: parsed?.currency ?? createId<TID.Currency>(0),
-            },
-          ],
-          allowMultiple: false,
-          ...(bounds ? { bounds } : {}),
-        });
+      createJumpDocTrackedAction("Add Drawback", d => {
+        newId = registryAdd<TID.Drawback, DrawbackTemplate>(
+          d.availableDrawbacks,
+          {
+            name: parsed?.title ?? "",
+            boosted: [],
+            description: parsed?.desc ?? "",
+            cost: [
+              {
+                amount: parsed?.amount ?? 0,
+                currency: parsed?.currency ?? createId<TID.Currency>(0),
+              },
+            ],
+            allowMultiple: false,
+            ...(bounds ? { bounds } : {}),
+          },
+        );
       }),
     );
     return newId;
@@ -691,7 +801,7 @@ export function useAddJumpDocDrawback() {
 export function useRemoveJumpDocDrawback() {
   return (id: Id<TID.Drawback>) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Drawback", (d) => {
+      createJumpDocTrackedAction("Remove Drawback", d => {
         delete d.availableDrawbacks.O[id];
       }),
     );
@@ -701,7 +811,7 @@ export function useRemoveJumpDocDrawback() {
 export function useAddBoundToDrawback() {
   return (id: Id<TID.Drawback>, rects: PageRect[]) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Bound to Drawback", (d) => {
+      createJumpDocTrackedAction("Add Bound to Drawback", d => {
         const t = d.availableDrawbacks.O[id];
         if (t) {
           if (!t.bounds) t.bounds = [];
@@ -716,20 +826,26 @@ export function useAddBoundToDrawback() {
 
 export function useJumpDocScenarioIds(): Id<TID.Scenario>[] {
   return useJumpDocStore(
-    useShallow((s) =>
-      s.doc ? (Object.keys(s.doc.availableScenarios.O).map(Number) as Id<TID.Scenario>[]) : [],
+    useShallow(s =>
+      s.doc
+        ? (Object.keys(s.doc.availableScenarios.O).map(
+            Number,
+          ) as Id<TID.Scenario>[])
+        : [],
     ),
   );
 }
 
-export function useJumpDocScenario(id: Id<TID.Scenario>): ScenarioTemplate | undefined {
-  return useJumpDocStore((s) => s.doc?.availableScenarios.O[id]);
+export function useJumpDocScenario(
+  id: Id<TID.Scenario>,
+): ScenarioTemplate | undefined {
+  return useJumpDocStore(s => s.doc?.availableScenarios.O[id]);
 }
 
 export function useModifyJumpDocScenario(id: Id<TID.Scenario>) {
   return (actionName: string, updater: (t: ScenarioTemplate) => void) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction(actionName, (d) => {
+      createJumpDocTrackedAction(actionName, d => {
         const t = d.availableScenarios.O[id];
         if (t) updater(t);
       }),
@@ -741,7 +857,7 @@ export function useAddJumpDocScenario() {
   return (bounds?: PageRect[], description?: string): Id<TID.Scenario> => {
     let newId!: Id<TID.Scenario>;
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Scenario", (d) => {
+      createJumpDocTrackedAction("Add Scenario", d => {
         newId = registryAdd(d.availableScenarios, {
           name: "",
           description: description ?? "",
@@ -758,7 +874,7 @@ export function useAddJumpDocScenario() {
 export function useAddJumpDocScenarioOutcome(id: Id<TID.Scenario>) {
   return () => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Outcome", (d) => {
+      createJumpDocTrackedAction("Add Outcome", d => {
         const t = d.availableScenarios.O[id];
         if (t) {
           if (!t.rewardGroups) t.rewardGroups = [];
@@ -772,7 +888,7 @@ export function useAddJumpDocScenarioOutcome(id: Id<TID.Scenario>) {
 export function useRemoveJumpDocScenarioOutcome(id: Id<TID.Scenario>) {
   return (groupIndex: number) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Outcome", (d) => {
+      createJumpDocTrackedAction("Remove Outcome", d => {
         d.availableScenarios.O[id]?.rewardGroups?.splice(groupIndex, 1);
       }),
     );
@@ -782,7 +898,7 @@ export function useRemoveJumpDocScenarioOutcome(id: Id<TID.Scenario>) {
 export function useRemoveJumpDocScenario() {
   return (id: Id<TID.Scenario>) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Scenario", (d) => {
+      createJumpDocTrackedAction("Remove Scenario", d => {
         delete d.availableScenarios.O[id];
       }),
     );
@@ -792,7 +908,7 @@ export function useRemoveJumpDocScenario() {
 export function useAddBoundToScenario() {
   return (id: Id<TID.Scenario>, rects: PageRect[]) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Bound to Scenario", (d) => {
+      createJumpDocTrackedAction("Add Bound to Scenario", d => {
         const t = d.availableScenarios.O[id];
         if (t) {
           if (!t.bounds) t.bounds = [];
@@ -807,20 +923,26 @@ export function useAddBoundToScenario() {
 
 export function useJumpDocCompanionIds(): Id<TID.Companion>[] {
   return useJumpDocStore(
-    useShallow((s) =>
-      s.doc ? (Object.keys(s.doc.availableCompanions.O).map(Number) as Id<TID.Companion>[]) : [],
+    useShallow(s =>
+      s.doc
+        ? (Object.keys(s.doc.availableCompanions.O).map(
+            Number,
+          ) as Id<TID.Companion>[])
+        : [],
     ),
   );
 }
 
-export function useJumpDocCompanion(id: Id<TID.Companion>): CompanionTemplate | undefined {
-  return useJumpDocStore((s) => s.doc?.availableCompanions.O[id]);
+export function useJumpDocCompanion(
+  id: Id<TID.Companion>,
+): CompanionTemplate | undefined {
+  return useJumpDocStore(s => s.doc?.availableCompanions.O[id]);
 }
 
 export function useModifyJumpDocCompanion(id: Id<TID.Companion>) {
   return (actionName: string, updater: (t: CompanionTemplate) => void) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction(actionName, (d) => {
+      createJumpDocTrackedAction(actionName, d => {
         const t = d.availableCompanions.O[id];
         if (t) updater(t);
       }),
@@ -832,7 +954,7 @@ export function useAddJumpDocCompanion() {
   return (bounds?: PageRect[], parsed?: ParsedEntry): Id<TID.Companion> => {
     let newId!: Id<TID.Companion>;
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Companion", (d) => {
+      createJumpDocTrackedAction("Add Companion", d => {
         newId = registryAdd(d.availableCompanions, {
           name: parsed?.title ?? "",
           description: parsed?.desc ?? "",
@@ -857,7 +979,7 @@ export function useAddJumpDocCompanion() {
 export function useRemoveJumpDocCompanion() {
   return (id: Id<TID.Companion>) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Companion", (d) => {
+      createJumpDocTrackedAction("Remove Companion", d => {
         delete d.availableCompanions.O[id];
       }),
     );
@@ -867,7 +989,7 @@ export function useRemoveJumpDocCompanion() {
 export function useAddBoundToCompanion() {
   return (id: Id<TID.Companion>, rects: PageRect[]) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Bound to Companion", (d) => {
+      createJumpDocTrackedAction("Add Bound to Companion", d => {
         const t = d.availableCompanions.O[id];
         if (t) {
           if (!t.bounds) t.bounds = [];
@@ -881,7 +1003,7 @@ export function useAddBoundToCompanion() {
 export function useRemoveBoundFromCompanion() {
   return (id: Id<TID.Companion>, index: number) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Bound from Companion", (d) => {
+      createJumpDocTrackedAction("Remove Bound from Companion", d => {
         d.availableCompanions.O[id]?.bounds?.splice(index, 1);
       }),
     );
@@ -947,11 +1069,29 @@ export function useAllBoundedTemplates(): BoundedTemplate[] {
           bounds: t.bounds ?? [],
         });
     for (const [idStr, t] of Object.entries(doc.availableCompanions.O))
-      if (t) out.push({ id: +idStr, type: "companion", name: t.name, bounds: t.bounds ?? [] });
+      if (t)
+        out.push({
+          id: +idStr,
+          type: "companion",
+          name: t.name,
+          bounds: t.bounds ?? [],
+        });
     for (const [idStr, t] of Object.entries(doc.availableDrawbacks.O))
-      if (t) out.push({ id: +idStr, type: "drawback", name: t.name, bounds: t.bounds ?? [] });
+      if (t)
+        out.push({
+          id: +idStr,
+          type: "drawback",
+          name: t.name,
+          bounds: t.bounds ?? [],
+        });
     for (const [idStr, t] of Object.entries(doc.availableScenarios.O))
-      if (t) out.push({ id: +idStr, type: "scenario", name: t.name, bounds: t.bounds ?? [] });
+      if (t)
+        out.push({
+          id: +idStr,
+          type: "scenario",
+          name: t.name,
+          bounds: t.bounds ?? [],
+        });
     (doc.availableCurrencyExchanges ?? []).forEach((ex, idx) => {
       if ((ex.bounds?.length ?? 0) > 0) {
         const fromAbbrev = doc.currencies.O[ex.oCurrency]?.abbrev ?? "?";
@@ -1024,7 +1164,7 @@ export function useJumpDocOriginsGrouped(): OriginGroup[] {
 export function useRemoveBoundFromOrigin() {
   return (id: Id<TID.Origin>, index: number) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Bound from Origin", (d) => {
+      createJumpDocTrackedAction("Remove Bound from Origin", d => {
         d.origins.O[id]?.bounds?.splice(index, 1);
       }),
     );
@@ -1034,7 +1174,7 @@ export function useRemoveBoundFromOrigin() {
 export function useRemoveBoundFromPurchase() {
   return (id: Id<TID.Purchase>, index: number) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Bound from Purchase", (d) => {
+      createJumpDocTrackedAction("Remove Bound from Purchase", d => {
         d.availablePurchases.O[id]?.bounds?.splice(index, 1);
       }),
     );
@@ -1044,7 +1184,7 @@ export function useRemoveBoundFromPurchase() {
 export function useRemoveBoundFromDrawback() {
   return (id: Id<TID.Drawback>, index: number) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Bound from Drawback", (d) => {
+      createJumpDocTrackedAction("Remove Bound from Drawback", d => {
         d.availableDrawbacks.O[id]?.bounds?.splice(index, 1);
       }),
     );
@@ -1054,7 +1194,7 @@ export function useRemoveBoundFromDrawback() {
 export function useRemoveBoundFromScenario() {
   return (id: Id<TID.Scenario>, index: number) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Bound from Scenario", (d) => {
+      createJumpDocTrackedAction("Remove Bound from Scenario", d => {
         d.availableScenarios.O[id]?.bounds?.splice(index, 1);
       }),
     );
@@ -1066,7 +1206,7 @@ export function useRemoveBoundFromScenario() {
 /** IDs of origin categories where singleLine === false (i.e. "Multiple Choice"). */
 export function useJumpDocNonSingleLineOriginCategoryIds(): Id<TID.OriginCategory>[] {
   return useJumpDocStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.doc) return [];
       return Object.entries(s.doc.originCategories.O)
         .filter(([, cat]) => cat && !cat.singleLine)
@@ -1076,9 +1216,11 @@ export function useJumpDocNonSingleLineOriginCategoryIds(): Id<TID.OriginCategor
 }
 
 /** IDs of origins belonging to a specific origin category. */
-export function useJumpDocOriginIdsByCategory(catId: Id<TID.OriginCategory>): Id<TID.Origin>[] {
+export function useJumpDocOriginIdsByCategory(
+  catId: Id<TID.OriginCategory>,
+): Id<TID.Origin>[] {
   return useJumpDocStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.doc) return [];
       return Object.entries(s.doc.origins.O)
         .filter(([, t]) => t && t.type === catId)
@@ -1091,7 +1233,7 @@ export function useJumpDocOriginIdsByCategory(catId: Id<TID.OriginCategory>): Id
 export function useRemoveJumpDocOriginsByCategory() {
   return (catId: Id<TID.OriginCategory>) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Origins in Category", (d) => {
+      createJumpDocTrackedAction("Remove Origins in Category", d => {
         const toRemove = Object.entries(d.origins.O)
           .filter(([, t]) => t?.type === catId)
           .map(([idStr]) => +idStr as Id<TID.Origin>);
@@ -1106,12 +1248,17 @@ export function useRemoveJumpDocOriginsByCategory() {
 // ── FreeForm options (singleLine categories) ──────────────────────────────────
 
 type CatWithOptions = { singleLine: true; options: FreeFormOrigin[] };
-type CatWithRandom = { singleLine: false; random?: { cost: SimpleValue; bounds?: PageRect[] } };
+type CatWithRandom = {
+  singleLine: false;
+  random?: { cost: SimpleValue; bounds?: PageRect[] };
+};
 
 /** Returns the FreeFormOrigin options array for a singleLine category. */
-export function useJumpDocFreeFormOptions(catId: Id<TID.OriginCategory>): FreeFormOrigin[] {
+export function useJumpDocFreeFormOptions(
+  catId: Id<TID.OriginCategory>,
+): FreeFormOrigin[] {
   return useJumpDocStore(
-    useShallow((s) => {
+    useShallow(s => {
       const c = s.doc?.originCategories.O[catId] as CatWithOptions | undefined;
       return c?.options ?? [];
     }),
@@ -1122,7 +1269,7 @@ export function useJumpDocFreeFormOptions(catId: Id<TID.OriginCategory>): FreeFo
 export function useJumpDocOriginRandom(
   catId: Id<TID.OriginCategory>,
 ): { cost: SimpleValue<TID.Currency>; bounds?: PageRect[] } | undefined {
-  return useJumpDocStore((s) => {
+  return useJumpDocStore(s => {
     const c = s.doc?.originCategories.O[catId];
     return c && !c.singleLine ? c.random : undefined;
   });
@@ -1132,7 +1279,7 @@ export function useJumpDocOriginRandom(
 export function useModifyJumpDocFreeFormOptions(catId: Id<TID.OriginCategory>) {
   return (actionName: string, updater: (options: FreeFormOrigin[]) => void) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction(actionName, (d) => {
+      createJumpDocTrackedAction(actionName, d => {
         const c = d.originCategories.O[catId] as CatWithOptions | undefined;
         if (!c) return;
         if (!c.options) c.options = [];
@@ -1146,7 +1293,7 @@ export function useModifyJumpDocFreeFormOptions(catId: Id<TID.OriginCategory>) {
 export function useAddBoundToFreeFormOption() {
   return (catId: Id<TID.OriginCategory>, optIdx: number, rects: PageRect[]) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Bound to Option", (d) => {
+      createJumpDocTrackedAction("Add Bound to Option", d => {
         const c = d.originCategories.O[catId] as CatWithOptions | undefined;
         if (!c?.options) return;
         const opt = c.options[optIdx];
@@ -1162,7 +1309,7 @@ export function useAddBoundToFreeFormOption() {
 export function useRemoveBoundFromFreeFormOption() {
   return (catId: Id<TID.OriginCategory>, optIdx: number, boundIdx: number) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Bound from Option", (d) => {
+      createJumpDocTrackedAction("Remove Bound from Option", d => {
         const c = d.originCategories.O[catId] as CatWithOptions | undefined;
         c?.options[optIdx]?.bounds?.splice(boundIdx, 1);
       }),
@@ -1174,7 +1321,7 @@ export function useRemoveBoundFromFreeFormOption() {
 export function useAddBoundToOriginRandom() {
   return (catId: Id<TID.OriginCategory>, rects: PageRect[]) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Bound to Random", (d) => {
+      createJumpDocTrackedAction("Add Bound to Random", d => {
         const c = d.originCategories.O[catId] as CatWithRandom | undefined;
         if (!c || c.singleLine || !c.random) return;
         if (!c.random.bounds) c.random.bounds = [];
@@ -1188,7 +1335,7 @@ export function useAddBoundToOriginRandom() {
 export function useRemoveBoundFromOriginRandom() {
   return (catId: Id<TID.OriginCategory>, boundIdx: number) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Remove Bound from Random", (d) => {
+      createJumpDocTrackedAction("Remove Bound from Random", d => {
         const c = d.originCategories.O[catId] as CatWithRandom | undefined;
         if (!c || c.singleLine || !c.random?.bounds) return;
         c.random.bounds.splice(boundIdx, 1);
@@ -1200,18 +1347,23 @@ export function useRemoveBoundFromOriginRandom() {
 /** Purchase subtype IDs sorted: PurchaseType.Perk entries first, then PurchaseType.Item. */
 export function useJumpDocPurchaseSubtypeIdsSorted(): Id<TID.PurchaseSubtype>[] {
   return useJumpDocStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.doc) return [];
       return Object.entries(s.doc.purchaseSubtypes.O)
-        .filter((e) => !!e[1])
-        .sort(([, a], [, b]) => (a.type === b.type ? 0 : a.type === PurchaseType.Perk ? -1 : 1))
+        .filter(e => !!e[1])
+        .sort(([, a], [, b]) =>
+          a.type === b.type ? 0 : a.type === PurchaseType.Perk ? -1 : 1,
+        )
         .map(([idStr]) => +idStr as Id<TID.PurchaseSubtype>);
     }),
   );
 }
 
 /** All purchases with capstoneBooster: true — used by BoostedEditor. */
-export function useJumpDocCapstoneBoosterPurchases(): { id: Id<TID.Purchase>; name: string }[] {
+export function useJumpDocCapstoneBoosterPurchases(): {
+  id: Id<TID.Purchase>;
+  name: string;
+}[] {
   const doc = useJumpDoc();
   return useMemo(() => {
     if (!doc) return [];
@@ -1232,10 +1384,18 @@ export function useJumpDocCapstoneBoosterItems(): {
     if (!doc) return [];
     const purchases = Object.entries(doc.availablePurchases.O)
       .filter(([, t]) => t?.capstoneBooster)
-      .map(([idStr, t]) => ({ id: +idStr, name: t!.name, kind: "purchase" as const }));
+      .map(([idStr, t]) => ({
+        id: +idStr,
+        name: t!.name,
+        kind: "purchase" as const,
+      }));
     const drawbacks = Object.entries(doc.availableDrawbacks.O)
       .filter(([, t]) => t?.capstoneBooster)
-      .map(([idStr, t]) => ({ id: +idStr, name: t!.name, kind: "drawback" as const }));
+      .map(([idStr, t]) => ({
+        id: +idStr,
+        name: t!.name,
+        kind: "drawback" as const,
+      }));
     return [...purchases, ...drawbacks];
   }, [doc]);
 }
@@ -1245,7 +1405,7 @@ export function useJumpDocPurchaseIdsBySubtype(
   subtypeId: Id<TID.PurchaseSubtype>,
 ): Id<TID.Purchase>[] {
   return useJumpDocStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.doc) return [];
       return Object.entries(s.doc.availablePurchases.O)
         .filter(([, t]) => t != null && t.subtype === subtypeId)
@@ -1258,7 +1418,7 @@ export function useJumpDocPurchaseIdsBySubtype(
 export function useAddAltCostToSubtypePurchases() {
   return (subtypeId: Id<TID.PurchaseSubtype>, altCosts: AlternativeCost[]) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Alt Costs to Subtype", (d) => {
+      createJumpDocTrackedAction("Add Alt Costs to Subtype", d => {
         for (const t of Object.values(d.availablePurchases.O)) {
           if (!t || t.subtype !== subtypeId) continue;
           t.alternativeCosts = [...(t.alternativeCosts ?? []), ...altCosts];
@@ -1304,8 +1464,10 @@ export function useJumpDocToolDefinitions(): ToolDefinition[] {
         PurchaseSubtype<TID.Currency> | undefined,
       ][]
     )
-      .filter((e) => !!e[1])
-      .sort(([, a], [, b]) => (a?.type === b?.type ? 0 : a?.type === PurchaseType.Perk ? -1 : 1));
+      .filter(e => !!e[1])
+      .sort(([, a], [, b]) =>
+        a?.type === b?.type ? 0 : a?.type === PurchaseType.Perk ? -1 : 1,
+      );
     for (const [idStr, s] of subtypeEntries) {
       tools.push({
         key: `purchase-${idStr}`,
@@ -1315,9 +1477,24 @@ export function useJumpDocToolDefinitions(): ToolDefinition[] {
       });
     }
 
-    tools.push({ key: "companion", label: "Companion", color: "#06b6d4", group: "purchase" });
-    tools.push({ key: "drawback", label: "Drawback", color: "#ef4444", group: "drawback" });
-    tools.push({ key: "scenario", label: "Scenario", color: "#a855f7", group: "scenario" });
+    tools.push({
+      key: "companion",
+      label: "Companion",
+      color: "#06b6d4",
+      group: "purchase",
+    });
+    tools.push({
+      key: "drawback",
+      label: "Drawback",
+      color: "#ef4444",
+      group: "drawback",
+    });
+    tools.push({
+      key: "scenario",
+      label: "Scenario",
+      color: "#a855f7",
+      group: "scenario",
+    });
     return tools;
   }, [doc?.originCategories, doc?.purchaseSubtypes]);
 }
@@ -1338,8 +1515,14 @@ export function useJumpDocDiscountOriginGroups(): OriginGroup[] {
       if (!cat || cat.singleLine || !cat.providesDiscounts) continue;
       const catId = +idStr as unknown as Id<TID.OriginCategory>;
       const origins = Object.entries(doc.origins.O)
-        .filter(([, o]) => o && (o.type as unknown as number) === (catId as unknown as number))
-        .map(([oidStr, o]) => ({ id: +oidStr as unknown as Id<TID.Origin>, name: o!.name }));
+        .filter(
+          ([, o]) =>
+            o && (o.type as unknown as number) === (catId as unknown as number),
+        )
+        .map(([oidStr, o]) => ({
+          id: +oidStr as unknown as Id<TID.Origin>,
+          name: o!.name,
+        }));
       out.push({ catId, catName: cat.name, origins });
     }
     return out;
@@ -1349,13 +1532,19 @@ export function useJumpDocDiscountOriginGroups(): OriginGroup[] {
 // ── Companion reward picker helpers ───────────────────────────────────────────
 
 /** Returns all companion templates as lightweight picker entries. */
-export function useJumpDocCompanionsForPicker(): { id: Id<TID.Companion>; name: string }[] {
+export function useJumpDocCompanionsForPicker(): {
+  id: Id<TID.Companion>;
+  name: string;
+}[] {
   const doc = useJumpDoc();
   return useMemo(() => {
     if (!doc) return [];
     return Object.entries(doc.availableCompanions.O)
       .filter(([, t]) => t != null)
-      .map(([idStr, t]) => ({ id: +idStr as Id<TID.Companion>, name: t!.name }));
+      .map(([idStr, t]) => ({
+        id: +idStr as Id<TID.Companion>,
+        name: t!.name,
+      }));
   }, [doc]);
 }
 
@@ -1373,7 +1562,7 @@ export function useAddJumpDocCompanionForReward() {
   ): Id<TID.Companion> => {
     let newId!: Id<TID.Companion>;
     useJumpDocStore.setState(
-      createJumpDocTrackedAction("Add Companion Import", (d) => {
+      createJumpDocTrackedAction("Add Companion Import", d => {
         newId = registryAdd(d.availableCompanions, {
           name,
           description,
@@ -1412,11 +1601,18 @@ export function useJumpDocPurchasesWithRewardType(): PurchaseWithType[] {
       if (!t) continue;
       const subtype = doc.purchaseSubtypes.O[t.subtype];
       if (!subtype) continue;
-      if (subtype.type !== PurchaseType.Perk && subtype.type !== PurchaseType.Item) continue;
+      if (
+        subtype.type !== PurchaseType.Perk &&
+        subtype.type !== PurchaseType.Item
+      )
+        continue;
       out.push({
         id: +idStr as Id<TID.Purchase>,
         name: t.name,
-        rewardType: subtype.type === PurchaseType.Perk ? RewardType.Perk : RewardType.Item,
+        rewardType:
+          subtype.type === PurchaseType.Perk
+            ? RewardType.Perk
+            : RewardType.Item,
         subtypeName: subtype.name,
       });
     }
@@ -1440,9 +1636,11 @@ export function useJumpDocFirstSubtypeIdByType(
 
 /** Returns the first currency ID in the doc, or 0 if none. Used for reward defaults. */
 export function useJumpDocFirstCurrencyId(): Id<TID.Currency> {
-  return useJumpDocStore((s) => {
+  return useJumpDocStore(s => {
     const keys = Object.keys(s.doc?.currencies.O ?? {});
-    return keys.length > 0 ? (+keys[0]! as Id<TID.Currency>) : (0 as Id<TID.Currency>);
+    return keys.length > 0
+      ? (+keys[0]! as Id<TID.Currency>)
+      : (0 as Id<TID.Currency>);
   });
 }
 
@@ -1463,6 +1661,7 @@ export type PrerequisiteItems = {
     subtypeName: string;
   }[];
   scenarios: { id: Id<TID.Scenario>; name: string }[];
+  companions: { id: Id<TID.Companion>; name: string }[];
 };
 
 /**
@@ -1472,7 +1671,14 @@ export type PrerequisiteItems = {
 export function useJumpDocPrerequisiteItems(): PrerequisiteItems {
   const doc = useJumpDoc();
   return useMemo(() => {
-    if (!doc) return { origins: [], drawbacks: [], purchases: [], scenarios: [] };
+    if (!doc)
+      return {
+        origins: [],
+        drawbacks: [],
+        purchases: [],
+        scenarios: [],
+        companions: [],
+      };
     const origins = Object.entries(doc.origins.O)
       .filter(([, t]) => t)
       .map(([idStr, t]) => {
@@ -1503,8 +1709,101 @@ export function useJumpDocPrerequisiteItems(): PrerequisiteItems {
     const scenarios = Object.entries(doc.availableScenarios.O)
       .filter(([, t]) => t)
       .map(([idStr, t]) => ({ id: +idStr as Id<TID.Scenario>, name: t!.name }));
-    return { origins, drawbacks, purchases, scenarios };
+    const companions = Object.entries(doc.availableCompanions.O)
+      .filter(([, t]) => t)
+      .map(([idStr, t]) => ({
+        id: +idStr as Id<TID.Companion>,
+        name: t!.name,
+      }));
+    return { origins, drawbacks, purchases, scenarios, companions };
   }, [doc]);
+}
+
+// ── Duplicate helpers ─────────────────────────────────────────────────────────
+
+export function useDuplicateJumpDocPurchase() {
+  return (id: Id<TID.Purchase>): Id<TID.Purchase> => {
+    let newId!: Id<TID.Purchase>;
+    useJumpDocStore.setState(
+      createJumpDocTrackedAction("Duplicate Purchase", d => {
+        const t = d.availablePurchases.O[id];
+        if (!t) return;
+        newId = registryAdd(
+          d.availablePurchases,
+          JSON.parse(JSON.stringify({ ...t, name: t.name + " (Copy)" })),
+        );
+      }),
+    );
+    return newId;
+  };
+}
+
+export function useDuplicateJumpDocDrawback() {
+  return (id: Id<TID.Drawback>): Id<TID.Drawback> => {
+    let newId!: Id<TID.Drawback>;
+    useJumpDocStore.setState(
+      createJumpDocTrackedAction("Duplicate Drawback", d => {
+        const t = d.availableDrawbacks.O[id];
+        if (!t) return;
+        newId = registryAdd<TID.Drawback, DrawbackTemplate>(
+          d.availableDrawbacks,
+          JSON.parse(JSON.stringify({ ...t, name: t.name + " (Copy)" })),
+        );
+      }),
+    );
+    return newId;
+  };
+}
+
+export function useDuplicateJumpDocScenario() {
+  return (id: Id<TID.Scenario>): Id<TID.Scenario> => {
+    let newId!: Id<TID.Scenario>;
+    useJumpDocStore.setState(
+      createJumpDocTrackedAction("Duplicate Scenario", d => {
+        const t = d.availableScenarios.O[id];
+        if (!t) return;
+        newId = registryAdd(
+          d.availableScenarios,
+          JSON.parse(JSON.stringify({ ...t, name: t.name + " (Copy)" })),
+        );
+      }),
+    );
+    return newId;
+  };
+}
+
+export function useDuplicateJumpDocCompanion() {
+  return (id: Id<TID.Companion>): Id<TID.Companion> => {
+    let newId!: Id<TID.Companion>;
+    useJumpDocStore.setState(
+      createJumpDocTrackedAction("Duplicate Companion", d => {
+        const t = d.availableCompanions.O[id];
+        if (!t) return;
+        newId = registryAdd(
+          d.availableCompanions,
+          JSON.parse(JSON.stringify({ ...t, name: t.name + " (Copy)" })),
+        );
+      }),
+    );
+    return newId;
+  };
+}
+
+export function useDuplicateJumpDocOrigin() {
+  return (id: Id<TID.Origin>): Id<TID.Origin> => {
+    let newId!: Id<TID.Origin>;
+    useJumpDocStore.setState(
+      createJumpDocTrackedAction("Duplicate Origin", d => {
+        const t = d.origins.O[id];
+        if (!t) return;
+        newId = registryAdd(
+          d.origins,
+          JSON.parse(JSON.stringify({ ...t, name: t.name + " (Copy)" })),
+        );
+      }),
+    );
+    return newId;
+  };
 }
 
 /** Modifies a specific outcome (rewardGroup) within a scenario. */
@@ -1512,10 +1811,14 @@ export function useModifyJumpDocScenarioOutcome(id: Id<TID.Scenario>) {
   return (
     actionName: string,
     groupIndex: number,
-    updater: (group: { title: string; context: string; rewards: ScenarioRewardTemplate[] }) => void,
+    updater: (group: {
+      title: string;
+      context: string;
+      rewards: ScenarioRewardTemplate[];
+    }) => void,
   ) => {
     useJumpDocStore.setState(
-      createJumpDocTrackedAction(actionName, (d) => {
+      createJumpDocTrackedAction(actionName, d => {
         const group = d.availableScenarios.O[id]?.rewardGroups?.[groupIndex];
         if (group) updater(group);
       }),

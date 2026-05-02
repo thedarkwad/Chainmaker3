@@ -88,6 +88,8 @@ If we just copy and paste this perk from the document, the jumper's perk list wo
 
 When a purchase offers a free-form choice, like a skill, element, or user-designed power, you probably want to give the user the opportunity to make that choice themselves. To do this, you can use _tags_ in the purchase title and/or description by enclosing a word or phrase in `${}` or `$${}`.
 
+**This functionality has been considerably expanded. See [here](/advanced) for details.**
+
 A single dollar sign gives the user the opportunity to enter a short word or phrase, while the double dollar sign allows them to enter an entire sentence or paragraph. If a purchase has a tag, we can also designate some of its description text as _context_ for that choice.
 
 For example, consider this perk from _Hollow Knight – Voidheart Edition_:

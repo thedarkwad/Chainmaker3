@@ -51,7 +51,12 @@ export interface OriginCategory {
   multiple: boolean;
   default?: string;
 
-  template?: { jumpdoc: string; id: Id<TID.OriginCategory> };
+  template?: {
+    jumpdoc: string;
+    id: Id<TID.OriginCategory>;
+    tags?: Record<string, string>;
+    originalText?: string;
+  };
 
   /** When true (and singleLine is false), origins in this category discount purchases. */
   providesDiscounts?: boolean;

@@ -136,7 +136,7 @@ export function TagField({
       )}
       <div className="flex flex-wrap items-center gap-1.5 flex-1">
         {/* Selected tags */}
-        {values.map((val) => (
+        {(values ?? []).map((val) => (
           <span
             key={val}
             className="flex items-center gap-1 text-xs bg-tint border border-edge text-ink rounded px-2 py-0.5"

@@ -14,8 +14,10 @@ import {
   DescriptionArea,
   BoostedEditor,
   ChoiceContextEditor,
+  InternalTagsField,
 } from "./JumpDocFields";
 import { AlternativeCostEditor } from "./AlternativeCostEditor";
+import { VariableCostEditor } from "./VariableCostEditor";
 import { RareFieldsGroup } from "./RareFieldsGroup";
 import { CostDropdown } from "@/ui/CostDropdown";
 import type { SectionSharedProps } from "./sectionTypes";
@@ -39,9 +41,11 @@ import {
   useRemoveJumpDocPrereq,
   type OriginGroup,
   useJumpDocOrigin,
+  useDuplicateJumpDocPurchase,
+  useJumpDocCompanion,
 } from "@/jumpdoc/state/hooks";
-import type { PurchasePrerequisite } from "@/chain/data/JumpDoc";
-import { PickerModal, PickerGroup, PickerItem } from "./PickerModal";
+import type { PurchasePrerequisite, VariableCost } from "@/chain/data/JumpDoc";
+import { PickerModal, PickerGroup } from "./PickerModal";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
 import { CostModifier, PurchaseType } from "@/chain/data/Purchase";
@@ -179,9 +183,10 @@ const PurchaseCard = memo(function PurchaseCard({
   const purchase = useJumpDocPurchase(id);
   const modify = useModifyJumpDocPurchase(id);
   const removePurchase = useRemoveJumpDocPurchase();
+  const duplicatePurchase = useDuplicateJumpDocPurchase();
   const removeBound = useRemoveBoundFromPurchase();
-  const addPrereq = useAddJumpDocPrereq("purchase", id as number);
-  const removePrereq = useRemoveJumpDocPrereq("purchase", id as number);
+  const addPrereq = useAddJumpDocPrereq("purchase", id);
+  const removePrereq = useRemoveJumpDocPrereq("purchase", id);
   const currencies = useJumpDocCurrenciesRegistry();
   const firstCurrencyId = useJumpDocFirstCurrencyId();
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -191,7 +196,7 @@ const PurchaseCard = memo(function PurchaseCard({
 
   // Exclude this purchase from its own booster list.
   const availableBoosterItems = capstoneBoosterItems.filter(
-    b => !(b.kind === "purchase" && b.id === (id as number)),
+    b => !(b.kind === "purchase" && b.id === id),
   );
 
   const key = `purchase-${id}`;
@@ -219,13 +224,14 @@ const PurchaseCard = memo(function PurchaseCard({
           t.name = v;
         })
       }
+      onDuplicate={() => duplicatePurchase(id)}
       onAddBound={() => onAddBoundsRequest(toolKey, id)}
       onRemoveBound={i => removeBound(id, i)}
       onDelete={() => removePurchase(id)}
       onBecomeScrollTarget={() => descriptionRef.current?.focus()}
       headerExtra={
         <div className="flex items-center gap-1 shrink-0">
-          {currencies && (
+          {currencies && Array.isArray(purchase.cost) && (
             <CostDropdown<TID.Currency>
               value={purchase.cost}
               cost={fullCost}
@@ -239,12 +245,15 @@ const PurchaseCard = memo(function PurchaseCard({
               }
             />
           )}
+          {!Array.isArray(purchase.cost) && (
+            <span className="text-xs text-muted mx-1">Variable Value</span>
+          )}
           {discountGroups.length > 0 &&
             (selectedDiscountOrigins.length === 0 ? (
               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20 whitespace-nowrap">
                 Undiscounted
               </span>
-            ) : (
+            ) : selectedDiscountOrigins.length <= 2 ? (
               selectedDiscountOrigins.map(o => (
                 <span
                   key={o.id}
@@ -253,6 +262,10 @@ const PurchaseCard = memo(function PurchaseCard({
                   {o.name}
                 </span>
               ))
+            ) : (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                Multi-Origin
+              </span>
             ))}
         </div>
       }
@@ -270,6 +283,7 @@ const PurchaseCard = memo(function PurchaseCard({
       <ChoiceContextEditor
         name={purchase.name}
         description={purchase.description}
+        cost={Array.isArray(purchase.cost) ? undefined : purchase.cost}
         choiceContext={purchase.choiceContext}
         onCommit={v =>
           modify("Set Choice Context", t => {
@@ -341,6 +355,32 @@ const PurchaseCard = memo(function PurchaseCard({
 
       <RareFieldsGroup
         fields={[
+          {
+            key: "variableCost",
+            isActive: !Array.isArray(purchase.cost),
+            dormant: () => (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                onClick={() =>
+                  modify("Enable Variable Cost", t => {
+                    t.cost = { [defaultCurrency ?? firstCurrencyId]: "" } as VariableCost;
+                  })
+                }
+              >
+                use variable cost
+              </button>
+            ),
+            active: () => (
+              <div className="pt-1.5 border-t border-line">
+                <VariableCostEditor
+                  value={purchase.cost as VariableCost}
+                  onCommit={(name, updated) => modify(name, t => { t.cost = updated; })}
+                  onRemove={() => modify("Disable Variable Cost", t => { t.cost = []; })}
+                />
+              </div>
+            ),
+          },
           ...(availableBoosterItems.length > 0
             ? [
                 {
@@ -465,6 +505,26 @@ const PurchaseCard = memo(function PurchaseCard({
               />
             ),
           },
+          {
+            key: "internalTags",
+            isActive: purchase.internalTags !== undefined,
+            dormant: () => (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                onClick={() => modify("Add Internal Tags", t => { t.internalTags = []; })}
+              >
+                <Plus size={8} /> add internal tag
+              </button>
+            ),
+            active: () => (
+              <InternalTagsField
+                tags={purchase.internalTags!}
+                onChange={tags => modify("Edit Internal Tags", t => { t.internalTags = tags; })}
+                onUndefined={() => modify("Remove Internal Tags", t => { t.internalTags = undefined; })}
+              />
+            ),
+          },
         ]}
       />
     </TemplateCard>
@@ -562,6 +622,16 @@ function PurchasePrereqChip({
         onRemove={onRemove}
       />
     );
+  if (prereq.type === "companion")
+    return (
+      <CompanionPrereqChipInner
+        id={prereq.id}
+        positive={prereq.positive}
+        label="companion"
+        onRemove={onRemove}
+      />
+    );
+
   else
     return (
       <OriginPrereqChipInner
@@ -616,6 +686,29 @@ function DrawbackPrereqChipInner({
     />
   );
 }
+
+function CompanionPrereqChipInner({
+  id,
+  positive,
+  label,
+  onRemove,
+}: {
+  id: Id<TID.Companion>;
+  positive: boolean;
+  label: string;
+  onRemove: () => void;
+}) {
+  const item = useJumpDocCompanion(id);
+  return (
+    <PrereqChipPill
+      name={item?.name ?? "(deleted)"}
+      label={label}
+      positive={positive}
+      onRemove={onRemove}
+    />
+  );
+}
+
 
 function OriginPrereqChipInner({
   id,
@@ -701,7 +794,7 @@ export function PurchasePrerequisitePickerModal({
   onSelect: (prereq: PurchasePrerequisite) => void;
   onClose: () => void;
 }) {
-  const { origins, drawbacks, purchases, scenarios } =
+  const { origins, drawbacks, purchases, scenarios, companions } =
     useJumpDocPrerequisiteItems();
   const [filter, setFilter] = useState("");
   const lc = filter.toLowerCase();
@@ -718,6 +811,10 @@ export function PurchasePrerequisitePickerModal({
   const filteredScenarios = scenarios.filter(s =>
     s.name.toLowerCase().includes(lc),
   );
+    const filteredCompanions = companions.filter(s =>
+    s.name.toLowerCase().includes(lc),
+  );
+
 
   const purchasesBySubtype = new Map<
     string,
@@ -864,6 +961,19 @@ export function PurchasePrerequisitePickerModal({
           )}
         </PickerGroup>
       )}
+
+      {filteredCompanions.length > 0 && (
+        <PickerGroup label="Companions">
+          {filteredCompanions.map(s =>
+            twoActionRow(
+              s.name,
+              () => onSelect({ type: "companion", id: s.id, positive: true }),
+              () => onSelect({ type: "companion", id: s.id, positive: false }),
+            ),
+          )}
+        </PickerGroup>
+      )}
+
 
       {!isEmpty && !hasMatches && (
         <p className="text-xs text-ghost px-1">No matches.</p>

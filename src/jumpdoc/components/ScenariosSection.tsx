@@ -19,6 +19,7 @@ import {
   CurrencySelect,
   PurchaseSubtypeSelect,
   BlurNumberInput,
+  InternalTagsField,
 } from "./JumpDocFields";
 import type { SectionSharedProps } from "./sectionTypes";
 import {
@@ -41,6 +42,7 @@ import {
   useJumpDocCompanionsForPicker,
   useAddJumpDocCompanionForReward,
   useJumpDocCompanion,
+  useDuplicateJumpDocScenario,
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
@@ -128,6 +130,7 @@ const ScenarioCard = memo(function ScenarioCard({
   const scenario = useJumpDocScenario(id);
   const modify = useModifyJumpDocScenario(id);
   const removeScenario = useRemoveJumpDocScenario();
+  const duplicateScenario = useDuplicateJumpDocScenario();
   const removeBound = useRemoveBoundFromScenario();
   const addPrereq = useAddJumpDocPrereq("scenario", id as number);
   const removePrereq = useRemoveJumpDocPrereq("scenario", id as number);
@@ -152,6 +155,7 @@ const ScenarioCard = memo(function ScenarioCard({
           t.name = v;
         })
       }
+      onDuplicate={() => duplicateScenario(id)}
       onAddBound={() => onAddBoundsRequest("scenario", id)}
       onRemoveBound={i => removeBound(id, i)}
       onDelete={() => removeScenario(id)}
@@ -224,6 +228,26 @@ const ScenarioCard = memo(function ScenarioCard({
                 prerequisites={scenario.prerequisites}
                 onAdd={addPrereq}
                 onRemove={removePrereq}
+              />
+            ),
+          },
+          {
+            key: "internalTags",
+            isActive: scenario.internalTags !== undefined,
+            dormant: () => (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                onClick={() => modify("Add Internal Tags", t => { t.internalTags = []; })}
+              >
+                <Plus size={8} /> add internal tag
+              </button>
+            ),
+            active: () => (
+              <InternalTagsField
+                tags={scenario.internalTags!}
+                onChange={tags => modify("Edit Internal Tags", t => { t.internalTags = tags; })}
+                onUndefined={() => modify("Remove Internal Tags", t => { t.internalTags = undefined; })}
               />
             ),
           },

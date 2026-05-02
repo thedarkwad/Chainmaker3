@@ -55,6 +55,8 @@ import {
   purchaseInteraction,
   randomizerInteraction,
   scenarioInteraction,
+  useJumpDocInternalTags,
+  type InternalTagsMap,
 } from "./AnnotationInteractionHandler";
 import {
   useAddCurrencyExchangeFromDoc,
@@ -81,8 +83,17 @@ import type {
   OriginCategory,
 } from "../data/Jump";
 import { preprocessJumpDoc } from "../data/JumpDoc";
-import { Value } from "../data/Purchase";
-import { resolveJumpCurrency } from "./annotationResolvers";
+
+export function resolveJumpCurrency(
+  abbrev: string,
+  currencies: Registry<LID.Currency, Currency> | undefined,
+): Id<LID.Currency> {
+  for (const [idStr, c] of Object.entries(currencies?.O ?? {})) {
+    if (c?.abbrev === abbrev) return createId<LID.Currency>(+idStr);
+  }
+  return createId<LID.Currency>(0);
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Origin TID backfill
@@ -326,6 +337,7 @@ function buildAnnotationInteractions(
   doc: JumpDoc,
   jumpId: Id<GID.Jump>,
   charId: Id<GID.Character>,
+  internalTags: InternalTagsMap,
 ): AnnotationInteraction<object>[] {
   if (ann.type === "purchase") {
     const t = doc.availablePurchases.O[ann.id] as
@@ -333,26 +345,26 @@ function buildAnnotationInteractions(
       | undefined;
     if (!t) return [];
     return [
-      purchaseInteraction("purchase", t, doc, jumpId, charId) as any,
+      purchaseInteraction("purchase", t, doc, jumpId, charId, internalTags) as any,
     ];
   }
   if (ann.type === "drawback") {
     const t = doc.availableDrawbacks.O[ann.id];
     if (!t) return [];
     return [
-      purchaseInteraction("drawback", t, doc, jumpId, charId) as any,
+      purchaseInteraction("drawback", t, doc, jumpId, charId, internalTags) as any,
     ];
   }
   if (ann.type === "scenarios") {
     const t = doc.availableScenarios.O[ann.id];
     if (!t) return [];
-    return [scenarioInteraction(t, doc, jumpId, charId) as any];
+    return [scenarioInteraction(t, doc, jumpId, charId, internalTags) as any];
   }
   if (ann.type === "companion") {
     const t = doc.availableCompanions.O[ann.id];
     if (!t) return [];
     return [
-      companionImportInteraction(t, doc, jumpId, charId) as any,
+      companionImportInteraction(t, doc, jumpId, charId, internalTags) as any,
     ];
   }
   if (ann.type === "origin") {
@@ -453,7 +465,7 @@ export function JumpDocViewer({
     setLoadError(null);
     setPdfUrlOverride(null);
     useJumpDocStore.setState({ doc: undefined });
-
+//TODO: multiple work tag
     let cancelled = false;
     (async () => {
       try {
@@ -574,6 +586,7 @@ export function JumpDocViewer({
   const addFromDoc = useAddCurrencyExchangeFromDoc(jumpId!, charId!);
   const removeDocExchange = useRemoveCurrencyExchangeFromDoc(jumpId!, charId!);
   let currencies = useCurrencies(jumpId);
+  const internalTags = useJumpDocInternalTags(jumpDoc);
 
   // ── Origin TID & PurchaseSubtype backfill ───────────────────────────────────────────────────
 
@@ -724,7 +737,8 @@ export function JumpDocViewer({
           ann,
           jumpDoc,
           jumpId,
-          charId
+          charId,
+          internalTags,
         );
         if (interactions.length === 0) continue;
         const ix = interactions[0]!;
@@ -777,6 +791,7 @@ export function JumpDocViewer({
           jumpId={jumpId}
           charId={charId}
           doc={jumpDoc}
+          internalTags={internalTags}
         />
       )}
       <div
@@ -1042,7 +1057,8 @@ export function JumpDocViewer({
                           ann,
                           doc,
                           jumpId,
-                          charId
+                          charId,
+                          internalTags,
                         ),
                       );
                       if (originHits.length > 0) {

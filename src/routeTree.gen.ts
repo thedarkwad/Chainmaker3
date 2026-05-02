@@ -16,6 +16,7 @@ import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as JumpdocLoadingRouteImport } from './routes/jumpdoc-loading'
 import { Route as GuideRouteImport } from './routes/guide'
 import { Route as GalleryRouteImport } from './routes/gallery'
+import { Route as AdvancedRouteImport } from './routes/advanced'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PdfDocIdRouteImport } from './routes/pdf.$docId'
 import { Route as JumpdocDocIdRouteImport } from './routes/jumpdoc/$docId'
@@ -83,6 +84,11 @@ const GuideRoute = GuideRouteImport.update({
 const GalleryRoute = GalleryRouteImport.update({
   id: '/gallery',
   path: '/gallery',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdvancedRoute = AdvancedRouteImport.update({
+  id: '/advanced',
+  path: '/advanced',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -273,6 +279,7 @@ const ChainChainIdCharCharIdJumpJumpIdSubsystemSubtypeIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/advanced': typeof AdvancedRoute
   '/gallery': typeof GalleryRoute
   '/guide': typeof GuideRoute
   '/jumpdoc-loading': typeof JumpdocLoadingRoute
@@ -315,6 +322,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/advanced': typeof AdvancedRoute
   '/gallery': typeof GalleryRoute
   '/guide': typeof GuideRoute
   '/jumpdoc-loading': typeof JumpdocLoadingRoute
@@ -351,6 +359,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/advanced': typeof AdvancedRoute
   '/gallery': typeof GalleryRoute
   '/guide': typeof GuideRoute
   '/jumpdoc-loading': typeof JumpdocLoadingRoute
@@ -395,6 +404,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/advanced'
     | '/gallery'
     | '/guide'
     | '/jumpdoc-loading'
@@ -437,6 +447,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/advanced'
     | '/gallery'
     | '/guide'
     | '/jumpdoc-loading'
@@ -472,6 +483,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/advanced'
     | '/gallery'
     | '/guide'
     | '/jumpdoc-loading'
@@ -515,6 +527,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdvancedRoute: typeof AdvancedRoute
   GalleryRoute: typeof GalleryRoute
   GuideRoute: typeof GuideRoute
   JumpdocLoadingRoute: typeof JumpdocLoadingRoute
@@ -576,6 +589,13 @@ declare module '@tanstack/react-router' {
       path: '/gallery'
       fullPath: '/gallery'
       preLoaderRoute: typeof GalleryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/advanced': {
+      id: '/advanced'
+      path: '/advanced'
+      fullPath: '/advanced'
+      preLoaderRoute: typeof AdvancedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -978,6 +998,7 @@ const JumpdocDocIdRouteWithChildren = JumpdocDocIdRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdvancedRoute: AdvancedRoute,
   GalleryRoute: GalleryRoute,
   GuideRoute: GuideRoute,
   JumpdocLoadingRoute: JumpdocLoadingRoute,

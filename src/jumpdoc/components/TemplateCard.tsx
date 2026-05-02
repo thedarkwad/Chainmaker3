@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Crosshair, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, Crosshair, Trash2, X } from "lucide-react";
 import { Tip } from "@/ui/Tip";
 import type { PageRect } from "@/chain/data/JumpDoc";
 import type { ToolType } from "./toolTypes";
@@ -32,6 +32,7 @@ export type TemplateCardProps<T extends TID> = {
   isAnyScrollTarget: boolean;
   cardRef: (el: HTMLDivElement | null) => void;
   onNameCommit: (value: string) => void;
+  onDuplicate: () => void;
   onAddBound: () => void;
   onRemoveBound: (index: number) => void;
   onDelete: () => void;
@@ -73,6 +74,7 @@ function TemplateCardInner<T extends TID>({
   isAnyScrollTarget,
   cardRef,
   onNameCommit,
+  onDuplicate,
   onAddBound,
   onRemoveBound,
   onDelete,
@@ -123,8 +125,7 @@ function TemplateCardInner<T extends TID>({
         (innerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
         cardRef(el);
       }}
-      className="rounded-md bg-surface border border-edge overflow-hidden"
-      style={{ borderLeftColor: color, borderLeftWidth: 3 }}
+      className="rounded-md bg-surface border border-edge overflow-hidden border-l-3 border-l-accent2"
     >
       {/* ── Header row ── */}
       <div className="flex items-center gap-1 px-2 py-1.5">
@@ -189,17 +190,13 @@ function TemplateCardInner<T extends TID>({
           </span>
         )}
 
-        {/* Add-bound button */}
+        {/* Duplicate button */}
         <button
-          title={isAddTarget ? "Drawing mode — drag a rect on the PDF" : "Add PDF region"}
-          onClick={onAddBound}
-          className={`shrink-0 p-1 rounded transition-colors ${
-            isAddTarget
-              ? "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/40"
-              : "text-ghost hover:text-ink hover:bg-tint"
-          }`}
+          title="Duplicate"
+          onClick={onDuplicate}
+          className="shrink-0 p-1 rounded text-ghost hover:text-ink hover:bg-tint transition-colors"
         >
-          <Crosshair size={12} />
+          <Copy size={12} />
         </button>
 
         {/* Delete button */}

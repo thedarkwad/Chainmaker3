@@ -100,6 +100,7 @@
     "react-markdown": "^10.1.0",
     "react-scrollbars-custom": "^4.1.1",
     "react-toastify": "^11.0.5",
+    "remark-gfm": "^4.0.1",
     "reselect": "^5.1.1",
     "sharp": "^0.34.5",
     "sweetalert2": "^11.26.20",

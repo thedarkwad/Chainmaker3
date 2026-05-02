@@ -1,18 +1,33 @@
-import { createFileRoute, Outlet, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  Link,
+  useBlocker,
+} from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { BookOpen, Loader2, Save, X } from "lucide-react";
 
 import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
 import { useJumpDocName } from "@/jumpdoc/state/hooks";
 import { activeDocHandlers } from "@/electron-api/activeDocHandlers";
-import { useJumpDocMetaStore, useJumpDocMeta, type JumpDocAttributes } from "@/jumpdoc/state/JumpDocMetaStore";
+import {
+  useJumpDocMetaStore,
+  useJumpDocMeta,
+  type JumpDocAttributes,
+} from "@/jumpdoc/state/JumpDocMetaStore";
 import { TrustedEditModal } from "@/jumpdoc/components/TrustedEditModal";
 import { makeUndoRedoProvider } from "@/providers/makeUndoRedoProvider";
 import { AppHeader } from "@/app/components/AppHeader";
 import { PortalNav } from "@/app/components/PortalNav";
 import { useTheme } from "@/providers/ThemeProvider";
 import { useCurrentUser } from "@/app/state/auth";
-import { saveJumpDoc, autosaveJumpDoc, forceReplaceJumpDoc, loadJumpDoc, sendTrustedEditMessage } from "@/api/jumpdocs";
+import {
+  saveJumpDoc,
+  autosaveJumpDoc,
+  forceReplaceJumpDoc,
+  loadJumpDoc,
+  sendTrustedEditMessage,
+} from "@/api/jumpdocs";
 import { type JumpDoc, preprocessJumpDoc } from "@/chain/data/JumpDoc";
 
 export const Route = createFileRoute("/jumpdoc/$docId")({
@@ -57,19 +72,43 @@ function JumpDocLoader() {
     dbUser.firebaseUid !== ownerUid &&
     (dbUser.permissions ?? []).includes("trusted");
 
+  if (import.meta.env.VITE_PLATFORM !== "electron")
+    useBlocker({
+      shouldBlockFn: ({ next }) => {
+        if ("docId" in next.params && next.params.docId === docId) return false;
+        if (useJumpDocStore.getState().updates.cumulativePatches.length > 0) {
+          if (
+            !confirm(
+              "Are you sure you want to leave? You have unsaved changes.",
+            )
+          )
+            return true;
+          useJumpDocStore.getState().reset();
+        }
+        return false;
+      },
+    });
+
   // Load the JumpDoc from the DB once auth is resolved.
   useEffect(() => {
     if (authLoading) return;
     let cancelled = false;
     (async () => {
       try {
-        const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
-        const result = await loadJumpDoc({ data: { publicUid: docId, idToken } });
+        const idToken = firebaseUser
+          ? await firebaseUser.getIdToken()
+          : undefined;
+        const result = await loadJumpDoc({
+          data: { publicUid: docId, idToken },
+        });
         if (cancelled) return;
         docMongoIdRef.current = result.docMongoId;
         editsRef.current = result.edits;
-        isPendingRef.current = (result as { isPending?: boolean }).isPending ?? false;
-        useJumpDocStore.getState().setDoc(preprocessJumpDoc(result.contents as JumpDoc));
+        isPendingRef.current =
+          (result as { isPending?: boolean }).isPending ?? false;
+        useJumpDocStore
+          .getState()
+          .setDoc(preprocessJumpDoc(result.contents as JumpDoc));
         useJumpDocMetaStore.getState().setMeta({
           docMongoId: result.docMongoId,
           ownerUid: (result as { ownerUid?: string }).ownerUid ?? "",
@@ -88,7 +127,8 @@ function JumpDocLoader() {
         setLoaded(true);
       } catch (err) {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : "Failed to load jumpdoc.";
+        const msg =
+          err instanceof Error ? err.message : "Failed to load jumpdoc.";
         setLoadError(msg);
       }
     })();
@@ -98,9 +138,11 @@ function JumpDocLoader() {
   }, [authLoading, firebaseUser, docId]);
 
   async function handleSave(manual: boolean) {
-    if (manual && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    if (manual && document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
     const isElectron = import.meta.env.VITE_PLATFORM === "electron";
-    if (saving || (!isElectron && !firebaseUser) || !docMongoIdRef.current) return;
+    if (saving || (!isElectron && !firebaseUser) || !docMongoIdRef.current)
+      return;
     const { updates } = useJumpDocStore.getState();
     const patches = updates.cumulativePatches;
     if (!patches.length && !isPendingRef.current) return;
@@ -131,7 +173,11 @@ function JumpDocLoader() {
         const contents = useJumpDocStore.getState().doc;
         if (contents) {
           const replaceResult = await forceReplaceJumpDoc({
-            data: { docMongoId: docMongoIdRef.current!, idToken: idToken ?? "", contents },
+            data: {
+              docMongoId: docMongoIdRef.current!,
+              idToken: idToken ?? "",
+              contents,
+            },
           });
           if (replaceResult.status === "ok") {
             editsRef.current = replaceResult.edits;
@@ -200,7 +246,7 @@ function JumpDocLoader() {
     activeDocHandlers.saveAs = () => {
       api.jumpdocs
         .saveJumpdocAs(docMongoIdRef.current, useJumpDocStore.getState().doc)
-        .then((result) => {
+        .then(result => {
           if (result.ok) {
             isPendingRef.current = false;
             useJumpDocStore.getState().declareSynched();
@@ -256,7 +302,11 @@ function JumpDocLoader() {
         disabled={saving}
         className="p-1.5 rounded text-white/70 hover:text-white transition-colors disabled:opacity-40"
       >
-        {saving ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
+        {saving ? (
+          <Loader2 size={17} className="animate-spin" />
+        ) : (
+          <Save size={17} />
+        )}
       </button>
     </>
   );
