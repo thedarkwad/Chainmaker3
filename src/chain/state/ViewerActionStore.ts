@@ -94,7 +94,7 @@ export const useViewerActionStore = create<ViewerActionState>((set) => ({
     })),
   removeInteractions: (n) =>
     set(({ interactionQueue }) => {
-      return { interactionQueue: interactionQueue.slice(n + 1) };
+      return { interactionQueue: interactionQueue.slice(n) };
     }),
   listeners: [],
   addListener: (l) => {

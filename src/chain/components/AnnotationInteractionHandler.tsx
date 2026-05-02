@@ -4329,7 +4329,7 @@ export function AnnotationInteractionHandler({
   }, []);
 
   useEffect(() => {
-    if (!chain || !buildData || currentInteractions.length) return;
+    if (!chain || !buildData || currentInteractions.length || !interactionQueue.length) return;
 
     let j = 0;
     for (; j < interactionQueue.length; j++) {
@@ -4395,7 +4395,7 @@ export function AnnotationInteractionHandler({
     }
 
     removeInteractions(j);
-  }, [interactionQueue.length, currentInteractions.length]);
+  });
 
   useEffect(() => {
     if (!currentInteractions.length || !buildData) return;
