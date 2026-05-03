@@ -934,6 +934,7 @@ export function createOriginStipendListener(
               charId,
               jumpId,
               name,
+              duration:1,
               description: `Stipend from the ${template.name} ${categoryName} for ${subtypeName} purchases.`,
               type: PurchaseType.Drawback,
               cost: { modifier: CostModifier.Full },
