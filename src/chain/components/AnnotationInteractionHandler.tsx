@@ -3678,6 +3678,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
               categories: [],
               tags: [],
               subtype,
+              duration: (template as BasicPurchaseTemplate).temporary ? 1 : undefined,
               template: {
                 id: template.id as any,
                 jumpdoc: "",
