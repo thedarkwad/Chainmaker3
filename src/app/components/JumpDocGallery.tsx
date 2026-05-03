@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCurrentUser } from "@/app/state/auth";
 import { useSnappedGridColumns } from "@/ui/useSnappedGridColumns";
 import { useNsfwToggle, NsfwToggleButton } from "@/ui/NsfwToggleButton";
 
@@ -49,8 +50,6 @@ export type JumpDocGalleryProps = {
   searchQuery?: string;
   /** Called whenever the search query changes (controlled or user-typed). */
   onSearchChange?: (s: string) => void;
-  /** If provided, called before each fetch to get a Firebase ID token for ownership info. */
-  getIdToken?: () => Promise<string | null>;
 };
 
 const DEFAULT_PAGE_SIZE = 24;
@@ -338,8 +337,12 @@ export function JumpDocGallery({
   className,
   searchQuery,
   onSearchChange,
-  getIdToken,
 }: JumpDocGalleryProps) {
+  const { firebaseUser } = useCurrentUser();
+  const getIdToken = useCallback(
+    () => (firebaseUser ? firebaseUser.getIdToken() : Promise.resolve(null)),
+    [firebaseUser],
+  );
   const [docs, setDocs] = useState<JumpDocSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -369,7 +372,7 @@ export function JumpDocGallery({
   const load = useCallback(
     (p: number, sk: SortKey, sd: SortDir, s: string, nsfw: boolean) => {
       setLoading(true);
-      (getIdToken ? getIdToken() : Promise.resolve(null))
+      getIdToken()
         .then((idToken) =>
           listPublishedJumpDocs({
             data: {

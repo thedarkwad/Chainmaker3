@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { FileText, FolderOpen } from "lucide-react";
 import { useTheme } from "@/providers/ThemeProvider";
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/gallery")({
 
 function GalleryPage() {
   const { settings, updateSettings } = useTheme();
-  const { firebaseUser, dbUser } = useCurrentUser();
+  const { dbUser } = useCurrentUser();
   const isTrusted = dbUser?.permissions?.includes("trusted") ?? false;
   const isElectron = import.meta.env.VITE_PLATFORM === "electron";
 
@@ -38,11 +38,6 @@ function GalleryPage() {
       .then(setJumpdocFolder)
       .catch(() => setJumpdocFolder(null));
   }, [isElectron]);
-
-  const getIdToken = useCallback(
-    () => (firebaseUser ? firebaseUser.getIdToken() : Promise.resolve(null)),
-    [firebaseUser],
-  );
 
   const navigate = useNavigate();
 
@@ -130,7 +125,6 @@ function GalleryPage() {
                   onSelect={(doc) => setSelectedDoc(doc)}
                   searchQuery={search}
                   onSearchChange={setSearch}
-                  getIdToken={getIdToken}
                 />
               </div>
             </main>
