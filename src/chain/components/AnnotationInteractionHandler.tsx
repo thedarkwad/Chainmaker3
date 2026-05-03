@@ -133,19 +133,27 @@ export function useJumpDocInternalTags(doc: JumpDoc | null): InternalTagsMap {
         t,
         new Set(
           Object.keys(doc.origins.O)
-            .filter(id => (doc.origins.O[id as any]?.internalTags ?? []).includes(t))
+            .filter(id =>
+              (doc.origins.O[id as any]?.internalTags ?? []).includes(t),
+            )
             .map(Number) as Id<TID.Origin>[],
         ),
       ]),
     );
     const originIncrementer = (build: JumpDocBuildData, t: string) =>
-      build.origins.filter(o => o.template?.id !== undefined && originTagIds[t]?.has(o.template.id)).length;
+      build.origins.filter(
+        o =>
+          o.template?.id !== undefined && originTagIds[t]?.has(o.template.id),
+      ).length;
 
     return Object.fromEntries(
       tags.map(t => [
         t,
         (build: JumpDocBuildData) =>
-          String(incrementers.reduce((n, inc) => n + inc(build, t), 0) + originIncrementer(build, t)),
+          String(
+            incrementers.reduce((n, inc) => n + inc(build, t), 0) +
+              originIncrementer(build, t),
+          ),
       ]),
     );
   }, [doc]);
@@ -544,7 +552,7 @@ const valuesEqualTID = (
 export function createRepricePurchasesListener(
   internalTags: Record<string, (build: JumpDocBuildData) => string>,
   jumpId: Id<GID.Jump>,
-  charId: Id<GID.Character>
+  charId: Id<GID.Character>,
 ): BuildListener {
   return createListener(
     (build, currentChain, doc, mutators) => {
@@ -558,26 +566,41 @@ export function createRepricePurchasesListener(
         for (let i = 0; i < gids.length; i++) {
           const gid = gids[i]!;
           const p = currentChain.purchases.O[gid] as JumpPurchase | undefined;
-          if (skipRewardFreebie && (
-            (p as BasicPurchase).reward != null ||
-            (p as BasicPurchase).freebie !== undefined
-          )) continue;
+          if (
+            skipRewardFreebie &&
+            ((p as BasicPurchase).reward != null ||
+              (p as BasicPurchase).freebie !== undefined)
+          )
+            continue;
           if (!p?.template?.originalCost) continue;
           const originalCost = p.template.originalCost as PossibleCost;
-          const originalEffective = purchaseValue(originalCost.cost, originalCost);
+          const originalEffective = purchaseValue(
+            originalCost.cost,
+            originalCost,
+          );
 
           const resolvedCost: Value<TID.Currency> = Array.isArray(template.cost)
-            ? template.cost as Value<TID.Currency>
-            : Object.entries(template.cost as VariableCost).map(([currIdStr, expr]) => ({
-                currency: createId<TID.Currency>(+currIdStr),
-                amount: evalVariableCostExpr(expr ?? "", {
-                  ...(p.template?.tags ?? {}),
-                  ...objMap(internalTags, l => l(build)),
+            ? (template.cost as Value<TID.Currency>)
+            : Object.entries(template.cost as VariableCost).map(
+                ([currIdStr, expr]) => ({
+                  currency: createId<TID.Currency>(+currIdStr),
+                  amount: evalVariableCostExpr(expr ?? "", {
+                    ...(p.template?.tags ?? {}),
+                    ...objMap(internalTags, l => l(build)),
+                  }),
                 }),
-              }));
+              );
 
-          const dummyTemplate = { ...template, cost: resolvedCost } as PurchaseTemplate<TID> & { cost: Value<TID.Currency> };
-          const possibleCosts = computePossibleCosts(dummyTemplate, build, doc, i === 0);
+          const dummyTemplate = {
+            ...template,
+            cost: resolvedCost,
+          } as PurchaseTemplate<TID> & { cost: Value<TID.Currency> };
+          const possibleCosts = computePossibleCosts(
+            dummyTemplate,
+            build,
+            doc,
+            i === 0,
+          );
 
           const allCosts = [possibleCosts.default, ...possibleCosts.options];
           const costsToCheck = originalCost.floatingDiscountOption
@@ -587,13 +610,22 @@ export function createRepricePurchasesListener(
           const stillValid = costsToCheck.some(c =>
             valuesEqualTID(
               originalEffective,
-              purchaseValueWithThreshold(c.cost, c, i === 0, doc.currencies) as Value<TID.Currency>,
+              purchaseValueWithThreshold(
+                c.cost,
+                c,
+                i === 0,
+                doc.currencies,
+              ) as Value<TID.Currency>,
             ),
           );
 
           if (!stillValid) {
             repriced.push(p.name);
-            mutators.repricePurchase(gid, { ...possibleCosts.default, floatingDiscountOption: undefined }, doc);
+            mutators.repricePurchase(
+              gid,
+              { ...possibleCosts.default, floatingDiscountOption: undefined },
+              doc,
+            );
           }
         }
       };
@@ -613,21 +645,27 @@ export function createRepricePurchasesListener(
       for (const tidStr in build.companionImports) {
         const tid = createId<TID.Companion>(+tidStr);
         const template = doc.availableCompanions.O[tid];
-        if (template) repriceGids(build.companionImports[tid] ?? [], { ...template, allowMultiple: !template.specificCharacter }, false);
+        if (template)
+          repriceGids(
+            build.companionImports[tid] ?? [],
+            { ...template, allowMultiple: !template.specificCharacter },
+            false,
+          );
       }
 
       if (repriced.length)
         toast.info(`Prices adjusted on ${fmtNames(repriced)}`);
     },
     (build, chain) => [
-      [build.origins
-        .map(o => o.template?.id ?? "")
-        .sort()
-        .join(","),
-      chain.jumps.O[jumpId].purchases[charId]?.length, 
-      chain.jumps.O[jumpId].drawbacks[charId]?.length,
-      chain.jumps.O[jumpId].scenarios[charId]?.length, 
-    ]
+      [
+        build.origins
+          .map(o => o.template?.id ?? "")
+          .sort()
+          .join(","),
+        chain.jumps.O[jumpId].purchases[charId]?.length,
+        chain.jumps.O[jumpId].drawbacks[charId]?.length,
+        chain.jumps.O[jumpId].scenarios[charId]?.length,
+      ],
     ],
   );
 }
@@ -636,7 +674,7 @@ export function createRepricePurchasesListener(
 export function createReapplyTagsListener(
   internalTags: Record<string, (build: JumpDocBuildData) => string>,
   jumpId: Id<GID.Jump>,
-  charId: Id<GID.Character>
+  charId: Id<GID.Character>,
 ): BuildListener {
   type TemplateEntry = { name: string; description?: string };
 
@@ -935,7 +973,7 @@ export function createOriginStipendListener(
               charId,
               jumpId,
               name,
-              duration:1,
+              duration: 1,
               description: `Stipend from the ${template.name} ${categoryName} for ${subtypeName} purchases.`,
               type: PurchaseType.Drawback,
               cost: { modifier: CostModifier.Full },
@@ -1680,10 +1718,10 @@ export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
           cost: Object.entries(template.cost as VariableCost).map(
             ([currIdStr, expr]) => ({
               currency: createId<TID.Currency>(+currIdStr),
-                  amount: evalVariableCostExpr(expr ?? "", {
-                    ...(state.tags ?? {}),
-                    ...objMap(internalTags, l => l(build)),
-                  }),
+              amount: evalVariableCostExpr(expr ?? "", {
+                ...(state.tags ?? {}),
+                ...objMap(internalTags, l => l(build)),
+              }),
             }),
           ),
         }) as PurchaseTemplate<TID> & { cost: Value<TID.Currency> };
@@ -2236,7 +2274,7 @@ function OriginOptionGroups({
 }
 
 export function originInteraction(
-  template: OriginTemplate,
+  template: OriginTemplate | undefined,
   optionIndices: PartialLookup<TID.OriginCategory, number[]>,
   doc: JumpDoc,
   jumpId: Id<GID.Jump>,
@@ -2246,18 +2284,20 @@ export function originInteraction(
   companionTid?: Id<TID.Companion>,
 ): AnnotationInteraction<OriginInteractionState> {
   const groups = buildOriginOptionGroups(optionIndices, doc);
-  const userTags = extractTagsWithExclusions(
-    template.name +
-      "\n" +
-      (template.description ?? "") +
-      "\n" +
-      (Array.isArray(template.cost)
-        ? ""
-        : Object.values(template.cost)
-            .map(s => `\${${s}}`)
-            .join(" ")),
-    Object.keys(internalTags),
-  );
+  const userTags = !template
+    ? {}
+    : extractTagsWithExclusions(
+        template.name +
+          "\n" +
+          (template.description ?? "") +
+          "\n" +
+          (Array.isArray(template.cost)
+            ? ""
+            : Object.values(template.cost)
+                .map(s => `\${${s}}`)
+                .join(" ")),
+        Object.keys(internalTags),
+      );
   const hasTags = Object.keys(userTags).length > 0;
 
   const optionsTypeName =
@@ -2466,9 +2506,9 @@ export function originInteraction(
             applyTagsWithCost(
               template.name,
               {
-                    ...(state.tags ?? {}),
-                    ...objMap(internalTags, l => l(build)),
-                  },
+                ...(state.tags ?? {}),
+                ...objMap(internalTags, l => l(build)),
+              },
               [template.cost],
               [getCost(build)],
               doc.currencies,
@@ -2516,7 +2556,7 @@ export function randomizerInteraction(
   doc: JumpDoc,
   jumpId: Id<GID.Jump>,
   charId: Id<GID.Character>,
-  internalTags: InternalTagsMap
+  internalTags: InternalTagsMap,
 ): AnnotationInteraction<{}> {
   const category = doc.originCategories.O[categoryId] as DocOriginCategory & {
     singleLine: false;
@@ -2830,24 +2870,29 @@ function CompanionPreviewInner({
   state,
   setState,
   selfCharId,
+  internalTags
 }: {
   template: CompanionTemplate;
   adding: boolean;
   state: CompanionInteractionState;
   setState: (partial: Partial<CompanionInteractionState>) => void;
   selfCharId: Id<GID.Character>;
+  internalTags: InternalTagsMap
 }) {
   const allChars = useAllCharacters();
-  const tags = extractTags(
+  const userTags = extractTagsWithExclusions(
     template.name +
       "\n" +
       (template.description ?? "") +
       "\n" +
       (Array.isArray(template.cost)
         ? ""
-        : Object.values(template.cost).join(" ")),
+        : Object.values(template.cost)
+            .map(s => `\${${s}}`)
+            .join(" ")),
+    Object.keys(internalTags),
   );
-  const hasTags = Object.keys(tags).length > 0;
+  const hasTags = Object.keys(userTags).length > 0;
   const selectableChars = allChars.filter(c => c.id !== selfCharId);
   const selectedChars = state.selectedIds
     .map(id => selectableChars.find(c => c.id === id))
@@ -2873,7 +2918,7 @@ function CompanionPreviewInner({
       )}
       {hasTags && (
         <TagFieldsSection
-          tags={tags}
+          tags={userTags}
           tagValues={state.tags}
           choiceContext={template.choiceContext}
           onChangeTag={(name, value) =>
@@ -2896,24 +2941,47 @@ function CompanionPreviewInner({
       {adding && template.specificCharacter && !state.follower && (
         <div className="px-2 pb-2 flex flex-col gap-3">
           {state.charInfos.map((ci, i) => (
-            <div key={i} className="grid grid-cols-[auto_1fr] gap-1.5 self-center items-center">
+            <div
+              key={i}
+              className="grid grid-cols-[auto_1fr] gap-1.5 self-center items-center"
+            >
               {state.charInfos.length > 1 && (
-                <span className="col-span-2 text-xs text-muted font-medium">Character #{i + 1}</span>
+                <span className="col-span-2 text-xs text-muted font-medium">
+                  Character #{i + 1}
+                </span>
               )}
               <CompanionCharField
                 label="Name"
                 value={ci.name}
-                onChange={v => setState({ charInfos: state.charInfos.map((c, j) => j === i ? { ...c, name: v } : c) })}
+                onChange={v =>
+                  setState({
+                    charInfos: state.charInfos.map((c, j) =>
+                      j === i ? { ...c, name: v } : c,
+                    ),
+                  })
+                }
               />
               <CompanionCharField
                 label="Species"
                 value={ci.species}
-                onChange={v => setState({ charInfos: state.charInfos.map((c, j) => j === i ? { ...c, species: v } : c) })}
+                onChange={v =>
+                  setState({
+                    charInfos: state.charInfos.map((c, j) =>
+                      j === i ? { ...c, species: v } : c,
+                    ),
+                  })
+                }
               />
               <CompanionCharField
                 label="Gender"
                 value={ci.gender}
-                onChange={v => setState({ charInfos: state.charInfos.map((c, j) => j === i ? { ...c, gender: v } : c) })}
+                onChange={v =>
+                  setState({
+                    charInfos: state.charInfos.map((c, j) =>
+                      j === i ? { ...c, gender: v } : c,
+                    ),
+                  })
+                }
               />
             </div>
           ))}
@@ -2961,25 +3029,27 @@ export function companionImportInteraction(
             .join(" ")),
     Object.keys(internalTags),
   );
-  const hasTags = Object.keys(userTags).length > 0;
 
   const copies = (build: JumpDocBuildData) =>
     build.companionImports[template.id] ?? [];
 
   const dummyTemplate = Array.isArray(template.cost)
-    ? (_build:JumpDocBuildData, _state: CompanionInteractionState) =>
+    ? (_build: JumpDocBuildData, _state: CompanionInteractionState) =>
         ({
           ...template,
           allowMultiple: !template.specificCharacter,
         }) as CompanionTemplate & { cost: Value<TID.Currency> }
-    : (build:JumpDocBuildData, state: CompanionInteractionState) =>
+    : (build: JumpDocBuildData, state: CompanionInteractionState) =>
         ({
           ...template,
           allowMultiple: !template.specificCharacter,
           cost: Object.entries(template.cost as VariableCost).map(
             ([currIdStr, expr]) => ({
               currency: createId<TID.Currency>(+currIdStr),
-              amount: evalVariableCostExpr(expr ?? "", {...state.tags, ...objMap(internalTags, f => f(build))}),
+              amount: evalVariableCostExpr(expr ?? "", {
+                ...state.tags,
+                ...objMap(internalTags, f => f(build)),
+              }),
             }),
           ),
         }) as CompanionTemplate & { cost: Value<TID.Currency> };
@@ -3065,7 +3135,10 @@ export function companionImportInteraction(
             if (linkedChars.length > 0) {
               const isActive = (cid: Id<GID.Character>) => {
                 const access = jumpAccess?.[cid];
-                if (access && [...access].some(jid => jid !== (jumpId as number)))
+                if (
+                  access &&
+                  [...access].some(jid => jid !== (jumpId as number))
+                )
                   return true;
                 if ((chain?.jumps.O[jumpId]?.purchases[cid]?.length ?? 0) > 0)
                   return true;
@@ -3145,7 +3218,12 @@ export function companionImportInteraction(
                 }),
               );
               const newId = mutators.addCompanionImport(
-                { template: tmpl, companionIds: newCharIds, tags: state.tags, cost: resolvedCost },
+                {
+                  template: tmpl,
+                  companionIds: newCharIds,
+                  tags: state.tags,
+                  cost: resolvedCost,
+                },
                 jumpId,
                 charId,
                 doc,
@@ -3162,7 +3240,12 @@ export function companionImportInteraction(
               );
             }
             const newId = mutators.addCompanionImport(
-              { template: tmpl, companionIds: state.selectedIds, tags: state.tags, cost: resolvedCost },
+              {
+                template: tmpl,
+                companionIds: state.selectedIds,
+                tags: state.tags,
+                cost: resolvedCost,
+              },
               jumpId,
               charId,
               doc,
@@ -3187,10 +3270,13 @@ export function companionImportInteraction(
     initialize: _ => ({
       follower: false,
       selectedIds: [],
-      charInfos: (template.characterInfo ?? (template.specificCharacter ? [{ name: "", species: "", gender: "" }] : [])).map(ci => ({
-        name: ci.name,
-        species: ci.species,
-        gender: ci.gender,
+      charInfos: (template.specificCharacter
+        ? (template.characterInfo ?? [{ name: "", species: "", gender: "" }])
+        : []
+      ).map(ci => ({
+        name: ci?.name ?? "",
+        species: ci?.species ?? "",
+        gender: ci?.gender ?? "",
       })),
       showNewCompanionModal: false,
       tags: {},
@@ -3198,16 +3284,6 @@ export function companionImportInteraction(
     error,
     preview: props => (
       <>
-        {hasTags && (
-          <TagFieldsSection
-            tags={userTags}
-            tagValues={props.state.tags}
-            choiceContext={template.choiceContext}
-            onChangeTag={(name, value) =>
-              props.setState({ tags: { ...props.state.tags, [name]: value } })
-            }
-          />
-        )}
         <CompanionPreviewInner
           template={template}
           adding={
@@ -3216,6 +3292,7 @@ export function companionImportInteraction(
           state={props.state}
           setState={props.setState}
           selfCharId={charId}
+          internalTags={internalTags}
         />
       </>
     ),
@@ -3445,6 +3522,7 @@ function convertCurrencyId(
   doc: JumpDoc,
   currencies: Registry<LID.Currency, Currency>,
 ): Id<LID.Currency> {
+  if (!doc.currencies.O[id]) return 0 as Id<LID.Currency>;
   for (let currIdStr in currencies.O) {
     if (currencies.O[+currIdStr as any].name == doc.currencies.O[id].name)
       return +currIdStr as Id<LID.Currency>;
@@ -3490,7 +3568,8 @@ function convertModifiedCost(
         floatingDiscount &&
         v.every(
           ({ amount, currency }) =>
-            amount <= (doc.currencies.O?.[currency]?.discountFreeThreshold ?? 0),
+            amount <=
+            (doc.currencies.O?.[currency]?.discountFreeThreshold ?? 0),
         )
       )
         return { modifier: CostModifier.Free };
@@ -4027,7 +4106,6 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             doc.currencies,
           );
 
-
           const purchase: CompanionImport = {
             id: newId,
             charId,
@@ -4093,20 +4171,20 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
           if (!subtypeEntry) return;
           const subtype = createId<LID.PurchaseSubtype>(+subtypeEntry[0]);
           newId = c.purchases.fId;
-                      const resolvedName = applyTagsWithCost(
-              template.name,
-              tags,
-              template.cost,
-              cost.cost,
-              doc.currencies,
-            );
-            const resolvedDescription = applyTagsWithCost(
-              template.description ?? "",
-              tags,
-              template.cost,
-              cost.cost,
-              doc.currencies,
-            );
+          const resolvedName = applyTagsWithCost(
+            template.name,
+            tags,
+            template.cost,
+            cost.cost,
+            doc.currencies,
+          );
+          const resolvedDescription = applyTagsWithCost(
+            template.description ?? "",
+            tags,
+            template.cost,
+            cost.cost,
+            doc.currencies,
+          );
           const purchase: BasicPurchase = {
             id: newId,
             charId,
@@ -4411,7 +4489,13 @@ export function AnnotationInteractionHandler({
   }, []);
 
   useEffect(() => {
-    if (!chain || !buildData || currentInteractions.length || !interactionQueue.length) return;
+    if (
+      !chain ||
+      !buildData ||
+      currentInteractions.length ||
+      !interactionQueue.length
+    )
+      return;
 
     let j = 0;
     for (; j < interactionQueue.length; j++) {

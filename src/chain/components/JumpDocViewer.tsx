@@ -94,7 +94,6 @@ export function resolveJumpCurrency(
   return createId<LID.Currency>(0);
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Origin TID backfill
 // ─────────────────────────────────────────────────────────────────────────────
@@ -345,14 +344,28 @@ function buildAnnotationInteractions(
       | undefined;
     if (!t) return [];
     return [
-      purchaseInteraction("purchase", t, doc, jumpId, charId, internalTags) as any,
+      purchaseInteraction(
+        "purchase",
+        t,
+        doc,
+        jumpId,
+        charId,
+        internalTags,
+      ) as any,
     ];
   }
   if (ann.type === "drawback") {
     const t = doc.availableDrawbacks.O[ann.id];
     if (!t) return [];
     return [
-      purchaseInteraction("drawback", t, doc, jumpId, charId, internalTags) as any,
+      purchaseInteraction(
+        "drawback",
+        t,
+        doc,
+        jumpId,
+        charId,
+        internalTags,
+      ) as any,
     ];
   }
   if (ann.type === "scenarios") {
@@ -369,7 +382,7 @@ function buildAnnotationInteractions(
   }
   if (ann.type === "origin") {
     const t = doc.origins.O[ann.id];
-    return [originInteraction(t, {}, doc, jumpId, charId) as any];
+    return [originInteraction(t, {}, doc, jumpId, charId, internalTags) as any];
   }
   if (ann.type === "origin-option") {
     const optionIndices: PartialLookup<TID.OriginCategory, number[]> = {
@@ -382,15 +395,14 @@ function buildAnnotationInteractions(
         doc,
         jumpId,
         charId,
+        internalTags,
       ) as any,
     ];
   }
   if (ann.type === "origin-randomizer") {
     const cat = doc.originCategories.O[ann.id] as DocOriginCategory | undefined;
     if (!cat || cat.singleLine) return [];
-    return [
-      randomizerInteraction(ann.id, doc, jumpId, charId) as any,
-    ];
+    return [randomizerInteraction(ann.id, doc, jumpId, charId, internalTags) as any];
   }
   if (ann.type === "currency-exchange") {
     return [currencyExchangeInteraction(ann, doc, jumpId, charId) as any];
@@ -465,7 +477,7 @@ export function JumpDocViewer({
     setLoadError(null);
     setPdfUrlOverride(null);
     useJumpDocStore.setState({ doc: undefined });
-//TODO: multiple work tag
+    //TODO: multiple work tag
     let cancelled = false;
     (async () => {
       try {
@@ -722,12 +734,7 @@ export function JumpDocViewer({
   type TooltipInfo = { typeName: string; costStr?: string; qualified: boolean };
   const tooltipMap = useMemo<Map<string, TooltipInfo>>(() => {
     const map = new Map<string, TooltipInfo>();
-    if (
-      !jumpDoc ||
-      !buildData ||
-      jumpId === undefined ||
-      charId === undefined
-    )
+    if (!jumpDoc || !buildData || jumpId === undefined || charId === undefined)
       return map;
     for (const anns of Object.values(annotations)) {
       for (const ann of anns ?? []) {
@@ -1038,11 +1045,7 @@ export function JumpDocViewer({
                     }}
                     onMouseLeave={() => setHoverInfo(null)}
                     onClick={e => {
-                      if (
-                        jumpId === undefined ||
-                        charId === undefined
-                      )
-                        return;
+                      if (jumpId === undefined || charId === undefined) return;
                       const hits = getAnnotationsAt(pageIdx, e);
                       if (hits.length === 0) return;
                       const doc = jumpDoc!;
@@ -1088,7 +1091,8 @@ export function JumpDocViewer({
                                 optionIndices,
                                 doc,
                                 jumpId,
-                                charId
+                                charId,
+                                internalTags
                               ) as any,
                             );
                         } else {
@@ -1098,7 +1102,8 @@ export function JumpDocViewer({
                               optionIndices,
                               doc,
                               jumpId,
-                              charId
+                              charId,
+                              internalTags
                             ) as any,
                           );
                         }
