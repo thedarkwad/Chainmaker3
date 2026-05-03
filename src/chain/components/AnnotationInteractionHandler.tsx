@@ -706,7 +706,7 @@ export function createReapplyTagsListener(
 
       for (const gid of allGids) {
         const p = chain.purchases.O[gid] as JumpPurchase | undefined;
-        if (!p?.template?.tags || !p.template.originalCost) continue;
+        if (!p?.template?.tags) continue;
 
         const tmpl = resolveTemplate(p, doc);
         if (!tmpl) continue;
@@ -715,11 +715,11 @@ export function createReapplyTagsListener(
         const internalTagsResolved = objMap(internalTags, f => f(build));
         const tags = { ...userTags, ...internalTagsResolved };
 
-        const originalCost = p.template.originalCost as PossibleCost;
-        const value = originalCost.cost;
+        const originalCost = p.template.originalCost as PossibleCost | undefined;
+        const value = originalCost?.cost ?? [];
         const cost = purchaseValue<TID.Currency>(
-          originalCost.cost,
-          originalCost,
+          originalCost?.cost ?? [],
+          originalCost ?? {modifier: CostModifier.Full},
         );
 
         let newName: string;
@@ -3886,8 +3886,8 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
               originalDescription: resolvedDescription,
             },
           };
-          c.purchases.O[newId] = scenario as never;
-          c.purchases.fId = createId<GID.Purchase>((newId as number) + 1);
+          c.purchases.O[newId] = scenario;
+          c.purchases.fId = createId<GID.Purchase>(newId + 1);
           if (!jump.scenarios[charId]) jump.scenarios[charId] = [];
           jump.scenarios[charId]!.push(newId);
           c.budgetFlag += 1;

@@ -20,6 +20,7 @@ import {
   PurchaseSubtypeSelect,
   BlurNumberInput,
   InternalTagsField,
+  ChoiceContextEditor,
 } from "./JumpDocFields";
 import type { SectionSharedProps } from "./sectionTypes";
 import {
@@ -169,6 +170,17 @@ const ScenarioCard = memo(function ScenarioCard({
         }
       />
 
+      <ChoiceContextEditor
+        name={scenario.name}
+        description={scenario.description}
+        choiceContext={scenario.choiceContext}
+        onCommit={v =>
+          modify("Set Choice Context", t => {
+            t.choiceContext = v;
+          })
+        }
+      />
+
       <OutcomesEditor id={id} />
 
       <RareFieldsGroup
@@ -238,7 +250,11 @@ const ScenarioCard = memo(function ScenarioCard({
               <button
                 type="button"
                 className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
-                onClick={() => modify("Add Internal Tags", t => { t.internalTags = []; })}
+                onClick={() =>
+                  modify("Add Internal Tags", t => {
+                    t.internalTags = [];
+                  })
+                }
               >
                 <Plus size={8} /> add internal tag
               </button>
@@ -246,8 +262,16 @@ const ScenarioCard = memo(function ScenarioCard({
             active: () => (
               <InternalTagsField
                 tags={scenario.internalTags!}
-                onChange={tags => modify("Edit Internal Tags", t => { t.internalTags = tags; })}
-                onUndefined={() => modify("Remove Internal Tags", t => { t.internalTags = undefined; })}
+                onChange={tags =>
+                  modify("Edit Internal Tags", t => {
+                    t.internalTags = tags;
+                  })
+                }
+                onUndefined={() =>
+                  modify("Remove Internal Tags", t => {
+                    t.internalTags = undefined;
+                  })
+                }
               />
             ),
           },
