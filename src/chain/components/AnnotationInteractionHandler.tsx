@@ -1660,7 +1660,7 @@ function evalVariableCostExpr(
 ): number {
   if (!expr.trim()) return 0;
   const n = Number(applyTags(`\${${expr}}`, tags));
-  return isNaN(n) ? 0 : Math.max(0, n);
+  return isNaN(n) ? 0 : n;
 }
 
 export function purchaseInteraction<A extends TID.Drawback | TID.Purchase>(
