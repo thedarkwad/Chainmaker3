@@ -57,7 +57,8 @@ export function NewChainForm({
       let resolvedDoc: Parameters<typeof buildNewChain>[0]["doc"];
       let resolvedDocPublicUid: string | undefined;
       if (sourceMode === "jumpdoc" && selectedDoc) {
-        const loaded = await loadJumpDoc({ data: { publicUid: selectedDoc.publicUid } });
+        const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
+        const loaded = await loadJumpDoc({ data: { publicUid: selectedDoc.publicUid, idToken } });
         resolvedDoc = loaded.contents as Parameters<typeof buildNewChain>[0]["doc"];
         resolvedDocPublicUid = selectedDoc.publicUid;
         resolvedJumpName = selectedDoc.name;

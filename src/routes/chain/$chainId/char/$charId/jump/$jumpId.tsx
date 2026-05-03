@@ -69,6 +69,7 @@ import {
 import { useChainStore } from "@/chain/state/Store";
 import type { JumpDoc } from "@/chain/data/JumpDoc";
 import { loadJumpDoc, type JumpDocSummary } from "@/api/jumpdocs";
+import { useCurrentUser } from "@/app/state/auth";
 import { JumpDocGallery } from "@/app/components/JumpDocGallery";
 import { JumpDocViewer } from "@/chain/components/JumpDocViewer";
 import { ElectronChainNav } from "@/chain/components/ElectronChainNav";
@@ -1455,8 +1456,10 @@ function InteractiveJumpModal({
   onClose: () => void;
   onAdd: (doc: JumpDoc, publicUid: string) => void;
 }) {
+  const { firebaseUser } = useCurrentUser();
   async function handleSelect(doc: JumpDocSummary) {
-    const result = await loadJumpDoc({ data: { publicUid: doc.publicUid } });
+    const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
+    const result = await loadJumpDoc({ data: { publicUid: doc.publicUid, idToken } });
     onAdd(result.contents as JumpDoc, doc.publicUid);
   }
 
