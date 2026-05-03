@@ -364,6 +364,7 @@ export type ChainMutators = {
       };
       companionIds: Id<GID.Character>[];
       tags: Record<string, string>;
+      cost: PossibleCost;
     },
     jumpId: Id<GID.Jump>,
     charId: Id<GID.Character>,
@@ -377,7 +378,7 @@ export type ChainMutators = {
   }) => Id<GID.Character>;
   addFollower: (
     data: {
-      template: CompanionTemplate;
+      template: CompanionTemplate & { cost: Value<TID.Currency> };
       cost: PossibleCost;
       tags: Record<string, string>;
     },
@@ -2062,9 +2063,7 @@ function ScenarioOutcomeSelector({
 type CompanionInteractionState = {
   follower: boolean;
   selectedIds: Id<GID.Character>[];
-  charName: string;
-  charSpecies: string;
-  charGender: string;
+  charInfos: { name: string; species: string; gender: string }[];
   showNewCompanionModal: boolean;
   tags: Record<string, string>;
 };
@@ -2237,27 +2236,29 @@ function OriginOptionGroups({
 }
 
 export function originInteraction(
-  template: OriginTemplate | undefined,
+  template: OriginTemplate,
   optionIndices: PartialLookup<TID.OriginCategory, number[]>,
   doc: JumpDoc,
   jumpId: Id<GID.Jump>,
   charId: Id<GID.Character>,
+  internalTags: InternalTagsMap,
   costOverride?: SimpleValue<TID.Currency>,
   companionTid?: Id<TID.Companion>,
 ): AnnotationInteraction<OriginInteractionState> {
   const groups = buildOriginOptionGroups(optionIndices, doc);
-  const tags = template
-    ? extractTags(
-        template.name +
-          "\n" +
-          (template.description ?? "") +
-          "\n" +
-          (Array.isArray(template.cost)
-            ? ""
-            : Object.values(template.cost).join(" ")),
-      )
-    : {};
-  const hasTags = Object.keys(tags).length > 0;
+  const userTags = extractTagsWithExclusions(
+    template.name +
+      "\n" +
+      (template.description ?? "") +
+      "\n" +
+      (Array.isArray(template.cost)
+        ? ""
+        : Object.values(template.cost)
+            .map(s => `\${${s}}`)
+            .join(" ")),
+    Object.keys(internalTags),
+  );
+  const hasTags = Object.keys(userTags).length > 0;
 
   const optionsTypeName =
     groups.length === 1 ? groups[0]!.categoryName : "Origin Options";
@@ -2433,7 +2434,7 @@ export function originInteraction(
         <>
           {hasTags && (
             <TagFieldsSection
-              tags={tags}
+              tags={userTags}
               tagValues={props.state.tags}
               choiceContext={template?.choiceContext}
               onChangeTag={(name, value) =>
@@ -2464,7 +2465,10 @@ export function originInteraction(
         ? (build, state) =>
             applyTagsWithCost(
               template.name,
-              state.tags,
+              {
+                    ...(state.tags ?? {}),
+                    ...objMap(internalTags, l => l(build)),
+                  },
               [template.cost],
               [getCost(build)],
               doc.currencies,
@@ -2512,6 +2516,7 @@ export function randomizerInteraction(
   doc: JumpDoc,
   jumpId: Id<GID.Jump>,
   charId: Id<GID.Character>,
+  internalTags: InternalTagsMap
 ): AnnotationInteraction<{}> {
   const category = doc.originCategories.O[categoryId] as DocOriginCategory & {
     singleLine: false;
@@ -2568,6 +2573,7 @@ export function randomizerInteraction(
               doc,
               jumpId,
               charId,
+              internalTags,
               category.random!.cost,
             ) as AnnotationInteraction<object>,
           ];
@@ -2743,6 +2749,7 @@ function buildFreebieInteractions(
               doc,
               jumpId,
               companionCharId,
+              internalTags,
               undefined,
               importId,
             ) as AnnotationInteraction<object>,
@@ -2887,22 +2894,29 @@ function CompanionPreviewInner({
         </div>
       )}
       {adding && template.specificCharacter && !state.follower && (
-        <div className="px-2 pb-2 grid grid-cols-[auto_1fr] gap-1.5 self-center items-center">
-          <CompanionCharField
-            label="Name"
-            value={state.charName}
-            onChange={v => setState({ charName: v })}
-          />
-          <CompanionCharField
-            label="Species"
-            value={state.charSpecies}
-            onChange={v => setState({ charSpecies: v })}
-          />
-          <CompanionCharField
-            label="Gender"
-            value={state.charGender}
-            onChange={v => setState({ charGender: v })}
-          />
+        <div className="px-2 pb-2 flex flex-col gap-3">
+          {state.charInfos.map((ci, i) => (
+            <div key={i} className="grid grid-cols-[auto_1fr] gap-1.5 self-center items-center">
+              {state.charInfos.length > 1 && (
+                <span className="col-span-2 text-xs text-muted font-medium">Character #{i + 1}</span>
+              )}
+              <CompanionCharField
+                label="Name"
+                value={ci.name}
+                onChange={v => setState({ charInfos: state.charInfos.map((c, j) => j === i ? { ...c, name: v } : c) })}
+              />
+              <CompanionCharField
+                label="Species"
+                value={ci.species}
+                onChange={v => setState({ charInfos: state.charInfos.map((c, j) => j === i ? { ...c, species: v } : c) })}
+              />
+              <CompanionCharField
+                label="Gender"
+                value={ci.gender}
+                onChange={v => setState({ charInfos: state.charInfos.map((c, j) => j === i ? { ...c, gender: v } : c) })}
+              />
+            </div>
+          ))}
         </div>
       )}
       {adding && !template.specificCharacter && !state.follower && (
@@ -3015,141 +3029,169 @@ export function companionImportInteraction(
   };
 
   const actions = (
-    _: JumpDocBuildData,
-  ): AnnotationAction<CompanionInteractionState>[] => [
-    {
-      name: "Remove",
-      variant: "danger",
-      condition: build => copies(build).length > 0,
-      execute: (build, mutators) => {
-        const existingId = copies(build)[0];
-        const storeState = useChainStore.getState();
-        const chain = storeState.chain;
-        const jumpAccess = storeState.calculatedData.jumpAccess;
-        const purchase = chain?.purchases.O[existingId];
-        if (purchase?.type === PurchaseType.Companion) {
-          const ci = purchase as CompanionImport;
-          const linkedChars = ci.importData.characters.filter(
-            cid =>
-              chain?.characters.O[cid]?.originalImportTID?.templateId ===
-              template.id,
-          );
-          if (linkedChars.length > 0) {
-            const isActive = (cid: Id<GID.Character>) => {
-              const access = jumpAccess?.[cid];
-              if (access && [...access].some(jid => jid !== (jumpId as number)))
-                return true;
-              if ((chain?.jumps.O[jumpId]?.purchases[cid]?.length ?? 0) > 0)
-                return true;
-              if ((chain?.jumps.O[jumpId]?.drawbacks[cid]?.length ?? 0) > 0)
-                return true;
-              return false;
-            };
-            const activeChars = linkedChars
-              .map(cid => ({
-                id: cid,
-                name: chain?.characters.O[cid]?.name ?? "",
-              }))
-              .filter(({ id }) => isActive(id));
-            if (activeChars.length > 0) {
-              const names = activeChars.map(c => c.name).join(", ");
-              return [
-                buildConfirmDeleteInteraction(
-                  existingId,
-                  linkedChars,
-                  `This will also delete: ${names}. They have activity elsewhere. Are you sure?`,
-                ),
-              ];
+    build: JumpDocBuildData,
+  ): AnnotationAction<CompanionInteractionState>[] => {
+    const cost = getCost(build, {
+      tags: {},
+      follower: false,
+      selectedIds: [],
+      charInfos: [],
+      showNewCompanionModal: false,
+    });
+    const seen = new Set<string>();
+    const flatCosts = [cost.default, ...cost.options].filter(c => {
+      const key = formatCostShort(c.cost, c, doc.currencies);
+      return seen.size === seen.add(key).size ? false : true;
+    });
+
+    return [
+      {
+        name: "Remove",
+        variant: "danger",
+        condition: build => copies(build).length > 0,
+        execute: (build, mutators) => {
+          const existingId = copies(build)[0];
+          const storeState = useChainStore.getState();
+          const chain = storeState.chain;
+          const jumpAccess = storeState.calculatedData.jumpAccess;
+          const purchase = chain?.purchases.O[existingId];
+          if (purchase?.type === PurchaseType.Companion) {
+            const ci = purchase as CompanionImport;
+            const linkedChars = ci.importData.characters.filter(
+              cid =>
+                chain?.characters.O[cid]?.originalImportTID?.templateId ===
+                template.id,
+            );
+            if (linkedChars.length > 0) {
+              const isActive = (cid: Id<GID.Character>) => {
+                const access = jumpAccess?.[cid];
+                if (access && [...access].some(jid => jid !== (jumpId as number)))
+                  return true;
+                if ((chain?.jumps.O[jumpId]?.purchases[cid]?.length ?? 0) > 0)
+                  return true;
+                if ((chain?.jumps.O[jumpId]?.drawbacks[cid]?.length ?? 0) > 0)
+                  return true;
+                return false;
+              };
+              const activeChars = linkedChars
+                .map(cid => ({
+                  id: cid,
+                  name: chain?.characters.O[cid]?.name ?? "",
+                }))
+                .filter(({ id }) => isActive(id));
+              if (activeChars.length > 0) {
+                const names = activeChars.map(c => c.name).join(", ");
+                return [
+                  buildConfirmDeleteInteraction(
+                    existingId,
+                    linkedChars,
+                    `This will also delete: ${names}. They have activity elsewhere. Are you sure?`,
+                  ),
+                ];
+              }
+              mutators.removeCharacters(linkedChars);
             }
-            mutators.removeCharacters(linkedChars);
           }
-        }
-        mutators.removePurchase(existingId, build);
-        return [];
-      },
-    },
-    {
-      name: (build, state) => {
-        const cost = getCost(build, state);
-        return `Add (${formatCostDisplay(cost.default.cost, cost.default, doc.currencies)})`;
-      },
-      condition: build =>
-        copies(build).length === 0 || !template.specificCharacter,
-      blocker: (_, state) =>
-        !state.follower &&
-        !template.specificCharacter &&
-        state.selectedIds.length === 0
-          ? "You must select or create at least one character in order to add them as a companion."
-          : undefined,
-      execute: (build, mutators, state) => {
-        const tmpl = dummyTemplate(build, state);
-        const resolvedCost = getCost(build, state).default;
-        if (state.follower) {
-          const newId = mutators.addFollower(
-            {
-              template: tmpl,
-              cost: { ...resolvedCost, floatingDiscountOption: undefined },
-              tags: state.tags,
-            },
-            jumpId,
-            charId,
-            doc,
-          );
-          if (newId !== undefined)
-            mutators.navigate({ sub: "purchases", scrollTo: newId });
+          mutators.removePurchase(existingId, build);
           return [];
-        }
-        if (template.specificCharacter) {
-          const newCharId = mutators.createCompanion({
-            template,
-            name: state.charName,
-            gender: state.charGender,
-            species: state.charSpecies,
-          });
-          const newId = mutators.addCompanionImport(
-            { template: tmpl, companionIds: [newCharId], tags: state.tags },
-            jumpId,
-            charId,
-            doc,
-          );
-          if (newId !== undefined)
-            mutators.navigate({ sub: "purchases", scrollTo: newId });
-          return buildFreebieInteractions(
-            template.id,
-            template.freebies ?? [],
-            doc,
-            jumpId,
-            [newCharId],
-            internalTags,
-          );
-        }
-        const newId = mutators.addCompanionImport(
-          { template: tmpl, companionIds: state.selectedIds, tags: state.tags },
-          jumpId,
-          charId,
-          doc,
-        );
-        if (newId !== undefined)
-          mutators.navigate({ sub: "companions", scrollTo: newId });
-        return buildFreebieInteractions(
-          template.id,
-          template.freebies ?? [],
-          doc,
-          jumpId,
-          state.selectedIds,
-          internalTags,
-        );
+        },
       },
-    },
-  ];
+      ...flatCosts.map((c, i) => {
+        const possibleCost = (state: CompanionInteractionState) =>
+          ({
+            ...c,
+            cost:
+              i == 0 && isVariableCost(build)
+                ? dummyTemplate(build, state).cost
+                : c.cost,
+            floatingDiscountOption: undefined,
+          }) satisfies PossibleCost;
+        return {
+          name: (_: JumpDocBuildData, state: CompanionInteractionState) =>
+            `Add (${formatCostShort(possibleCost(state).cost, c, doc.currencies)})`,
+          condition: (build: JumpDocBuildData) =>
+            copies(build).length === 0 || !template.specificCharacter,
+          blocker: (_: JumpDocBuildData, state: CompanionInteractionState) =>
+            !state.follower &&
+            !template.specificCharacter &&
+            state.selectedIds.length === 0
+              ? "You must select or create at least one character in order to add them as a companion."
+              : undefined,
+          execute: (
+            build: JumpDocBuildData,
+            mutators: ChainMutators,
+            state: CompanionInteractionState,
+          ) => {
+            const tmpl = dummyTemplate(build, state);
+            const resolvedCost = possibleCost(state);
+            if (state.follower) {
+              const newId = mutators.addFollower(
+                { template: tmpl, cost: resolvedCost, tags: state.tags },
+                jumpId,
+                charId,
+                doc,
+              );
+              if (newId !== undefined)
+                mutators.navigate({ sub: "purchases", scrollTo: newId });
+              return [];
+            }
+            if (template.specificCharacter) {
+              const newCharIds = state.charInfos.map(ci =>
+                mutators.createCompanion({
+                  template,
+                  name: ci.name,
+                  gender: ci.gender,
+                  species: ci.species,
+                }),
+              );
+              const newId = mutators.addCompanionImport(
+                { template: tmpl, companionIds: newCharIds, tags: state.tags, cost: resolvedCost },
+                jumpId,
+                charId,
+                doc,
+              );
+              if (newId !== undefined)
+                mutators.navigate({ sub: "purchases", scrollTo: newId });
+              return buildFreebieInteractions(
+                template.id,
+                template.freebies ?? [],
+                doc,
+                jumpId,
+                newCharIds,
+                internalTags,
+              );
+            }
+            const newId = mutators.addCompanionImport(
+              { template: tmpl, companionIds: state.selectedIds, tags: state.tags, cost: resolvedCost },
+              jumpId,
+              charId,
+              doc,
+            );
+            if (newId !== undefined)
+              mutators.navigate({ sub: "companions", scrollTo: newId });
+            return buildFreebieInteractions(
+              template.id,
+              template.freebies ?? [],
+              doc,
+              jumpId,
+              state.selectedIds,
+              internalTags,
+            );
+          },
+        };
+      }),
+    ];
+  };
 
   return {
     initialize: _ => ({
       follower: false,
       selectedIds: [],
-      charName: template.characterInfo?.[0]?.name ?? "",
-      charSpecies: template.characterInfo?.[0]?.species ?? "",
-      charGender: template.characterInfo?.[0]?.gender ?? "",
+      charInfos: (template.characterInfo ?? (template.specificCharacter ? [{ name: "", species: "", gender: "" }] : [])).map(ci => ({
+        name: ci.name,
+        species: ci.species,
+        gender: ci.gender,
+      })),
       showNewCompanionModal: false,
       tags: {},
     }),
@@ -3935,7 +3977,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
       [],
     ),
     addCompanionImport: useCallback(
-      ({ template, companionIds, tags }, jumpId, charId, doc) => {
+      ({ template, companionIds, tags, cost }, jumpId, charId, doc) => {
         let newId: Id<GID.Purchase> | undefined;
         setTracked("Add companion import", c => {
           const jump = c.jumps.O[jumpId];
@@ -3968,21 +4010,46 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             stipend[lidCurr] = convertedInner;
           }
           newId = c.purchases.fId;
+
+          let resolvedName = applyTagsWithCost(
+            template.name,
+            tags,
+            template.cost,
+            cost.cost,
+            doc.currencies,
+          );
+
+          let resolvedDescription = applyTagsWithCost(
+            template.description,
+            tags,
+            template.cost,
+            cost.cost,
+            doc.currencies,
+          );
+
+
           const purchase: CompanionImport = {
             id: newId,
             charId,
             jumpId,
-            name: template.name,
-            description: template.description,
+            name: resolvedName,
+            description: resolvedDescription,
             type: PurchaseType.Companion,
-            cost: { modifier: CostModifier.Full },
+            cost: convertModifiedCost(
+              template.cost,
+              cost,
+              doc,
+              jump.currencies,
+              cost.floatingDiscountOption ?? false,
+            ),
             value: convertValue(template.cost, doc, jump.currencies),
             template: {
               id: template.id,
               jumpdoc: "",
+              originalCost: cost,
               tags,
-              originalName: template.name,
-              originalDescription: template.description,
+              originalName: resolvedName,
+              originalDescription: resolvedDescription,
             },
             importData: {
               characters: companionIds,
@@ -4026,12 +4093,26 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
           if (!subtypeEntry) return;
           const subtype = createId<LID.PurchaseSubtype>(+subtypeEntry[0]);
           newId = c.purchases.fId;
+                      const resolvedName = applyTagsWithCost(
+              template.name,
+              tags,
+              template.cost,
+              cost.cost,
+              doc.currencies,
+            );
+            const resolvedDescription = applyTagsWithCost(
+              template.description ?? "",
+              tags,
+              template.cost,
+              cost.cost,
+              doc.currencies,
+            );
           const purchase: BasicPurchase = {
             id: newId,
             charId,
             jumpId,
-            name: template.name,
-            description: template.description,
+            name: resolvedName,
+            description: resolvedDescription,
             type: PurchaseType.Item,
             cost: convertModifiedCost(
               cost.cost,
@@ -4045,16 +4126,16 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
               id: template.id,
               jumpdoc: "",
               tags,
-              originalName: template.name,
-              originalDescription: template.description,
+              originalName: resolvedName,
+              originalDescription: resolvedDescription,
             },
             subtype,
             categories: [],
             tags: [],
             follower: true,
           };
-          c.purchases.O[newId] = purchase as never;
-          c.purchases.fId = createId<GID.Purchase>((newId as number) + 1);
+          c.purchases.O[newId] = purchase;
+          c.purchases.fId = createId<GID.Purchase>(newId + 1);
           if (!jump.purchases[charId]) jump.purchases[charId] = [];
           jump.purchases[charId]!.push(newId);
           c.budgetFlag += 1;
@@ -4074,7 +4155,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         const charOrigins = jump.origins[charId] as
-          | Record<Id<LID.OriginCategory>, import("../data/Jump").Origin[]>
+          | Record<Id<LID.OriginCategory>, Origin[]>
           | undefined;
         if (!charOrigins) return;
         for (const lidStr in charOrigins) {
