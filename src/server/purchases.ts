@@ -36,8 +36,8 @@ export async function syncJumpDocPurchases(
     const purchaseType = subtype?.type === PurchaseType.Perk ? "perk" : "item";
 
     // Default currency is TID key 0.
-    const cpEntry = template.cost.find((sv) => (sv.currency as number) === 0);
-    const hasNonZeroCost = template.cost.some((sv) => (sv.amount as number) > 0);
+    const cpEntry = (Array.isArray(template.cost) ? template.cost : []).find((sv) => sv.currency === 0);
+    const hasNonZeroCost = (Array.isArray(template.cost) ? template.cost : []).some((sv) => sv.amount > 0);
     const cost =
       cpEntry != null
         ? { kind: "cp", amount: cpEntry.amount }
