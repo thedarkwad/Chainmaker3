@@ -235,7 +235,7 @@ function AdvancedSearch({
       )}
 
       {/* NSFW toggle */}
-      <div className="border-t border-surface/20 pt-2 flex gap-1 opacity-90">
+      <div className="border-t border-surface/20 pt-2 flex gap-1">
         <NsfwToggleButton showNsfw={showNsfw} onToggle={onToggleNsfw} />
       </div>
     </div>

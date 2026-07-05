@@ -4,7 +4,7 @@ export function SegmentedControl({
   onChange,
   options,
   compact,
-  bold
+  bold,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -15,7 +15,7 @@ export function SegmentedControl({
 }) {
   return (
     <div className="inline-flex flex-wrap rounded-full p-0.5 max-w-max">
-      {options.map((opt) => (
+      {options.map(opt => (
         <button
           key={opt.value}
           type="button"
@@ -23,9 +23,13 @@ export function SegmentedControl({
           className={`rounded-full transition-colors ${
             compact ? "px-2 py-px text-xs" : "px-3 py-0.5 text-sm"
           } ${
-            value === opt.value
-              ? "bg-accent2-tint text-accent2 border border-accent2"
-              : bold ? "text-surface opacity-80 hover:opacity-100" : "text-ghost hover:text-ink"
+            !bold
+              ? value === opt.value
+                ? "bg-accent2-tint text-accent2 border border-accent2"
+                : "text-ghost hover:text-ink"
+              : value === opt.value
+                ? "bg-accent/80 text-surface/80 border border-surface/50"
+                : "text-surface opacity-80 hover:opacity-100"
           }`}
         >
           {opt.label}
@@ -50,7 +54,7 @@ export function BoolSegment({
   return (
     <SegmentedControl
       value={value ? "t" : "f"}
-      onChange={(v) => onChange(v === "t")}
+      onChange={v => onChange(v === "t")}
       options={[
         { value: "f", label: falseLabel },
         { value: "t", label: trueLabel },
