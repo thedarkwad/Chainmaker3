@@ -846,7 +846,7 @@ export const buildJumpDocZip = createServerFn({ method: "POST" })
     const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
 
     const name = (doc.name as string) ?? "Untitled";
-    const meta = { name, author: doc.author ?? [], version: "1.0" };
+    const meta = { name, author: doc.author ?? [], version: "1.0", attributes: doc.attributes ?? {}, nsfw: doc.nsfw ?? false };
 
     const zip = new AdmZip();
     zip.addFile(
