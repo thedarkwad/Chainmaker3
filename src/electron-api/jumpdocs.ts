@@ -68,7 +68,6 @@ export function buildElectronJumpDocFilter(
 ): (doc: ElectronJumpDocMeta) => boolean {
   const tokens = parseJumpDocQuery(search);
   return (doc: ElectronJumpDocMeta) => {
-    console.log(doc.nsfw, nsfw);
     return (
       (!doc.nsfw || nsfw != "hide") &&
       (doc.nsfw || nsfw != "exclusive") &&
