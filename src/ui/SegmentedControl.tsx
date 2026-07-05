@@ -4,12 +4,14 @@ export function SegmentedControl({
   onChange,
   options,
   compact,
+  bold
 }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
   /** Smaller padding and text size for use in tight layouts. */
   compact?: boolean;
+  bold?: boolean;
 }) {
   return (
     <div className="inline-flex flex-wrap rounded-full p-0.5 max-w-max">
@@ -23,7 +25,7 @@ export function SegmentedControl({
           } ${
             value === opt.value
               ? "bg-accent2-tint text-accent2 border border-accent2"
-              : "text-ghost hover:text-ink"
+              : bold ? "text-surface opacity-80 hover:opacity-100" : "text-ghost hover:text-ink"
           }`}
         >
           {opt.label}

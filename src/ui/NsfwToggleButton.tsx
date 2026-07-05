@@ -1,21 +1,27 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { SegmentedControl } from "./SegmentedControl";
 
 export const NSFW_STORAGE_KEY = "cm:showNsfwGallery";
 
-export function useNsfwToggle(): [boolean, (v: boolean) => void] {
-  const [showNsfw, _set] = useState<boolean>(() => {
+export function useNsfwToggle(): [
+  "show" | "hide" | "exclusive",
+  (v: "show" | "hide" | "exclusive") => void,
+] {
+  const [showNsfw, _set] = useState<"show" | "hide" | "exclusive">(() => {
     try {
-      return localStorage.getItem(NSFW_STORAGE_KEY) === "true";
+      return localStorage.getItem(NSFW_STORAGE_KEY) === "true"
+        ? "show"
+        : "hide";
     } catch {
-      return false;
+      return "hide";
     }
   });
 
-  function setShowNsfw(v: boolean) {
+  function setShowNsfw(v: "show" | "hide" | "exclusive") {
     _set(v);
     try {
-      localStorage.setItem(NSFW_STORAGE_KEY, String(v));
+      localStorage.setItem(NSFW_STORAGE_KEY, String(v != "hide"));
     } catch {}
   }
 
@@ -26,14 +32,14 @@ export function NsfwToggleButton({
   showNsfw,
   onToggle,
 }: {
-  showNsfw: boolean;
-  onToggle: (v: boolean) => void;
+  showNsfw: "show" | "hide" | "exclusive";
+  onToggle: (v: "show" | "hide" | "exclusive") => void;
 }) {
   const [pendingConfirm, setPendingConfirm] = useState(false);
 
-  function handleClick() {
-    if (showNsfw) {
-      onToggle(false);
+  function handleClickGate() {
+    if (showNsfw != "hide") {
+      onToggle("hide");
     } else {
       setPendingConfirm(true);
     }
@@ -41,7 +47,7 @@ export function NsfwToggleButton({
 
   function handleConfirm() {
     setPendingConfirm(false);
-    onToggle(true);
+    onToggle("show");
   }
 
   function handleCancel() {
@@ -52,15 +58,33 @@ export function NsfwToggleButton({
     <>
       <button
         type="button"
-        onClick={handleClick}
+        onClick={handleClickGate}
         className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition-colors ${
-          showNsfw
+          showNsfw != "hide"
             ? "bg-surface/25 text-surface border-surface/50 font-medium"
             : "text-surface/60 border-surface/20 hover:bg-surface/10 hover:text-surface hover:border-surface/30"
         }`}
       >
-        Show NSFW content
+        Enable NSFW content
       </button>
+      {showNsfw != "hide" && (
+        <SegmentedControl
+          value={showNsfw}
+          onChange={onToggle as any}
+          compact
+          bold
+          options={[
+            {
+              value: "show",
+              label: "SFW & NSFW",
+            },
+            {
+              value: "exclusive",
+              label: "Only NSFW",
+            },
+          ]}
+        />
+      )}
 
       {pendingConfirm &&
         createPortal(

@@ -121,7 +121,6 @@ const SEARCH_TIP = (
         {" — "}
         supernatural element contains word
       </p> */}
-      <p className="mt-1 text-ghost">Bare words are ORed; field filters are ANDed.</p>
     </div>
   </>
 );
@@ -185,8 +184,8 @@ function AdvancedSearch({
 }: {
   search: string;
   onSearchChange: (s: string) => void;
-  showNsfw: boolean;
-  onToggleNsfw: (v: boolean) => void;
+  showNsfw: "show" | "hide" | "exclusive";
+  onToggleNsfw: (v: "show" | "hide" | "exclusive") => void;
 }) {
   const tokens = parseJumpDocQuery(search);
   const activeFieldTokens = tokens.filter((t) => t.field !== "any" && t.field !== "name");
@@ -236,7 +235,7 @@ function AdvancedSearch({
       )}
 
       {/* NSFW toggle */}
-      <div className="border-t border-surface/20 pt-2">
+      <div className="border-t border-surface/20 pt-2 flex gap-1 opacity-90">
         <NsfwToggleButton showNsfw={showNsfw} onToggle={onToggleNsfw} />
       </div>
     </div>
@@ -370,7 +369,7 @@ export function JumpDocGallery({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const load = useCallback(
-    (p: number, sk: SortKey, sd: SortDir, s: string, nsfw: boolean) => {
+    (p: number, sk: SortKey, sd: SortDir, s: string, nsfw: "show" | "hide" | "exclusive") => {
       setLoading(true);
       getIdToken()
         .then((idToken) =>
@@ -422,7 +421,7 @@ export function JumpDocGallery({
     setPage(1);
   }
 
-  function handleToggleNsfw(v: boolean) {
+  function handleToggleNsfw(v: "show" | "hide" | "exclusive") {
     setShowNsfw(v);
     setPage(1);
   }

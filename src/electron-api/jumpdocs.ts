@@ -1,6 +1,9 @@
 // Electron replacement for @/api/jumpdocs.
 // Reads .jumpdoc files from a local folder instead of fetching from the server.
 
+import { ElectronJumpDocMeta } from "@/types/electron";
+import { parseJumpDocQuery } from "@/utilities/SearchUtilities";
+
 export type { SaveResult, SaveStatus } from "@/api/types";
 
 export type JumpDocAttributes = {
@@ -32,6 +35,7 @@ export type JumpDocGalleryParams = {
   sortDir: "asc" | "desc";
   search?: string;
   idToken?: string;
+  showNsfw: "show" | "hide" | "exclusive";
 };
 
 export type JumpDocGalleryPage = {
@@ -50,6 +54,64 @@ const EMPTY_ATTRS: JumpDocAttributes = {
   // supernaturalElements: [],
 };
 
+/** Escapes a string for safe use in a RegExp literal. */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Builds an in-memory filter function for ElectronJumpDocMeta objects based on a search query.
+ */
+export function buildElectronJumpDocFilter(
+  search: string,
+  nsfw: "show" | "hide" | "exclusive",
+): (doc: ElectronJumpDocMeta) => boolean {
+  const tokens = parseJumpDocQuery(search);
+  if (tokens.length === 0) return () => true;
+  return (doc: ElectronJumpDocMeta) => {
+    return (
+      (!doc.nsfw || nsfw != "hide") &&
+      (doc.nsfw || nsfw != "exclusive") &&
+      tokens.every(t => {
+        const re = t.exact
+          ? new RegExp(`^${escapeRegex(t.term)}$`, "i")
+          : new RegExp(escapeRegex(t.term), "i");
+
+        switch (t.field) {
+          case "any":
+            return (
+              re.test(doc.name) ||
+              (doc.author && doc.author.some(a => re.test(a))) ||
+              (doc.attributes?.franchise &&
+                doc.attributes.franchise.some(f => re.test(f)))
+            );
+          case "name":
+            return re.test(doc.name);
+          case "author":
+            return doc.author && doc.author.some(a => re.test(a));
+          case "franchise":
+            return (
+              doc.attributes?.franchise &&
+              doc.attributes.franchise.some(f => re.test(f))
+            );
+          case "genre":
+            return (
+              doc.attributes?.genre &&
+              doc.attributes.genre.some(f => re.test(f))
+            );
+          case "medium":
+            return (
+              doc.attributes?.medium &&
+              doc.attributes.medium.some(f => re.test(f))
+            );
+          default:
+            return false;
+        }
+      })
+    );
+  };
+}
+
 /**
  * Lists published jumpdocs — in Electron this scans the configured local folder.
  * Filtering is done client-side (search param is ignored server-side).
@@ -66,14 +128,7 @@ export async function listPublishedJumpDocs(
 
   // Local search filtering
   const search = (p.search ?? "").toLowerCase().trim();
-  let filtered = metas;
-  if (search) {
-    filtered = metas.filter(
-      (m) =>
-        m.name.toLowerCase().includes(search) ||
-        m.author.some((a) => a.toLowerCase().includes(search)),
-    );
-  }
+  let filtered = metas.filter(buildElectronJumpDocFilter(search, p.showNsfw));
 
   filtered = [...filtered].sort((a, b) => {
     let cmp = 0;
@@ -93,7 +148,7 @@ export async function listPublishedJumpDocs(
   const pageSize = p.pageSize ?? 24;
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const docs: JumpDocSummary[] = paged.map((m) => ({
+  const docs: JumpDocSummary[] = paged.map(m => ({
     _id: m.filePath,
     publicUid: m.filePath,
     name: m.name,
@@ -112,7 +167,9 @@ export async function listPublishedJumpDocs(
 
 /** Loads a single jumpdoc by its UUID. The IPC layer resolves UUID → file path internally. */
 export async function loadJumpDoc(
-  params: { data: { publicUid: string; idToken?: string } } | { publicUid: string },
+  params:
+    | { data: { publicUid: string; idToken?: string } }
+    | { publicUid: string },
 ) {
   const publicUid = "data" in params ? params.data.publicUid : params.publicUid;
   const api = getAPI();
@@ -151,7 +208,9 @@ export async function saveJumpDocAs(
 }
 
 /** Autosaves a jumpdoc. Silently skips (no dialog) if no save location is set yet. */
-export async function autosaveJumpDoc(): Promise<{ status: "ok"; edits: number } | { status: "bad_patches" }> {
+export async function autosaveJumpDoc(): Promise<
+  { status: "ok"; edits: number } | { status: "bad_patches" }
+> {
   const { useJumpDocStore } = await import("@/jumpdoc/state/JumpDocStore");
   const doc = useJumpDocStore.getState().doc;
   const api = getAPI();
@@ -183,7 +242,13 @@ export async function forceReplaceJumpDoc(_params: unknown) {
 
 export async function publishJumpDoc(params: unknown) {
   const { docMongoId, attributes, nsfw } = (
-    params as { data: { docMongoId: string; attributes: JumpDocAttributes; nsfw: boolean } }
+    params as {
+      data: {
+        docMongoId: string;
+        attributes: JumpDocAttributes;
+        nsfw: boolean;
+      };
+    }
   ).data;
   const api = getAPI();
   if (api)
@@ -194,11 +259,15 @@ export async function publishJumpDoc(params: unknown) {
   return { status: "ok" as const };
 }
 
-export async function createJumpDoc(_params: unknown): Promise<{ publicUid: string }> {
+export async function createJumpDoc(
+  _params: unknown,
+): Promise<{ publicUid: string }> {
   throw new Error("JumpDoc creation not available in desktop app");
 }
 
-export async function getPublishedJumpDocSummary(_params: unknown): Promise<null> {
+export async function getPublishedJumpDocSummary(
+  _params: unknown,
+): Promise<null> {
   return null;
 }
 
@@ -214,14 +283,20 @@ export async function buildJumpDocZip(
   return { zipBase64: "", name: "" };
 }
 
-export async function importJumpDoc(_params: unknown): Promise<{ publicUid: string }> {
+export async function importJumpDoc(
+  _params: unknown,
+): Promise<{ publicUid: string }> {
   throw new Error("importJumpDoc is not available in Electron.");
 }
 
-export async function sendTrustedEditMessage(_params: unknown): Promise<{ status: "ok" }> {
+export async function sendTrustedEditMessage(
+  _params: unknown,
+): Promise<{ status: "ok" }> {
   return { status: "ok" };
 }
 
-export async function sendModeratorNotification(_params: unknown): Promise<{ status: "ok" }> {
+export async function sendModeratorNotification(
+  _params: unknown,
+): Promise<{ status: "ok" }> {
   return { status: "ok" };
 }

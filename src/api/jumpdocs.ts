@@ -326,8 +326,7 @@ export type JumpDocGalleryParams = {
   search?: string;
   /** Optional Firebase ID token — when provided, each doc includes isOwner. */
   idToken?: string;
-  /** When true, include NSFW docs in results. Defaults to false. */
-  showNsfw?: boolean;
+  showNsfw: "show" | "hide" | "exclusive";
 };
 
 export type JumpDocGalleryPage = {
@@ -350,7 +349,6 @@ const FIELD_TO_MONGO: Record<Exclude<JumpDocSearchField, "any">, string> = {
 
 /**
  * Builds a MongoDB filter from a parsed JumpDoc query.
- * Bare-word (any) tokens are ORed; field-specific tokens are ANDed.
  */
 function buildSearchFilter(search: string): object {
   if (!search.trim()) return {};
@@ -363,13 +361,13 @@ function buildSearchFilter(search: string): object {
 
   const andClauses: object[] = [];
 
-  // Bare words: any one must match name, author, or franchise
+  // Bare words: all must match name, author, or franchise
   if (anyTokens.length > 0) {
-    const orClauses = anyTokens.flatMap(t => {
+    const mainClauses = anyTokens.map(t => {
       const re = new RegExp(escapeRegex(t.term), "i");
-      return [{ name: re }, { author: re }, { "attributes.franchise": re }];
+      return {$or: [{ name: re }, { author: re }, { "attributes.franchise": re }]};
     });
-    andClauses.push({ $or: orClauses });
+    andClauses.push(...mainClauses);
   }
 
   // Field-specific tokens: each must match
@@ -406,7 +404,12 @@ export const listPublishedJumpDocs = createServerFn({ method: "POST" })
     const mongoSortDir = data.sortDir === "asc" ? 1 : -1;
     const skip = (data.page - 1) * data.pageSize;
     const searchFilter = buildSearchFilter(data.search ?? "");
-    const nsfwFilter = data.showNsfw ? {} : { nsfw: { $ne: true } };
+    const nsfwFilter =
+      data.showNsfw == "exclusive"
+        ? { nsfw: true }
+        : data.showNsfw === "hide"
+          ? { nsfw: { $ne: true } }
+          : {};
     const publishedFilter = callerUid
       ? { $or: [{ published: true }, { ownerUid: callerUid }] }
       : { published: true };
@@ -601,7 +604,9 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
       const oldImageId = (doc.imageId as string | undefined) ?? null;
       const newImageId = data.imageId ?? null;
 
-      const isFirstPublish = data.published && !(doc as { firstPublishedAt?: Date }).firstPublishedAt;
+      const isFirstPublish =
+        data.published &&
+        !(doc as { firstPublishedAt?: Date }).firstPublishedAt;
 
       const updates: Promise<unknown>[] = [
         Models.JumpDoc.findByIdAndUpdate(data.docMongoId, {
@@ -1057,9 +1062,9 @@ export const sendTrustedEditMessage = createServerFn({ method: "POST" })
         senderUid: uid,
       };
 
-      const existing = await Models.Conversation.findOne({
+      const existing = (await Models.Conversation.findOne({
         salientJumpDocUid: data.publicUid,
-      }) as IConversation | null;
+      })) as IConversation | null;
       if (existing) {
         const ownerRead = existing.read.find(r => r.userUid === doc.ownerUid);
         if (ownerRead) {
@@ -1131,9 +1136,9 @@ export const sendModeratorNotification = createServerFn({ method: "POST" })
         senderUid: uid,
       };
 
-      const existing = await Models.Conversation.findOne({
+      const existing = (await Models.Conversation.findOne({
         salientJumpDocUid: data.publicUid,
-      }) as IConversation | null;
+      })) as IConversation | null;
       if (existing) {
         const ownerRead = existing.read.find(r => r.userUid === doc.ownerUid);
         if (ownerRead) {
