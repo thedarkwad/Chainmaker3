@@ -4442,12 +4442,12 @@ export function AnnotationInteractionHandler({
   }, [allListeners]);
 
   useEffect(() => {
-    if (interactionQueue.length === 0) {
+    if (interactionQueue.length === 0 && currentInteractions.length === 0) {
       suppressNavigateRef.current = false;
       finalizeUpdate(currentAction.current ?? "");
       currentAction.current = undefined;
     }
-  }, [interactionQueue.length]);
+  }, [interactionQueue.length, currentInteractions.length]);
 
   const budgetFlag = useChainStore(c => c.chain?.budgetFlag ?? 0);
 
@@ -4591,7 +4591,7 @@ export function AnnotationInteractionHandler({
       padding: 0,
       background: "transparent",
       backdrop: true,
-      didClose: () => setCurrentInteractions([]),
+      didDestroy: () => setCurrentInteractions([]),
       customClass: {
         popup:
           "!bg-transparent !shadow-none !border-0 !p-0 !overflow-visible !w-auto !max-w-none",
