@@ -13,29 +13,20 @@ import type {
 } from "@/chain/data/Jump";
 import { DEFAULT_CURRENCY_ID, JumpSourceType } from "@/chain/data/Jump";
 import type {
-  CompanionTemplate,
-  DrawbackTemplate,
   JumpDoc,
-  OriginTemplate,
-  ScenarioRewardTemplate,
 } from "@/chain/data/JumpDoc";
 import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
 import {
   CostModifier,
   DefaultSubtype,
   PurchaseType,
-  RewardType,
   type AbstractPurchase,
   type BasicPurchase,
   type JumpPurchase,
-  type ModifiedCost,
   type CompanionImport,
   type Drawback,
   type PurchaseGroup,
   type Scenario,
-  type ScenarioReward,
-  type StoredAlternativeCost,
-  type StoredPurchasePrerequisite,
   type Subpurchase,
   type SupplementImport,
   type SupplementPurchase,
@@ -102,7 +93,7 @@ function initializeCurrencyAmounts(jump: Jump): Value {
 
 /** Applies a named tracked action to the chain store (undo-stack entry + Immer patch). */
 export function setTracked(name: string, updater: ChainUpdate): void {
-  useChainStore.setState(s => createTrackedAction(name, updater)(s));
+  useChainStore.setState(createTrackedAction(name, updater));
 }
 
 /** Returns stable `startUpdate` and `finalizeUpdate` callbacks bound to the chain store. */
