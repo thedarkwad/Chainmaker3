@@ -349,6 +349,9 @@ export function useRemoveJumpDocPurchaseSubtype() {
     useJumpDocStore.setState(
       createJumpDocTrackedAction("Remove Purchase Subtype", d => {
         delete d.purchaseSubtypes.O[id];
+        for (let sId in d.availablePurchases.O)
+          if (d.availablePurchases.O[+sId as any]?.subtype === id)
+            delete d.availablePurchases.O[+sId as any];
       }),
     );
   };
@@ -667,10 +670,7 @@ export function useRemoveJumpDocPrereq(
         if (!prereq) return;
         srcPrereqs.splice(index, 1);
 
-        if (
-          !prereq.positive &&
-          prereq.type != "origin"
-        ) {
+        if (!prereq.positive && prereq.type != "origin") {
           const tgtPrereqs = getDocPrereqs(d, prereq.type, prereq.id as number);
           if (tgtPrereqs) {
             const reverseIdx = tgtPrereqs.findIndex(
