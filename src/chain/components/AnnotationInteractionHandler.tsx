@@ -687,7 +687,7 @@ export function createReapplyTagsListener(
       return doc.availableDrawbacks.O[id as any] as TemplateEntry | undefined;
     if (p.type === PurchaseType.Scenario)
       return doc.availableScenarios.O[id as any] as TemplateEntry | undefined;
-    if (p.type === PurchaseType.Companion)
+    if (p.type === PurchaseType.Companion || ("follower" in p && p.follower))
       return doc.availableCompanions.O[id as any] as TemplateEntry | undefined;
     return (doc.availablePurchases.O[id as any] ??
       doc.availableCompanions.O[id as any]) as TemplateEntry | undefined;
@@ -715,11 +715,13 @@ export function createReapplyTagsListener(
         const internalTagsResolved = objMap(internalTags, f => f(build));
         const tags = { ...userTags, ...internalTagsResolved };
 
-        const originalCost = p.template.originalCost as PossibleCost | undefined;
+        const originalCost = p.template.originalCost as
+          | PossibleCost
+          | undefined;
         const value = originalCost?.cost ?? [];
         const cost = purchaseValue<TID.Currency>(
           originalCost?.cost ?? [],
-          originalCost ?? {modifier: CostModifier.Full},
+          originalCost ?? { modifier: CostModifier.Full },
         );
 
         let newName: string;
@@ -1461,7 +1463,6 @@ function getPrereqError(
   switch (prereq.type) {
     case "drawback":
       if (doc.availableDrawbacks.O[prereq.id] === undefined) return;
-
       has = (build.drawbacks[prereq.id] ?? []).length > 0;
       name = (doc.availableDrawbacks.O[prereq.id] ?? []).name;
       break;
@@ -2870,14 +2871,14 @@ function CompanionPreviewInner({
   state,
   setState,
   selfCharId,
-  internalTags
+  internalTags,
 }: {
   template: CompanionTemplate;
   adding: boolean;
   state: CompanionInteractionState;
   setState: (partial: Partial<CompanionInteractionState>) => void;
   selfCharId: Id<GID.Character>;
-  internalTags: InternalTagsMap
+  internalTags: InternalTagsMap;
 }) {
   const allChars = useAllCharacters();
   const userTags = extractTagsWithExclusions(
@@ -3678,7 +3679,9 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
               categories: [],
               tags: [],
               subtype,
-              duration: (template as BasicPurchaseTemplate).temporary ? 1 : undefined,
+              duration: (template as BasicPurchaseTemplate).temporary
+                ? 1
+                : undefined,
               template: {
                 id: template.id as any,
                 jumpdoc: "",
