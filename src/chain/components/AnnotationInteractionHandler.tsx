@@ -836,7 +836,6 @@ export function createBoosterTextListener(): BuildListener {
               removed,
             );
         }
-        c.budgetFlag += 1;
       });
       if (added.length) toast.info(`Boosts added to ${fmtNames(added)}`);
       if (removed.length)
@@ -921,12 +920,11 @@ export function createStipendListener(
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
 
+
         const activeOriginTids = new Set(
           build.origins
             .map(o => o.template?.id)
-            .filter(id => id ?? null != null),
         );
-
         const activePurchaseTids = new Set(
           relevantPurchaseTemplates
             .map(o => o.id)
