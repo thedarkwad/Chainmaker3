@@ -214,7 +214,6 @@ export type Drawback = (
   companionStipend?: number;
 
   stipend?: Id<TID.Origin>;
-  //TODO: UI, initialization
   floatingDiscountThresholds?: PartialLookup<LID.PurchaseSubtype, SimpleValue<LID.Currency>[]>;
   /** User-chosen duration in years, for drawbacks with durationMod.type === "choice". */
   customDuration?: number;

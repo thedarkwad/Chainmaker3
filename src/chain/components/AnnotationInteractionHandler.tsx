@@ -44,6 +44,7 @@ import {
   Scenario,
   ScenarioReward,
   Value,
+  Drawback,
 } from "../data/Purchase";
 import withReactContent from "sweetalert2-react-content";
 import Swal from "sweetalert2";
@@ -950,7 +951,7 @@ export function createOriginStipendListener(
               const p = c.purchases.O[gid] as any;
               return (
                 p?.stipend === template.id &&
-                (p as any)._stipendSubtype === entry.purchaseSubtype
+                p.subtype === entry.purchaseSubtype
               );
             });
             if (alreadyExists) continue;
@@ -969,9 +970,7 @@ export function createOriginStipendListener(
 
             const name = `${template.name} ${subtypeName} Stipend`;
             created.push(name);
-            const newId = c.purchases.fId;
-            const newDrawback = {
-              id: newId,
+            const newId = registryAdd(c.purchases, {
               charId,
               jumpId,
               name,
@@ -982,10 +981,8 @@ export function createOriginStipendListener(
               value: [{ amount: entry.amount, currency: lidCurrency }],
               overrides: {},
               stipend: template.id,
-              _stipendSubtype: entry.purchaseSubtype,
-            };
-            c.purchases.O[newId] = newDrawback as never;
-            c.purchases.fId = createId<GID.Purchase>((newId as number) + 1);
+              subtype: lidSubtype,
+            });
             if (!jump.drawbacks[charId]) jump.drawbacks[charId] = [];
             jump.drawbacks[charId]!.push(newId);
           }
