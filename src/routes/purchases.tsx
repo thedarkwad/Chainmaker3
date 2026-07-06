@@ -219,7 +219,7 @@ function PurchasesPage() {
     let cancelled = false;
     setLoading(true);
     searchPurchases({
-      data: { search: committedSearch, page, pageSize: PAGE_SIZE, minCost, maxCost, purchaseType, showNsfw },
+      data: { search: committedSearch, page, pageSize: PAGE_SIZE, minCost, maxCost, purchaseType, showNsfw: showNsfw != "hide" },
     })
       .then((result) => {
         if (!cancelled) setData(result);
@@ -283,7 +283,7 @@ function PurchasesPage() {
                     </button>
                   ))}
                 </div>
-                <NsfwToggleButton showNsfw={showNsfw} onToggle={(v) => { setShowNsfw(v); setPage(1); }} />
+                <NsfwToggleButton minimize showNsfw={showNsfw} onToggle={(v) => { setShowNsfw(v); setPage(1); }} />
                 <div className="flex gap-2 items-center">
                   <span className="text-xs text-surface/60 shrink-0">Cost:</span>
                   <input

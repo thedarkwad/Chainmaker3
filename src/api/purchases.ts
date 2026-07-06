@@ -48,11 +48,11 @@ function buildPurchaseFilter(
 
     // Bare words: any one must match name, description, or choiceContext
     if (anyTokens.length > 0) {
-      const orClauses = anyTokens.flatMap((t) => {
+      const orClauses = anyTokens.map((t) => {
         const re = new RegExp(escapeRegex(t.term), "i");
-        return [{ name: re }, { description: re }, { choiceContext: re }];
+        return {$or: [{ name: re }, { description: re }, { choiceContext: re }]};
       });
-      andClauses.push({ $or: orClauses });
+      andClauses.push(...orClauses);
     }
 
     // Field-specific tokens: each must match

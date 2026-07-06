@@ -31,9 +31,11 @@ export function useNsfwToggle(): [
 export function NsfwToggleButton({
   showNsfw,
   onToggle,
+  minimize
 }: {
   showNsfw: "show" | "hide" | "exclusive";
   onToggle: (v: "show" | "hide" | "exclusive") => void;
+  minimize?: boolean
 }) {
   const [pendingConfirm, setPendingConfirm] = useState(false);
 
@@ -67,7 +69,7 @@ export function NsfwToggleButton({
       >
         Enable NSFW content
       </button>
-      {showNsfw != "hide" && (
+      {showNsfw != "hide" && !minimize && (
         <SegmentedControl
           value={showNsfw}
           onChange={onToggle as any}
