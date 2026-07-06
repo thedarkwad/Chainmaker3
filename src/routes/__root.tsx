@@ -51,8 +51,9 @@ function AppToastContainer() {
       position="top-center"
       hideProgressBar
       pauseOnHover
+      limit={3}
       transition={Zoom}
-      autoClose={5000}
+      autoClose={3500}
       className={"text-sm"}
     />
   );
