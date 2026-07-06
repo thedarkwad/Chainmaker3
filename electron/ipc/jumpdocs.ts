@@ -283,16 +283,34 @@ export async function setJumpdocFolder(): Promise<string | null> {
   return folder;
 }
 
+function collectJumpdocFilenames(baseFolder: string, currentRelativePath: string, remainingDepth: number): string[] {
+  const absolutePath = path.join(baseFolder, currentRelativePath);
+  try {
+    return fs.readdirSync(absolutePath).flatMap(item => {
+      const itemAbsolutePath = path.join(absolutePath, item);
+      const itemRelativePath = path.join(currentRelativePath, item);
+      const itemStat = fs.statSync(itemAbsolutePath);
+
+      if (itemStat.isDirectory()) {
+        if (item === "_thumbs") return [];
+        return remainingDepth > 0
+          ? collectJumpdocFilenames(baseFolder, itemRelativePath, remainingDepth - 1)
+          : [];
+      } else {
+        return [itemRelativePath];
+      }
+    });
+  } catch (error) {
+    console.error(`Error reading directory ${absolutePath}:`, error);
+    return [];
+  }
+}
+
 export function listJumpdocs(): ElectronJumpDocMeta[] {
   const folder = getSettings().jumpdocFolder;
   if (!folder || !fs.existsSync(folder)) return [];
 
-  let filenames: string[];
-  try {
-    filenames = fs.readdirSync(folder);
-  } catch {
-    return [];
-  }
+  const filenames = collectJumpdocFilenames(folder, "", 2);
 
   const index = readIndex(folder);
   let indexDirty = false;
