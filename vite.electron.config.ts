@@ -65,7 +65,7 @@ export default defineConfig({
       routesDirectory: "./src/routes",
       generatedRouteTree: "./src/routeTree.electron.gen.ts",
       // Exclude routes that depend heavily on the server environment
-      routeFileIgnorePattern: "portal\\.tsx|userimages\\.tsx",
+      routeFileIgnorePattern: "portal\\.tsx|userimages\\.tsx|backup-utilities",
     }),
     viteReact(),
     viteTsConfigPaths({ projects: ["./tsconfig.json"] }),

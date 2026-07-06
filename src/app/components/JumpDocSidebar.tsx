@@ -1,7 +1,7 @@
 import { FileText, Pencil, X, Download, ExternalLink } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import { type JumpDocSummary, getJumpDocPdfUrl, buildJumpDocZip } from "@/api/jumpdocs";
+import { type JumpDocSummary, getJumpDocPdfUrl } from "@/api/jumpdocs";
 
 export const ATTR_FIELDS: {
   key: keyof JumpDocSummary["attributes"];
@@ -71,10 +71,9 @@ export function JumpDocSidebar({
     setMenuOpen(false);
     setDownloading("zip");
     try {
-      const { zipBase64, name } = await buildJumpDocZip({ data: { publicUid: doc.publicUid } });
-      const bytes = Uint8Array.from(atob(zipBase64), (c) => c.charCodeAt(0));
-      const blob = new Blob([bytes], { type: "application/zip" });
-      triggerDownload(blob, `${name}.jumpdoc`);
+      const res = await fetch(`/backup-utilities/jumpdoc/${doc.publicUid}`);
+      const blob = await res.blob();
+      triggerDownload(blob, `${doc.name}.jumpdoc`);
     } finally {
       setDownloading(null);
     }

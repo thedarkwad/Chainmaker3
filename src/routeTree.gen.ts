@@ -21,11 +21,13 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as PdfDocIdRouteImport } from './routes/pdf.$docId'
 import { Route as JumpdocDocIdRouteImport } from './routes/jumpdoc/$docId'
 import { Route as ChainChainIdRouteImport } from './routes/chain/$chainId'
+import { Route as BackupUtilitiesUpdatesRouteImport } from './routes/backup-utilities/updates'
 import { Route as JumpdocDocIdIndexRouteImport } from './routes/jumpdoc/$docId/index'
 import { Route as ChainChainIdIndexRouteImport } from './routes/chain/$chainId/index'
 import { Route as ChainChainIdShareRouteImport } from './routes/chain/$chainId/share'
 import { Route as ChainChainIdConfigRouteImport } from './routes/chain/$chainId/config'
 import { Route as ChainChainIdAddDocRouteImport } from './routes/chain/$chainId/add-doc'
+import { Route as BackupUtilitiesJumpdocDocIdRouteImport } from './routes/backup-utilities/jumpdoc.$docId'
 import { Route as ChainChainIdConfigIndexRouteImport } from './routes/chain/$chainId/config/index'
 import { Route as ChainChainIdConfigSuppRouteImport } from './routes/chain/$chainId/config/supp'
 import { Route as ChainChainIdConfigNotesRouteImport } from './routes/chain/$chainId/config/notes'
@@ -111,6 +113,11 @@ const ChainChainIdRoute = ChainChainIdRouteImport.update({
   path: '/chain/$chainId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BackupUtilitiesUpdatesRoute = BackupUtilitiesUpdatesRouteImport.update({
+  id: '/backup-utilities/updates',
+  path: '/backup-utilities/updates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JumpdocDocIdIndexRoute = JumpdocDocIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -136,6 +143,12 @@ const ChainChainIdAddDocRoute = ChainChainIdAddDocRouteImport.update({
   path: '/add-doc',
   getParentRoute: () => ChainChainIdRoute,
 } as any)
+const BackupUtilitiesJumpdocDocIdRoute =
+  BackupUtilitiesJumpdocDocIdRouteImport.update({
+    id: '/backup-utilities/jumpdoc/$docId',
+    path: '/backup-utilities/jumpdoc/$docId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ChainChainIdConfigIndexRoute = ChainChainIdConfigIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -287,9 +300,11 @@ export interface FileRoutesByFullPath {
   '/portal': typeof PortalRoute
   '/purchases': typeof PurchasesRoute
   '/userimages': typeof UserimagesRoute
+  '/backup-utilities/updates': typeof BackupUtilitiesUpdatesRoute
   '/chain/$chainId': typeof ChainChainIdRouteWithChildren
   '/jumpdoc/$docId': typeof JumpdocDocIdRouteWithChildren
   '/pdf/$docId': typeof PdfDocIdRoute
+  '/backup-utilities/jumpdoc/$docId': typeof BackupUtilitiesJumpdocDocIdRoute
   '/chain/$chainId/add-doc': typeof ChainChainIdAddDocRoute
   '/chain/$chainId/config': typeof ChainChainIdConfigRouteWithChildren
   '/chain/$chainId/share': typeof ChainChainIdShareRoute
@@ -330,7 +345,9 @@ export interface FileRoutesByTo {
   '/portal': typeof PortalRoute
   '/purchases': typeof PurchasesRoute
   '/userimages': typeof UserimagesRoute
+  '/backup-utilities/updates': typeof BackupUtilitiesUpdatesRoute
   '/pdf/$docId': typeof PdfDocIdRoute
+  '/backup-utilities/jumpdoc/$docId': typeof BackupUtilitiesJumpdocDocIdRoute
   '/chain/$chainId/add-doc': typeof ChainChainIdAddDocRoute
   '/chain/$chainId/share': typeof ChainChainIdShareRoute
   '/chain/$chainId': typeof ChainChainIdIndexRoute
@@ -367,9 +384,11 @@ export interface FileRoutesById {
   '/portal': typeof PortalRoute
   '/purchases': typeof PurchasesRoute
   '/userimages': typeof UserimagesRoute
+  '/backup-utilities/updates': typeof BackupUtilitiesUpdatesRoute
   '/chain/$chainId': typeof ChainChainIdRouteWithChildren
   '/jumpdoc/$docId': typeof JumpdocDocIdRouteWithChildren
   '/pdf/$docId': typeof PdfDocIdRoute
+  '/backup-utilities/jumpdoc/$docId': typeof BackupUtilitiesJumpdocDocIdRoute
   '/chain/$chainId/add-doc': typeof ChainChainIdAddDocRoute
   '/chain/$chainId/config': typeof ChainChainIdConfigRouteWithChildren
   '/chain/$chainId/share': typeof ChainChainIdShareRoute
@@ -412,9 +431,11 @@ export interface FileRouteTypes {
     | '/portal'
     | '/purchases'
     | '/userimages'
+    | '/backup-utilities/updates'
     | '/chain/$chainId'
     | '/jumpdoc/$docId'
     | '/pdf/$docId'
+    | '/backup-utilities/jumpdoc/$docId'
     | '/chain/$chainId/add-doc'
     | '/chain/$chainId/config'
     | '/chain/$chainId/share'
@@ -455,7 +476,9 @@ export interface FileRouteTypes {
     | '/portal'
     | '/purchases'
     | '/userimages'
+    | '/backup-utilities/updates'
     | '/pdf/$docId'
+    | '/backup-utilities/jumpdoc/$docId'
     | '/chain/$chainId/add-doc'
     | '/chain/$chainId/share'
     | '/chain/$chainId'
@@ -491,9 +514,11 @@ export interface FileRouteTypes {
     | '/portal'
     | '/purchases'
     | '/userimages'
+    | '/backup-utilities/updates'
     | '/chain/$chainId'
     | '/jumpdoc/$docId'
     | '/pdf/$docId'
+    | '/backup-utilities/jumpdoc/$docId'
     | '/chain/$chainId/add-doc'
     | '/chain/$chainId/config'
     | '/chain/$chainId/share'
@@ -535,9 +560,11 @@ export interface RootRouteChildren {
   PortalRoute: typeof PortalRoute
   PurchasesRoute: typeof PurchasesRoute
   UserimagesRoute: typeof UserimagesRoute
+  BackupUtilitiesUpdatesRoute: typeof BackupUtilitiesUpdatesRoute
   ChainChainIdRoute: typeof ChainChainIdRouteWithChildren
   JumpdocDocIdRoute: typeof JumpdocDocIdRouteWithChildren
   PdfDocIdRoute: typeof PdfDocIdRoute
+  BackupUtilitiesJumpdocDocIdRoute: typeof BackupUtilitiesJumpdocDocIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -626,6 +653,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChainChainIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/backup-utilities/updates': {
+      id: '/backup-utilities/updates'
+      path: '/backup-utilities/updates'
+      fullPath: '/backup-utilities/updates'
+      preLoaderRoute: typeof BackupUtilitiesUpdatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/jumpdoc/$docId/': {
       id: '/jumpdoc/$docId/'
       path: '/'
@@ -660,6 +694,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/chain/$chainId/add-doc'
       preLoaderRoute: typeof ChainChainIdAddDocRouteImport
       parentRoute: typeof ChainChainIdRoute
+    }
+    '/backup-utilities/jumpdoc/$docId': {
+      id: '/backup-utilities/jumpdoc/$docId'
+      path: '/backup-utilities/jumpdoc/$docId'
+      fullPath: '/backup-utilities/jumpdoc/$docId'
+      preLoaderRoute: typeof BackupUtilitiesJumpdocDocIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/chain/$chainId/config/': {
       id: '/chain/$chainId/config/'
@@ -1006,9 +1047,11 @@ const rootRouteChildren: RootRouteChildren = {
   PortalRoute: PortalRoute,
   PurchasesRoute: PurchasesRoute,
   UserimagesRoute: UserimagesRoute,
+  BackupUtilitiesUpdatesRoute: BackupUtilitiesUpdatesRoute,
   ChainChainIdRoute: ChainChainIdRouteWithChildren,
   JumpdocDocIdRoute: JumpdocDocIdRouteWithChildren,
   PdfDocIdRoute: PdfDocIdRoute,
+  BackupUtilitiesJumpdocDocIdRoute: BackupUtilitiesJumpdocDocIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

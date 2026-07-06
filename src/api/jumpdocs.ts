@@ -822,54 +822,6 @@ export const getJumpDocPdfUrl = createServerFn({ method: "POST" })
   });
 
 /**
- * Builds a .jumpdoc zip (data.json + meta.json + pdf.pdf + optional thumb) and
- * returns it as a base64 string. The PDF is fetched from B2 server-side.
- */
-export const buildJumpDocZip = createServerFn({ method: "POST" })
-  .inputValidator((data: { publicUid: string }) => data)
-  .handler(async ({ data }) => {
-    await connectToDatabase();
-    const doc = await Models.JumpDoc.findOne({
-      publicUid: data.publicUid,
-    }).lean();
-    if (!doc) throw new Error("Not found");
-
-    const pdf = await Models.PDF.findById(doc.pdf, { path: 1 }).lean();
-    if (!pdf?.path) throw new Error("PDF not found");
-
-    const [pdfRes, imageDoc] = await Promise.all([
-      fetch(pdf.path as string),
-      doc.imageId
-        ? Models.Image.findById(doc.imageId, { path: 1 }).lean()
-        : Promise.resolve(null),
-    ]);
-    const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
-
-    const name = (doc.name as string) ?? "Untitled";
-    const meta = { name, author: doc.author ?? [], version: "1.0", attributes: doc.attributes ?? {}, nsfw: doc.nsfw ?? false };
-
-    const zip = new AdmZip();
-    zip.addFile(
-      "data.json",
-      Buffer.from(JSON.stringify(doc.contents, null, 2), "utf-8"),
-    );
-    zip.addFile(
-      "meta.json",
-      Buffer.from(JSON.stringify(meta, null, 2), "utf-8"),
-    );
-    zip.addFile("pdf.pdf", pdfBuffer);
-
-    if (imageDoc?.path) {
-      const imgRes = await fetch(imageDoc.path as string);
-      const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
-      const ext = (imageDoc.path as string).split(".").pop() ?? "jpg";
-      zip.addFile(`thumb.${ext}`, imgBuffer);
-    }
-
-    return { zipBase64: zip.toBuffer().toString("base64"), name };
-  });
-
-/**
  * Imports a .jumpdoc zip uploaded by the user.
  * Extracts data.json (contents), meta.json (name/attributes/nsfw), and re-uploads
  * the PDF to B2 under the caller's quota. Thumbnail is uploaded best-effort.
