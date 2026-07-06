@@ -708,7 +708,7 @@ export function adjustBudget(
           ];
         }
         if (p.floatingDiscountThresholds) {
-          Object.entries(subtypes).forEach(([id, st]) => {
+          Object.entries(subtypes).forEach(([id, _]) => {
             (p?.floatingDiscountThresholds?.[+id as any] ?? []).forEach(sv => {
               if (!budget?.remainingDiscounts[+id as any])
                 budget!.remainingDiscounts[+id as any] = [];

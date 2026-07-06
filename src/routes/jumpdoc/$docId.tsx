@@ -52,7 +52,7 @@ function JumpDocLoader() {
   const { ownerUid } = useJumpDocMeta();
   // Show a guide banner if this appears to be the user's first jumpdoc.
   const [showGuideBanner, setShowGuideBanner] = useState(
-    () => localStorage.getItem("chainmaker_has_jumpdocs") === "false",
+    () => localStorage?.getItem("chainmaker_has_jumpdocs") === "false",
   );
   const name = useJumpDocName();
   // docMongoId is the MongoDB _id returned by loadJumpDoc — used for saves.

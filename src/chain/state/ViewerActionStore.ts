@@ -15,7 +15,9 @@ export type JumpDocBuildData = {
   currencyExchanges: CurrencyExchange[];
   origins: Origin[];
   /** Drawbacks created for origin stipends, keyed by origin TID. Only present if the doc has origins with non-zero stipends. */
-  stipend?: PartialIndex<TID.Origin, GID.Purchase>;
+  originStipends?: PartialIndex<TID.Origin, GID.Purchase>;
+  /** Drawbacks created for purchase stipends, keyed by purchase TID. Only present if the doc has origins with non-zero stipends. */
+  purchaseStipends?: PartialIndex<TID.Purchase, GID.Purchase>;
 };
 
 export type BuildListener = {

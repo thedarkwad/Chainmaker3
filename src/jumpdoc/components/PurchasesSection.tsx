@@ -43,12 +43,14 @@ import {
   useJumpDocOrigin,
   useDuplicateJumpDocPurchase,
   useJumpDocCompanion,
+  useJumpDocPurchaseSubtypeIdsSorted,
 } from "@/jumpdoc/state/hooks";
 import type { PurchasePrerequisite, VariableCost } from "@/chain/data/JumpDoc";
 import { PickerModal, PickerGroup } from "./PickerModal";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
 import { CostModifier, PurchaseType } from "@/chain/data/Purchase";
+import { StipendPills } from "./OriginsSection";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section (one per purchase subtype)
@@ -189,6 +191,7 @@ const PurchaseCard = memo(function PurchaseCard({
   const removePrereq = useRemoveJumpDocPrereq("purchase", id);
   const currencies = useJumpDocCurrenciesRegistry();
   const firstCurrencyId = useJumpDocFirstCurrencyId();
+  const subtypeIds = useJumpDocPurchaseSubtypeIdsSorted();
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [prereqPickerOpen, setPrereqPickerOpen] = useState(false);
   const [showBoost, setShowBoost] = useState(false);
@@ -364,7 +367,9 @@ const PurchaseCard = memo(function PurchaseCard({
                 className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
                 onClick={() =>
                   modify("Enable Variable Cost", t => {
-                    t.cost = { [defaultCurrency ?? firstCurrencyId]: "" } as VariableCost;
+                    t.cost = {
+                      [defaultCurrency ?? firstCurrencyId]: "",
+                    };
                   })
                 }
               >
@@ -375,8 +380,16 @@ const PurchaseCard = memo(function PurchaseCard({
               <div className="pt-1.5 border-t border-line">
                 <VariableCostEditor
                   value={purchase.cost as VariableCost}
-                  onCommit={(name, updated) => modify(name, t => { t.cost = updated; })}
-                  onRemove={() => modify("Disable Variable Cost", t => { t.cost = []; })}
+                  onCommit={(name, updated) =>
+                    modify(name, t => {
+                      t.cost = updated;
+                    })
+                  }
+                  onRemove={() =>
+                    modify("Disable Variable Cost", t => {
+                      t.cost = [];
+                    })
+                  }
                 />
               </div>
             ),
@@ -506,13 +519,58 @@ const PurchaseCard = memo(function PurchaseCard({
             ),
           },
           {
+            key: "stipend",
+            isActive: !!purchase.stipend?.length,
+            dormant: () => (
+              <button
+                type="button"
+                className="flex items-center gap-0.5 text-xs text-ghost hover:text-green-400 transition-colors"
+                disabled={Object.keys(currencies ?? {}).length === 0 || subtypeIds.length === 0}
+                onClick={() => {
+                  const firstCurrency = defaultCurrency ?? firstCurrencyId;
+                  const firstSubtype = subtypeIds[0];
+                  if (firstCurrency === undefined || firstSubtype === undefined)
+                    return;
+                  modify("Add Stipend", t => {
+                    t.stipend = [
+                      ...(t.stipend ?? []),
+                      {
+                        currency: firstCurrency,
+                        purchaseSubtype: firstSubtype,
+                        amount: 0,
+                      },
+                    ];
+                  });
+                }}
+              >
+                <Plus size={10} /> add stipend
+              </button>
+            ),
+            active: () => (
+              <div className="flex flex-col gap-1 pt-1.5 border-t border-line">
+                <StipendPills
+                  entries={purchase.stipend ?? []}
+                  onChange={next =>
+                    modify("Set Purchase Stipend", t => {
+                      t.stipend = next.length > 0 ? next : undefined;
+                    })
+                  }
+                />
+              </div>
+            ),
+          },
+          {
             key: "internalTags",
             isActive: purchase.internalTags !== undefined,
             dormant: () => (
               <button
                 type="button"
                 className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
-                onClick={() => modify("Add Internal Tags", t => { t.internalTags = []; })}
+                onClick={() =>
+                  modify("Add Internal Tags", t => {
+                    t.internalTags = [];
+                  })
+                }
               >
                 <Plus size={8} /> add internal tag
               </button>
@@ -520,8 +578,16 @@ const PurchaseCard = memo(function PurchaseCard({
             active: () => (
               <InternalTagsField
                 tags={purchase.internalTags!}
-                onChange={tags => modify("Edit Internal Tags", t => { t.internalTags = tags; })}
-                onUndefined={() => modify("Remove Internal Tags", t => { t.internalTags = undefined; })}
+                onChange={tags =>
+                  modify("Edit Internal Tags", t => {
+                    t.internalTags = tags;
+                  })
+                }
+                onUndefined={() =>
+                  modify("Remove Internal Tags", t => {
+                    t.internalTags = undefined;
+                  })
+                }
               />
             ),
           },
@@ -631,7 +697,6 @@ function PurchasePrereqChip({
         onRemove={onRemove}
       />
     );
-
   else
     return (
       <OriginPrereqChipInner
@@ -708,7 +773,6 @@ function CompanionPrereqChipInner({
     />
   );
 }
-
 
 function OriginPrereqChipInner({
   id,
@@ -811,10 +875,9 @@ export function PurchasePrerequisitePickerModal({
   const filteredScenarios = scenarios.filter(s =>
     s.name.toLowerCase().includes(lc),
   );
-    const filteredCompanions = companions.filter(s =>
+  const filteredCompanions = companions.filter(s =>
     s.name.toLowerCase().includes(lc),
   );
-
 
   const purchasesBySubtype = new Map<
     string,
@@ -973,7 +1036,6 @@ export function PurchasePrerequisitePickerModal({
           )}
         </PickerGroup>
       )}
-
 
       {!isEmpty && !hasMatches && (
         <p className="text-xs text-ghost px-1">No matches.</p>

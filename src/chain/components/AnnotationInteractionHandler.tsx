@@ -64,6 +64,7 @@ import {
   ScenarioTemplate,
   stripTemplating,
   VariableCost,
+  StipendEntry,
 } from "../data/JumpDoc";
 import { InteractionPreviewCard } from "./InteractionPreviewCard";
 import { CompanionMultiSelect } from "./CompanionMultiSelect";
@@ -901,103 +902,158 @@ export function createOriginSynergyListener(
 }
 
 /** Creates or removes origin stipend drawbacks as the active origin set changes. */
-export function createOriginStipendListener(
+export function createStipendListener(
   jumpId: Id<GID.Jump>,
   charId: Id<GID.Character>,
+  doc: JumpDoc,
 ): BuildListener {
+  let relevantPurchaseTemplates = Object.values(
+    doc.availablePurchases.O,
+  ).filter(pt => pt.stipend?.length);
+  let relevantOriginTemplates = Object.values(doc.origins.O).filter(
+    ot => ot.originStipend?.length,
+  );
   return createListener(
     (build, _chain, doc, _mutators) => {
       const created: string[] = [];
       const removed: string[] = [];
-      setTracked("Reconcile origin stipends", c => {
+      setTracked("Reconcile stipends", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
 
         const activeOriginTids = new Set(
-          build.origins.map(o => o.template?.id).filter(id => id != null),
+          build.origins
+            .map(o => o.template?.id)
+            .filter(id => id ?? null != null),
         );
 
-        for (const tidStr in build.stipend) {
-          const originTid = createId<TID.Origin>(+tidStr);
-          if (!activeOriginTids.has(originTid)) {
-            for (const gid of build.stipend[originTid] ?? []) {
-              removed.push(c.purchases.O[gid]?.name ?? "?");
-              delete c.purchases.O[gid];
-              const list = jump.drawbacks[charId] as
-                | Id<GID.Purchase>[]
-                | undefined;
-              if (list) {
-                const idx = list.indexOf(gid);
-                if (idx !== -1) list.splice(idx, 1);
-              }
+        const activePurchaseTids = new Set(
+          relevantPurchaseTemplates
+            .map(o => o.id)
+            .filter(id => build.purchases[id]?.length),
+        );
+
+        let removeStipends = <A extends TID>(
+          tid: Id<A>,
+          index?: PartialIndex<A, GID.Purchase>,
+        ) => {
+          for (const gid of index?.[tid] ?? []) {
+            removed.push(c.purchases.O[gid]?.name ?? "?");
+            delete c.purchases.O[gid];
+            const list = jump.drawbacks[charId] as
+              | Id<GID.Purchase>[]
+              | undefined;
+            if (list) {
+              const idx = list.indexOf(gid);
+              if (idx !== -1) list.splice(idx, 1);
             }
           }
-        }
+        };
 
-        for (const origin of build.origins) {
-          if (!origin.template) continue;
-          const template = doc.origins.O[origin.template.id];
-          if (!template?.originStipend?.length) continue;
-          const existing = build.stipend?.[template.id] ?? [];
+        let addStipend = <A extends TID>(
+          type: A extends TID.Origin ? "origin" : "purchase",
+          template: { name: string; id: Id<A> },
+          categoryName: string,
+          entry: StipendEntry,
+          stipendIndex?: PartialIndex<A, GID.Purchase>,
+        ) => {
+          if (entry.amount < 0) return;
+          const subtypeName =
+            doc.purchaseSubtypes.O[entry.purchaseSubtype]?.name ?? "";
+          const lidSubtype = convertSubtypeId(
+            entry.purchaseSubtype,
+            doc,
+            jump.purchaseSubtypes,
+          );
+          if (lidSubtype == null) return;
+          const alreadyExists = (stipendIndex?.[template.id] ?? []).some(
+            gid => {
+              const p = c.purchases.O[gid] as Drawback;
+              return p?.stipend === template.id && p.subtype === lidSubtype;
+            },
+          );
+          if (alreadyExists) return;
 
-          const docCat = doc.originCategories.O[template.type];
-          const categoryName = docCat?.name ?? "";
+          const lidCurrency = convertCurrencyId(
+            entry.currency,
+            doc,
+            jump.currencies,
+          );
 
-          for (const entry of template.originStipend) {
-            if (entry.amount <= 0) continue;
-            const subtypeName =
-              doc.purchaseSubtypes.O[entry.purchaseSubtype]?.name ?? "";
-            const alreadyExists = existing.some(gid => {
-              const p = c.purchases.O[gid] as any;
-              return (
-                p?.stipend === template.id &&
-                p.subtype === entry.purchaseSubtype
-              );
-            });
-            if (alreadyExists) continue;
+          const name = `${template.name} ${subtypeName} Stipend`;
+          created.push(name);
+          const newId = registryAdd(c.purchases, {
+            charId,
+            jumpId,
+            name,
+            duration: 1,
+            description: `Stipend from the ${template.name} ${categoryName} for ${subtypeName} purchases.`,
+            type: PurchaseType.Drawback,
+            cost: { modifier: CostModifier.Full },
+            value: [{ amount: entry.amount, currency: lidCurrency }],
+            overrides: {},
+            stipendType: type,
+            stipend: template.id as any,
+            subtype: lidSubtype,
+          });
+          if (!jump.drawbacks[charId]) jump.drawbacks[charId] = [];
+          jump.drawbacks[charId]!.push(newId);
+        };
 
-            const lidCurrency = convertCurrencyId(
-              entry.currency,
-              doc,
-              jump.currencies,
+        relevantOriginTemplates
+          .filter(t => !activeOriginTids.has(t.id))
+          .forEach(t => removeStipends(t.id, build.originStipends));
+
+        relevantPurchaseTemplates
+          .filter(t => !activePurchaseTids.has(t.id))
+          .forEach(t => removeStipends(t.id, build.purchaseStipends));
+
+        relevantOriginTemplates
+          .filter(t => activeOriginTids.has(t.id))
+          .forEach(t => {
+            const categoryName = (
+              doc.originCategories.O[t.type]?.name ?? ""
+            ).toLowerCase();
+            t.originStipend!.forEach(entry =>
+              addStipend(
+                "origin",
+                t,
+                categoryName,
+                entry,
+                build.originStipends,
+              ),
             );
-            const lidSubtype = convertSubtypeId(
-              entry.purchaseSubtype,
-              doc,
-              jump.purchaseSubtypes,
+          });
+
+        relevantPurchaseTemplates
+          .filter(t => activePurchaseTids.has(t.id))
+          .forEach(t => {
+            const categoryName = (
+              doc.purchaseSubtypes.O[t.subtype]?.name ?? ""
+            ).toLowerCase();
+            t.stipend!.forEach(entry =>
+              addStipend(
+                "purchase",
+                t,
+                categoryName.toLowerCase(),
+                entry,
+                build.purchaseStipends,
+              ),
             );
-            if (lidSubtype == null) continue;
+          });
 
-            const name = `${template.name} ${subtypeName} Stipend`;
-            created.push(name);
-            const newId = registryAdd(c.purchases, {
-              charId,
-              jumpId,
-              name,
-              duration: 1,
-              description: `Stipend from the ${template.name} ${categoryName} for ${subtypeName} purchases.`,
-              type: PurchaseType.Drawback,
-              cost: { modifier: CostModifier.Full },
-              value: [{ amount: entry.amount, currency: lidCurrency }],
-              overrides: {},
-              stipend: template.id,
-              subtype: lidSubtype,
-            });
-            if (!jump.drawbacks[charId]) jump.drawbacks[charId] = [];
-            jump.drawbacks[charId]!.push(newId);
-          }
-        }
-
-        c.budgetFlag += 1;
+        if (removed.length + created.length) c.budgetFlag += 1;
       });
-      if (removed.length) toast.info(`Removed stipends: ${fmtNames(removed)}`);
-      if (created.length) toast.info(`Added stipends: ${fmtNames(created)}`);
+      if (removed.length && !created.length) toast.info(`Removed stipends: ${fmtNames(removed)}`);
+      if (created.length && !removed.length) toast.info(`Added stipends: ${fmtNames(created)}`);
+      if (created.length && removed.length) toast.info(`Replaced ${fmtNames(removed)} with ${fmtNames(created)}`);
     },
     build => [
-      build.origins
+      relevantOriginTemplates.length && build.origins
         .map(o => o.template?.id ?? "")
         .sort()
         .join(","),
+      relevantPurchaseTemplates && Object.keys(build.purchases).length
     ],
   );
 }
@@ -1420,21 +1476,38 @@ function computeBuildData(
       }
   });
 
-  let stipend: PartialIndex<TID.Origin, GID.Purchase> | undefined;
+  let originStipends: PartialIndex<TID.Origin, GID.Purchase> | undefined;
   if (doc) {
     const hasOriginStipend = Object.values(doc.origins.O).some(t =>
       t?.originStipend?.some(e => e.amount > 0),
     );
     if (hasOriginStipend) {
-      stipend = {};
+      originStipends = {};
       for (const pId of jump.drawbacks[charId] ?? []) {
-        const p = chain.purchases.O[pId];
+        const p = chain.purchases.O[pId] as Drawback;
         if (!p) continue;
-        const stipendTid = (p as any).stipend as Id<TID.Origin> | undefined;
-        if (stipendTid != null) {
-          if (!stipend[stipendTid]) stipend[stipendTid] = [];
-          stipend[stipendTid]!.push(pId);
-        }
+        if (p.stipend == undefined || p.stipendType == "purchase") continue;
+        const stipendTid = p.stipend;
+        if (!originStipends[stipendTid]) originStipends[stipendTid] = [];
+        originStipends[stipendTid]!.push(pId);
+      }
+    }
+  }
+
+  let purchaseStipends: PartialIndex<TID.Purchase, GID.Purchase> | undefined;
+  if (doc) {
+    const hasPurchaseStipend = Object.values(doc.availablePurchases.O).some(t =>
+      t?.stipend?.some(e => e.amount > 0),
+    );
+    if (hasPurchaseStipend) {
+      purchaseStipends = {};
+      for (const pId of jump.drawbacks[charId] ?? []) {
+        const p = chain.purchases.O[pId] as Drawback;
+        if (!p) continue;
+        if (p.stipend == undefined || p.stipendType == "origin") continue;
+        const stipendTid = p.stipend;
+        if (!purchaseStipends[stipendTid]) purchaseStipends[stipendTid] = [];
+        purchaseStipends[stipendTid]!.push(pId);
       }
     }
   }
@@ -1446,7 +1519,8 @@ function computeBuildData(
     companionImports,
     currencyExchanges: jump.currencyExchanges[charId] ?? [],
     origins: Object.values(jump.origins[charId] ?? {}).flat(),
-    ...(stipend !== undefined ? { stipend } : {}),
+    originStipends,
+    purchaseStipends
   };
 }
 
@@ -4363,7 +4437,7 @@ export function AnnotationInteractionHandler({
       createBoosterTextListener(),
       createScenarioRewardListener(),
       createOriginSynergyListener(jumpId, charId),
-      createOriginStipendListener(jumpId, charId),
+      createStipendListener(jumpId, charId, doc),
       ...(character.char?.primary ? [createDurationListener(jumpId, doc)] : []),
       createReapplyTagsListener(internalTags, jumpId, charId),
     ],

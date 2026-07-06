@@ -92,16 +92,18 @@ export type PurchaseGroup = {
   components: Id<GID.Purchase>[];
 };
 
-export type SimpleValue<T extends LID.Currency | TID.Currency = LID.Currency> = {
-  amount: number;
-  currency: Id<T>;
-};
-export type Value<T extends LID.Currency | TID.Currency = LID.Currency> = SimpleValue<T>[];
+export type SimpleValue<T extends LID.Currency | TID.Currency = LID.Currency> =
+  {
+    amount: number;
+    currency: Id<T>;
+  };
+export type Value<T extends LID.Currency | TID.Currency = LID.Currency> =
+  SimpleValue<T>[];
 
-export const simplifyValue: (v: Value) => Value = (v) => {
+export const simplifyValue: (v: Value) => Value = v => {
   let newValue: Value = [];
   for (let sv of v) {
-    let relevantComponent = newValue.find((nv) => nv.currency == sv.currency);
+    let relevantComponent = newValue.find(nv => nv.currency == sv.currency);
     if (!relevantComponent) newValue.push(sv);
     else relevantComponent.amount += sv.amount;
   }
@@ -149,19 +151,20 @@ export type AbstractPurchase = {
   value: Value | number;
 };
 
-export type JumpPurchase<T extends TID | unknown = unknown> = AbstractPurchase & {
-  jumpId: Id<GID.Jump>;
-  template?: { 
-    jumpdoc: string;
-    id: T extends TID ? Id<T> : unknown;
-    originalCost?: PossibleCost, 
-    tags?: Record<string, string>,
-    originalDescription?: string,
-    originalName?: string,
+export type JumpPurchase<T extends TID | unknown = unknown> =
+  AbstractPurchase & {
+    jumpId: Id<GID.Jump>;
+    template?: {
+      jumpdoc: string;
+      id: T extends TID ? Id<T> : unknown;
+      originalCost?: PossibleCost;
+      tags?: Record<string, string>;
+      originalDescription?: string;
+      originalName?: string;
+    };
+    boosts?: { purchaseId: Id<GID.Purchase>; description: string }[];
+    value: Value;
   };
-  boosts?: { purchaseId: Id<GID.Purchase>; description: string }[];
-  value: Value;
-};
 
 export type SupplementPurchase = AbstractPurchase & {
   type: PurchaseType.SupplementPerk | PurchaseType.SupplementItem;
@@ -193,7 +196,7 @@ export type BasicPurchase = JumpPurchase<TID.Purchase | TID.Companion> & {
   };
 
   reward?: Id<TID.Scenario>;
-  freebie?: Id<TID.Companion>; 
+  freebie?: Id<TID.Companion>;
   //TODO: freebie
   /** True when this item was added as a follower companion import (as opposed to a regular perk/item). */
   follower?: true;
@@ -208,20 +211,37 @@ export type Drawback = (
   | (JumpPurchase<TID.Drawback> & {
       type: PurchaseType.Drawback;
     })
-  | (Omit<AbstractPurchase, "charId"> & { type: PurchaseType.ChainDrawback; value: number })
+  | (Omit<AbstractPurchase, "charId"> & {
+      type: PurchaseType.ChainDrawback;
+      value: number;
+    })
 ) & {
   itemStipend?: number;
   companionStipend?: number;
 
-  stipend?: Id<TID.Origin>;
-  floatingDiscountThresholds?: PartialLookup<LID.PurchaseSubtype, SimpleValue<LID.Currency>[]>;
+  floatingDiscountThresholds?: PartialLookup<
+    LID.PurchaseSubtype,
+    SimpleValue<LID.Currency>[]
+  >;
   /** User-chosen duration in years, for drawbacks with durationMod.type === "choice". */
   customDuration?: number;
 
-  subtype?: Id<LID.PurchaseSubtype> | null;
-
   overrides: PartialLookup<GID.Jump, GID.Character, DrawbackOverride>;
-};
+} & (
+    | {
+        stipendType: "origin";
+        stipend: Id<TID.Origin>;
+        subtype: Id<LID.PurchaseSubtype> | null;
+      }
+    | {
+        stipendType: "purchase";
+        stipend: Id<TID.Purchase>;
+        subtype: Id<LID.PurchaseSubtype> | null;
+      }
+    | {
+      stipend?: undefined;
+    }
+  );
 
 export type Scenario = JumpPurchase<TID.Scenario> & {
   type: PurchaseType.Scenario;
@@ -256,7 +276,9 @@ export type Purchase =
   | SupplementImport
   | Subpurchase;
 
-export const getUniversalSimpleValue = (p: Purchase): UniversalSimpleValue | undefined => {
+export const getUniversalSimpleValue = (
+  p: Purchase,
+): UniversalSimpleValue | undefined => {
   switch (p.type) {
     case PurchaseType.Scenario:
     case PurchaseType.SupplementScenario:
@@ -271,43 +293,42 @@ export const getUniversalSimpleValue = (p: Purchase): UniversalSimpleValue | und
     case PurchaseType.SupplementPerk:
     case PurchaseType.SupplementItem:
     case PurchaseType.SupplementImport:
-      return { type: CurrencyType.Supplement, value: p.value, suppId: p.supplement };
+      return {
+        type: CurrencyType.Supplement,
+        value: p.value,
+        suppId: p.supplement,
+      };
   }
 };
 
-export function purchaseValue<T extends TID.Currency | LID.Currency = LID.Currency>(
-  value: Value<T>,
-  mod: ModifiedCost<T>,
-): Value<T>;
+export function purchaseValue<
+  T extends TID.Currency | LID.Currency = LID.Currency,
+>(value: Value<T>, mod: ModifiedCost<T>): Value<T>;
 
-export function purchaseValue<T extends TID.Currency | LID.Currency = LID.Currency>(
-  value: Value<T> | number,
-  mod: ModifiedCost<T>,
-): Value<T> | number;
+export function purchaseValue<
+  T extends TID.Currency | LID.Currency = LID.Currency,
+>(value: Value<T> | number, mod: ModifiedCost<T>): Value<T> | number;
 
+export function purchaseValue<
+  T extends TID.Currency | LID.Currency = LID.Currency,
+>(value: number, mod: ModifiedCost<T>): number;
 
-export function purchaseValue<T extends TID.Currency | LID.Currency = LID.Currency>(
-  value: number,
-  mod: ModifiedCost<T>,
-): number;
-
-export function purchaseValue<T extends TID.Currency | LID.Currency = LID.Currency>(
-  value: Value<T> | number,
-  mod: ModifiedCost<T>,
-): Value<T> | number {
+export function purchaseValue<
+  T extends TID.Currency | LID.Currency = LID.Currency,
+>(value: Value<T> | number, mod: ModifiedCost<T>): Value<T> | number {
   switch (mod.modifier) {
     case CostModifier.Full:
       return value;
     case CostModifier.Reduced:
       return typeof value == "object"
-        ? value.map((val) => ({
+        ? value.map(val => ({
             amount: Math.min(val.amount, Math.floor(val.amount / 2)),
             currency: val.currency,
           }))
         : value / 2;
     case CostModifier.Free:
       return typeof value == "object"
-        ? value.map((val) => ({
+        ? value.map(val => ({
             amount: Math.min(val.amount, 0),
             currency: val.currency,
           }))
@@ -315,4 +336,4 @@ export function purchaseValue<T extends TID.Currency | LID.Currency = LID.Curren
     case CostModifier.Custom:
       return mod.modifiedTo;
   }
-};
+}

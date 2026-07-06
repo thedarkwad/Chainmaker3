@@ -33,7 +33,7 @@ import {
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
-import type { DocOriginCategory, OriginStipendEntry } from "@/chain/data/JumpDoc";
+import type { StipendEntry } from "@/chain/data/JumpDoc";
 import {
   PurchasePrerequisiteEditor,
   PurchasePrerequisitePickerModal,
@@ -46,12 +46,12 @@ import { DEFAULT_CURRENCY_ID } from "@/chain/data/Jump";
 // Stipend pills
 // ─────────────────────────────────────────────────────────────────────────────
 
-function StipendPills({
+export function StipendPills({
   entries,
   onChange,
 }: {
-  entries: OriginStipendEntry[];
-  onChange: (next: OriginStipendEntry[]) => void;
+  entries: StipendEntry[];
+  onChange: (next: StipendEntry[]) => void;
 }) {
   const currencyIds = useJumpDocCurrencyIds();
   const currencies = useJumpDocCurrenciesRegistry();
@@ -68,7 +68,7 @@ function StipendPills({
     onChange(entries.filter((_, idx) => idx !== i));
   };
 
-  const updateEntry = (i: number, patch: Partial<OriginStipendEntry>) => {
+  const updateEntry = (i: number, patch: Partial<StipendEntry>) => {
     onChange(entries.map((e, idx) => (idx === i ? { ...e, ...patch } : e)));
   };
 

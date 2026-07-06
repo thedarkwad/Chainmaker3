@@ -56,7 +56,7 @@ export type PageRect = Rect & {
   page: number;
 };
 
-export type OriginStipendEntry = {
+export type StipendEntry = {
   currency: Id<TID.Currency>;
   purchaseSubtype: Id<TID.PurchaseSubtype>;
   amount: number;
@@ -71,7 +71,7 @@ export type OriginTemplate = {
   type: Id<TID.OriginCategory>;
   bounds?: PageRect[];
   /** Stipend entries granted to the character while this origin is held. */
-  originStipend?: OriginStipendEntry[];
+  originStipend?: StipendEntry[];
 
   internalTags?: string[];
 
@@ -179,6 +179,9 @@ export type BasicPurchaseTemplate = PurchaseTemplate<TID.Purchase> & {
     boosterKind?: "purchase" | "drawback";
   }[];
   subtype: Id<TID.PurchaseSubtype>;
+
+  stipend?: StipendEntry[];
+
   temporary: boolean;
 };
 
