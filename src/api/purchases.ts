@@ -84,7 +84,7 @@ function buildPurchaseFilter(
 }
 
 export const searchPurchases = createServerFn({ method: "POST" })
-  .inputValidator((data: PurchaseSearchParams) => data)
+  .validator((data: PurchaseSearchParams) => data)
   .handler(async ({ data }): Promise<PurchaseSearchPage> => {
     await connectToDatabase();
 

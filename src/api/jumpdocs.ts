@@ -36,7 +36,7 @@ enablePatches();
  * `docMongoId` is the MongoDB _id (returned by loadJumpDoc), not the publicUid.
  */
 export const saveJumpDoc = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (data: {
       docMongoId: string;
       idToken: string;
@@ -104,7 +104,7 @@ export const saveJumpDoc = createServerFn({ method: "POST" })
  * Requires the caller to be the owner or an admin.
  */
 export const deleteJumpDoc = createServerFn({ method: "POST" })
-  .inputValidator((data: { publicUid: string; idToken: string }) => data)
+  .validator((data: { publicUid: string; idToken: string }) => data)
   .handler(
     async ({
       data,
@@ -152,7 +152,7 @@ export const deleteJumpDoc = createServerFn({ method: "POST" })
  * Requires the caller to be the owner or an admin.
  */
 export const forceReplaceJumpDoc = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (data: { docMongoId: string; idToken: string; contents: unknown }) => data,
   )
   .handler(async ({ data }): Promise<SaveResult> => {
@@ -275,7 +275,7 @@ function mapJumpDocSummary(
  * Accepts a Firebase ID token; never sends full jumpdoc contents to the client.
  */
 export const listJumpDocs = createServerFn({ method: "POST" })
-  .inputValidator((idToken: string) => idToken)
+  .validator((idToken: string) => idToken)
   .handler(async ({ data: idToken }): Promise<JumpDocSummary[]> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(idToken);
@@ -387,7 +387,7 @@ function buildSearchFilter(search: string): object {
  * No authentication required — only docs with `published: true` are returned.
  */
 export const listPublishedJumpDocs = createServerFn({ method: "POST" })
-  .inputValidator((data: JumpDocGalleryParams) => data)
+  .validator((data: JumpDocGalleryParams) => data)
   .handler(async ({ data }): Promise<JumpDocGalleryPage> => {
     await connectToDatabase();
 
@@ -484,7 +484,7 @@ export const listPublishedJumpDocs = createServerFn({ method: "POST" })
  * Accepts an optional idToken to determine ownership.
  */
 export const getPublishedJumpDocSummary = createServerFn({ method: "POST" })
-  .inputValidator((data: { publicUid: string; idToken?: string }) => data)
+  .validator((data: { publicUid: string; idToken?: string }) => data)
   .handler(async ({ data }): Promise<JumpDocSummary | null> => {
     await connectToDatabase();
     const doc = await Models.JumpDoc.findOne(
@@ -523,7 +523,7 @@ export const getPublishedJumpDocSummary = createServerFn({ method: "POST" })
  * Returns contents, edits count, and the internal MongoDB _id (docMongoId) for saves.
  */
 export const loadJumpDoc = createServerFn({ method: "POST" })
-  .inputValidator((data: { publicUid: string; idToken?: string }) => data)
+  .validator((data: { publicUid: string; idToken?: string }) => data)
   .handler(async ({ data }) => {
     await connectToDatabase();
     const doc = await Models.JumpDoc.findOne({
@@ -584,7 +584,7 @@ export type JumpDocPublishInput = {
  * Requires the caller to be the owner or an admin.
  */
 export const publishJumpDoc = createServerFn({ method: "POST" })
-  .inputValidator((data: JumpDocPublishInput) => data)
+  .validator((data: JumpDocPublishInput) => data)
   .handler(
     async ({
       data,
@@ -663,7 +663,7 @@ export const publishJumpDoc = createServerFn({ method: "POST" })
  * `fileData` is the PDF encoded as a base64 string.
  */
 export const createJumpDoc = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (data: {
       idToken: string;
       fileName: string;
@@ -806,7 +806,7 @@ export const createJumpDoc = createServerFn({ method: "POST" })
  * No auth required — assumes the caller has knowledge of the publicUid.
  */
 export const getJumpDocPdfUrl = createServerFn({ method: "POST" })
-  .inputValidator((data: { publicUid: string }) => data)
+  .validator((data: { publicUid: string }) => data)
   .handler(async ({ data }) => {
     await connectToDatabase();
     const doc = await Models.JumpDoc.findOne(
@@ -828,7 +828,7 @@ export const getJumpDocPdfUrl = createServerFn({ method: "POST" })
  * The resulting JumpDoc is unpublished so the user can review before publishing.
  */
 export const importJumpDoc = createServerFn({ method: "POST" })
-  .inputValidator((data: { idToken: string; zipBase64: string }) => data)
+  .validator((data: { idToken: string; zipBase64: string }) => data)
   .handler(async ({ data }): Promise<{ publicUid: string }> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);
@@ -974,7 +974,7 @@ export const importJumpDoc = createServerFn({ method: "POST" })
  * The message is assembled from three parts with markdown headings.
  */
 export const sendTrustedEditMessage = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (data: {
       publicUid: string;
       idToken: string;
@@ -1061,7 +1061,7 @@ export const sendTrustedEditMessage = createServerFn({ method: "POST" })
  * Used for publish-metadata and unpublish actions by trusted editors.
  */
 export const sendModeratorNotification = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (data: { publicUid: string; idToken: string; content: string }) => data,
   )
   .handler(

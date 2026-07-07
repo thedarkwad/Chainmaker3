@@ -64,7 +64,7 @@ function buildImgRefUpdates(
  * Rejects with status "conflict" if the supplied `edits` count doesn't match the DB.
  */
 export const saveChain = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (data: { chainId: string; idToken?: string; patches: Patch[]; edits: number }) => data,
   )
   .handler(async ({ data }): Promise<SaveResult> => {
@@ -112,7 +112,7 @@ export const saveChain = createServerFn({ method: "POST" })
  * must have no owner (anonymous chain).
  */
 export const forceReplaceChain = createServerFn({ method: "POST" })
-  .inputValidator((data: { chainId: string; idToken?: string; contents: unknown }) => data)
+  .validator((data: { chainId: string; idToken?: string; contents: unknown }) => data)
   .handler(async ({ data }): Promise<SaveResult> => {
     await connectToDatabase();
     const chain = await Models.Chain.findById(data.chainId).lean();
@@ -148,7 +148,7 @@ export const forceReplaceChain = createServerFn({ method: "POST" })
  * Returns the new chain's MongoDB _id for use in navigation.
  */
 export const createChain = createServerFn({ method: "POST" })
-  .inputValidator((data: { idToken?: string; contents: object; imageIds?: string[] }) => data)
+  .validator((data: { idToken?: string; contents: object; imageIds?: string[] }) => data)
   .handler(async ({ data }) => {
     await connectToDatabase();
     const uid = data.idToken ? (await verifyIdToken(data.idToken)).uid : "";
@@ -174,7 +174,7 @@ export const createChain = createServerFn({ method: "POST" })
  * Requires the caller to be the owner or an admin.
  */
 export const deleteChain = createServerFn({ method: "POST" })
-  .inputValidator((data: { publicUid: string; idToken: string }) => data)
+  .validator((data: { publicUid: string; idToken: string }) => data)
   .handler(async ({ data }): Promise<{ status: "ok" | "not_found" | "unauthorized" }> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);
@@ -198,7 +198,7 @@ export const deleteChain = createServerFn({ method: "POST" })
  * Requires the caller to be the owner or an admin.
  */
 export const duplicateChain = createServerFn({ method: "POST" })
-  .inputValidator((data: { publicUid: string; idToken: string }) => data)
+  .validator((data: { publicUid: string; idToken: string }) => data)
   .handler(async ({ data }): Promise<{ publicUid: string }> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);
@@ -242,7 +242,7 @@ export type ChainSummary = {
  * Accepts a Firebase ID token; never sends full chain contents to the client.
  */
 export const listChains = createServerFn({ method: "POST" })
-  .inputValidator((idToken: string) => idToken)
+  .validator((idToken: string) => idToken)
   .handler(async ({ data: idToken }): Promise<ChainSummary[]> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(idToken);
@@ -267,7 +267,7 @@ export const listChains = createServerFn({ method: "POST" })
  * and the internal MongoDB _id (chainMongoId) needed by saveChain.
  */
 export const loadChain = createServerFn({ method: "POST" })
-  .inputValidator((data: { publicUid: string; idToken?: string }) => data)
+  .validator((data: { publicUid: string; idToken?: string }) => data)
   .handler(async ({ data }) => {
     await connectToDatabase();
     const chain = await Models.Chain.findOne({ publicUid: data.publicUid }).lean();
@@ -292,7 +292,7 @@ export const loadChain = createServerFn({ method: "POST" })
  * Rejects if the chain already has an owner.
  */
 export const claimChain = createServerFn({ method: "POST" })
-  .inputValidator((data: { publicUid: string; idToken: string }) => data)
+  .validator((data: { publicUid: string; idToken: string }) => data)
   .handler(async ({ data }): Promise<{ status: "ok" | "already_owned" | "not_found" }> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);

@@ -11,7 +11,7 @@ export type ConversationSummary = {
 };
 
 export const getUnreadCount = createServerFn({ method: "POST" })
-  .inputValidator((data: { idToken: string }) => data)
+  .validator((data: { idToken: string }) => data)
   .handler(async ({ data }): Promise<number> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);
@@ -22,7 +22,7 @@ export const getUnreadCount = createServerFn({ method: "POST" })
   });
 
 export const listConversations = createServerFn({ method: "POST" })
-  .inputValidator((data: { idToken: string }) => data)
+  .validator((data: { idToken: string }) => data)
   .handler(async ({ data }): Promise<ConversationSummary[]> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);
@@ -88,7 +88,7 @@ export type LoadConversationResult =
   | { status: "not_found" | "unauthorized" };
 
 export const loadConversation = createServerFn({ method: "POST" })
-  .inputValidator((data: { salientJumpDocUid: string; idToken: string }) => data)
+  .validator((data: { salientJumpDocUid: string; idToken: string }) => data)
   .handler(async ({ data }): Promise<LoadConversationResult> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);
@@ -132,7 +132,7 @@ export const loadConversation = createServerFn({ method: "POST" })
 // ---------------------------------------------------------------------------
 
 export const sendConversationMessage = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (data: { salientJumpDocUid: string; idToken: string; content: string }) => data,
   )
   .handler(
@@ -178,7 +178,7 @@ export const sendConversationMessage = createServerFn({ method: "POST" })
 // ---------------------------------------------------------------------------
 
 export const markConversationRead = createServerFn({ method: "POST" })
-  .inputValidator((data: { salientJumpDocUid: string; idToken: string }) => data)
+  .validator((data: { salientJumpDocUid: string; idToken: string }) => data)
   .handler(
     async ({
       data,

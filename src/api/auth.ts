@@ -28,7 +28,7 @@ export type ClientUser = {
  * Called from AuthProvider whenever Firebase auth state changes to signed-in.
  */
 export const getOrCreateDbUser = createServerFn({ method: "POST" })
-  .inputValidator((idToken: string) => idToken)
+  .validator((idToken: string) => idToken)
   .handler(async ({ data: idToken }) => {
     await connectToDatabase();
     const decoded = await verifyIdToken(idToken);
@@ -54,7 +54,7 @@ export const getOrCreateDbUser = createServerFn({ method: "POST" })
  * Called after the user picks a custom display name during Google sign-up.
  */
 export const updateDisplayName = createServerFn({ method: "POST" })
-  .inputValidator((data: { idToken: string; displayName: string }) => data)
+  .validator((data: { idToken: string; displayName: string }) => data)
   .handler(async ({ data }) => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);
@@ -67,7 +67,7 @@ export const updateDisplayName = createServerFn({ method: "POST" })
  * The key value is only ever sent back to the owning user.
  */
 export const getImgChestApiKey = createServerFn({ method: "POST" })
-  .inputValidator((idToken: string) => idToken)
+  .validator((idToken: string) => idToken)
   .handler(async ({ data: idToken }) => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(idToken);
@@ -81,7 +81,7 @@ export const getImgChestApiKey = createServerFn({ method: "POST" })
  * Pass an empty string to remove the key.
  */
 export const setImgChestApiKey = createServerFn({ method: "POST" })
-  .inputValidator((data: { idToken: string; key: string }) => data)
+  .validator((data: { idToken: string; key: string }) => data)
   .handler(async ({ data }) => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);

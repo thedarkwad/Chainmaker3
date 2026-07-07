@@ -28,7 +28,7 @@ export type ImageSummary = {
  * Returns null if the image doesn't exist.
  */
 export const getImagePath = createServerFn({ method: "POST" })
-  .inputValidator((imgId: string) => imgId)
+  .validator((imgId: string) => imgId)
   .handler(async ({ data: imgId }): Promise<string | null> => {
     await connectToDatabase();
     const img = await Models.Image.findById(imgId, { path: 1 }).lean();
@@ -41,7 +41,7 @@ export const getImagePath = createServerFn({ method: "POST" })
  * Returns a Record<imgId, url> for every id that was found.
  */
 export const getImagePaths = createServerFn({ method: "POST" })
-  .inputValidator((imgIds: string[]) => imgIds)
+  .validator((imgIds: string[]) => imgIds)
   .handler(async ({ data: imgIds }): Promise<Record<string, string>> => {
     if (imgIds.length === 0) return {};
     await connectToDatabase();
@@ -55,7 +55,7 @@ export const getImagePaths = createServerFn({ method: "POST" })
  * Returns all images owned by the authenticated user, newest first.
  */
 export const listUserImages = createServerFn({ method: "POST" })
-  .inputValidator((idToken: string) => idToken)
+  .validator((idToken: string) => idToken)
   .handler(async ({ data: idToken }): Promise<ImageSummary[]> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(idToken);
@@ -85,7 +85,7 @@ export const listUserImages = createServerFn({ method: "POST" })
  * The image is compressed server-side to PNG (quality 65) before upload.
  */
 export const uploadImage = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (data: { idToken: string; fileName: string; fileData: string; bytes: number }) => data,
   )
   .handler(async ({ data }): Promise<ImageSummary> => {
@@ -154,7 +154,7 @@ export type ImageUsedInEntry = {
  * Projects only publicUid + name (for jumpdocs); never fetches chain contents.
  */
 export const getImageUsedIn = createServerFn({ method: "POST" })
-  .inputValidator((data: { idToken: string; imageId: string }) => data)
+  .validator((data: { idToken: string; imageId: string }) => data)
   .handler(async ({ data }): Promise<ImageUsedInEntry[]> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);
@@ -199,7 +199,7 @@ export const getImageUsedIn = createServerFn({ method: "POST" })
  * `fileData` is the image encoded as a base64 string.
  */
 export const uploadImgChestImage = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (data: { idToken: string; fileName: string; fileData: string; bytes: number }) => data,
   )
   .handler(async ({ data }): Promise<ImageSummary> => {
@@ -266,7 +266,7 @@ export type DeleteImageResult =
  * For ImgChest images: deletes the remote post via ImgChest's API.
  */
 export const deleteImage = createServerFn({ method: "POST" })
-  .inputValidator((data: { idToken: string; imageId: string }) => data)
+  .validator((data: { idToken: string; imageId: string }) => data)
   .handler(async ({ data }): Promise<DeleteImageResult> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);
@@ -312,7 +312,7 @@ export const deleteImage = createServerFn({ method: "POST" })
  * Only valid for imagechest uploadType images owned by the caller.
  */
 export const unlinkImage = createServerFn({ method: "POST" })
-  .inputValidator((data: { idToken: string; imageId: string }) => data)
+  .validator((data: { idToken: string; imageId: string }) => data)
   .handler(async ({ data }): Promise<DeleteImageResult> => {
     await connectToDatabase();
     const { uid } = await verifyIdToken(data.idToken);
