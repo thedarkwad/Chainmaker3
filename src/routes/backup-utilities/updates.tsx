@@ -1,10 +1,13 @@
 import { connectToDatabase, IJumpDoc, Models } from "@/server/db";
 import { createFileRoute } from "@tanstack/react-router";
+import { stringify } from "csv-stringify/sync";
 
 type SearchParams = { cutoff: number; secret: string };
-type UpdateRecord = { updatedAt: number; id: string };
 
-type JumpDocSummary = Pick<IJumpDoc, "publicUid" | "updatedAt">;
+type JumpDocSummary = Pick<
+  IJumpDoc,
+  "publicUid" | "updatedAt" | "name" | "nsfw"
+>;
 
 export const Route = createFileRoute("/backup-utilities/updates")({
   validateSearch: (s): SearchParams => ({
@@ -31,19 +34,32 @@ export const Route = createFileRoute("/backup-utilities/updates")({
           ],
           published: true,
         })
-          .select({ publicUid: 1, updatedAt: 1, _id: 0 } as const)
+          .select({
+            nsfw: 1,
+            name: 1,
+            publicUid: 1,
+            updatedAt: 1,
+            _id: 0,
+          } as const)
           .lean<JumpDocSummary[]>();
 
-        let updates: UpdateRecord[] = updatedEntries.map(a => ({
-          updatedAt: a.updatedAt.getTime(),
-          id: a.publicUid,
-        }));
+        let updates = updatedEntries.map(a => [
+          a.name,
+          a.nsfw ? "NSFW" : "SFW",
+          String(a.updatedAt.getTime()),
+          a.publicUid,
+        ]);
 
-        return new Response(JSON.stringify(updates), {
-          headers: {
-            "Content-Type": "application/json",
+        return new Response(
+          stringify(
+            [["name", "nsfw", "lastUpdated", "publicId"]].concat(updates),
+          ),
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
           },
-        });
+        );
       },
     },
   },

@@ -310,7 +310,7 @@ export function listJumpdocs(): ElectronJumpDocMeta[] {
   const folder = getSettings().jumpdocFolder;
   if (!folder || !fs.existsSync(folder)) return [];
 
-  const filenames = collectJumpdocFilenames(folder, "", 2);
+  const filenames = collectJumpdocFilenames(folder, "", 3);
 
   const index = readIndex(folder);
   let indexDirty = false;

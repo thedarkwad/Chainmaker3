@@ -82,6 +82,7 @@
     "@types/mdast": "^4.0.4",
     "adm-zip": "^0.5.16",
     "compress-pdf": "^0.6.0",
+    "csv-stringify": "^6.8.1",
     "electron-context-menu": "^3.6.1",
     "electron-updater": "^6.8.3",
     "fflate": "^0.8.2",

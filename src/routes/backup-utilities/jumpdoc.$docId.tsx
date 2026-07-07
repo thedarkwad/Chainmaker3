@@ -70,7 +70,7 @@ export const Route = createFileRoute("/backup-utilities/jumpdoc/$docId")({
         return new Response(buffer, {
           headers: {
             "Content-Type": "application/zip",
-            "Content-Disposition": `attachment; filename="${name}.jumpdoc"`,
+            "Content-Disposition": `attachment; filename="${name.replace(/[^\x00-\x7F]/g, "")}.jumpdoc"`,
             "Content-Length": String(buffer.length),
           },
         });
