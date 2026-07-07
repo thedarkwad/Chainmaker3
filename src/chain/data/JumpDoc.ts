@@ -2,6 +2,8 @@ import { Duration } from "@/utilities/units";
 import { Currency, OriginCategory, PurchaseSubtype } from "./Jump";
 import { RewardType, SimpleValue, Value } from "./Purchase";
 import { createId, Id, Lookup, PartialLookup, Registry, TID } from "./types";
+import { a } from "vitest/dist/chunks/suite.d.FvehnV49.js";
+import { objFilter } from "@/utilities/miscUtilities";
 
 export type DocOriginCategory = OriginCategory & { max?: number } & (
     | { singleLine: true; options: FreeFormOrigin[] }
@@ -262,6 +264,7 @@ export const stripTemplating = (s: string) => s.trim();
 
 /**
  * Assigns `id` to any OriginTemplate entry that was loaded from JSON without one.
+ * Also removes falsy values from various registries.
  * Call this once immediately after loading a JumpDoc from the network.
  */
 export function preprocessJumpDoc(doc: JumpDoc): JumpDoc {
@@ -272,5 +275,12 @@ export function preprocessJumpDoc(doc: JumpDoc): JumpDoc {
       template.id = tid;
     }
   }
+
+  let stripFalsy = <A extends TID, B>(a: Registry<A, B>) : Registry<A, B>=> ({fId: a.fId, O: objFilter(a.O, t => !!t) as any});
+  doc.availableCompanions = stripFalsy(doc.availableCompanions);
+  doc.availablePurchases = stripFalsy(doc.availablePurchases);
+  doc.availableDrawbacks = stripFalsy(doc.availableDrawbacks);
+  doc.availableScenarios = stripFalsy(doc.availableScenarios);
+
   return doc;
 }
