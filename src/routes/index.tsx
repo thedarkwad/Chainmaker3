@@ -237,7 +237,7 @@ function HomePage() {
   }
 
   useEffect(() => {
-    listPublishedJumpDocs({ data: { page: 1, pageSize: 5, sortKey: "createdAt", sortDir: "desc" } })
+    listPublishedJumpDocs({ data: { page: 1, pageSize: 5, sortKey: "firstPublishedAt", showNsfw: "hide", sortDir: "desc" } })
       .then((r) => setRecentDocs(r.docs))
       .catch((e) => console.error("listPublishedJumpDocs failed:", e));
   }, []);
