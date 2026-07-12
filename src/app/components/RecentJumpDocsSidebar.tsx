@@ -62,7 +62,7 @@ export function RecentJumpDocsSidebar() {
 
   useEffect(() => {
     listPublishedJumpDocs({
-      data: { page: 1, pageSize: 12, sortKey: "createdAt", sortDir: "desc" },
+      data: { page: 1, pageSize: 12, sortKey: "firstPublishedAt", sortDir: "desc", showNsfw: "hide" },
     })
       .then((r) => setDocs(r.docs))
       .catch(console.error)

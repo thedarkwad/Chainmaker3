@@ -320,7 +320,7 @@ export const listJumpDocs = createServerFn({ method: "POST" })
 export type JumpDocGalleryParams = {
   page: number;
   pageSize: number;
-  sortKey: "name" | "updatedAt" | "createdAt";
+  sortKey: "name" | "updatedAt" | "createdAt" | "firstPublishedAt";
   sortDir: "asc" | "desc";
   /** Raw query string — see parseJumpDocQuery for syntax. */
   search?: string;
