@@ -61,8 +61,8 @@ function SupplementSection({
 
   const clipboardKey =
     type === PurchaseType.SupplementPerk
-      ? `supplement-perk`
-      : `supplement-item`;
+      ? `perk`
+      : `item`;
 
   const clearNew = (id: Id<GID.Purchase>) =>
     setNewIds((prev) => {

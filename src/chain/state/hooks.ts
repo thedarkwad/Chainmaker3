@@ -12,9 +12,7 @@ import type {
   JumpSource,
 } from "@/chain/data/Jump";
 import { DEFAULT_CURRENCY_ID, JumpSourceType } from "@/chain/data/Jump";
-import type {
-  JumpDoc,
-} from "@/chain/data/JumpDoc";
+import type { JumpDoc } from "@/chain/data/JumpDoc";
 import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
 import {
   CostModifier,
@@ -489,7 +487,8 @@ export function useAddCurrencyExchangeFromDoc(
             tamount: opts.tamount,
             templateIndex: opts.templateIndex,
           };
-          if (!jump.currencyExchanges[charId]) jump.currencyExchanges[charId] = [];
+          if (!jump.currencyExchanges[charId])
+            jump.currencyExchanges[charId] = [];
           jump.currencyExchanges[charId]!.push(newEx);
         }
         c.budgetFlag += 1;
@@ -1726,7 +1725,9 @@ export function useResyncJumpFromDoc(jumpId: Id<GID.Jump>) {
             essential: docCur.essential,
           };
           if ((expectedLid as number) >= (jump.currencies.fId as number)) {
-            jump.currencies.fId = createId<LID.Currency>((expectedLid as number) + 1);
+            jump.currencies.fId = createId<LID.Currency>(
+              (expectedLid as number) + 1,
+            );
           }
         }
       }
@@ -1753,10 +1754,12 @@ export function useResyncJumpFromDoc(jumpId: Id<GID.Jump>) {
           }
         }
 
-        const newStipend = (docSt.stipend as SimpleValue<TID.Currency>[]).map(s => ({
-          amount: s.amount,
-          currency: createId<LID.Currency>(s.currency as number),
-        }));
+        const newStipend = (docSt.stipend as SimpleValue<TID.Currency>[]).map(
+          s => ({
+            amount: s.amount,
+            currency: createId<LID.Currency>(s.currency as number),
+          }),
+        );
 
         if (foundLid !== undefined) {
           const st = jump.purchaseSubtypes.O[foundLid]!;
@@ -1774,7 +1777,9 @@ export function useResyncJumpFromDoc(jumpId: Id<GID.Jump>) {
             placement: docSt.essential ? "normal" : "section",
             templateId: tid,
           };
-          jump.purchaseSubtypes.fId = createId<LID.PurchaseSubtype>((newLid as number) + 1);
+          jump.purchaseSubtypes.fId = createId<LID.PurchaseSubtype>(
+            (newLid as number) + 1,
+          );
         }
       }
 
@@ -2003,6 +2008,7 @@ export function useJumpSubtypeConfig(jumpId: Id<GID.Jump>) {
           for (const pId of (jump.drawbacks as any)[cStr] ?? []) {
             const p = c.purchases.O[pId] as Drawback | undefined;
             if (!p || p.type !== PurchaseType.Drawback) continue;
+            if (!("subtype" in p)) continue;
             if ((p.subtype as number) === (id as number)) p.subtype = null;
           }
         }
@@ -4022,10 +4028,27 @@ function deepCopyPurchase(
 
   const srcJumpId = (src as JumpPurchase).jumpId;
   const sameJump = srcJumpId === jumpId;
-  const targetJump = c.jumps.O[jumpId];
 
   // Shallow-clone, then fix up fields below
   const copy: any = { ...src, id: newId, charId, jumpId };
+  delete copy.template;
+
+  if (suppId != null) {
+    (copy as SupplementPurchase).supplement = suppId;
+    if (Array.isArray(src.value))
+      copy.value = (src.value as SimpleValue[]).reduce(
+        (sum: number, sv) => sum + (sv.amount ?? 0),
+        0,
+      );
+    (copy as SupplementPurchase).type =
+      src.type == PurchaseType.Perk
+        ? PurchaseType.SupplementPerk
+        : src.type == PurchaseType.Item
+          ? PurchaseType.SupplementItem
+          : (src.type as any);
+    if (!("suppId" in src) || src.suppId != suppId)
+      (copy as SupplementPurchase).categories = [];
+  }
 
   // Cross-jump paste: collapse the source value into a single DEFAULT_CURRENCY amount
   // by summing all currency components. Same-jump paste keeps the value as-is.
@@ -4081,7 +4104,7 @@ function deepCopyPurchase(
       break;
     case PurchaseType.SupplementPerk:
     case PurchaseType.SupplementItem:
-      if (suppId != null) (copy as SupplementPurchase).supplement = suppId;
+      delete (copy as SupplementPurchase).obsolete;
       break;
     default:
       break;
