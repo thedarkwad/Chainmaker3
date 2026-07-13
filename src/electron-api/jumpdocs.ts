@@ -135,7 +135,7 @@ export async function listPublishedJumpDocs(
       cmp = a.name.localeCompare(b.name);
     } else if (p.sortKey === "updatedAt") {
       cmp = (a.updatedAt ?? 0) - (b.updatedAt ?? 0);
-    } else if (p.sortKey === "createdAt") {
+    } else if (p.sortKey === "createdAt" || p.sortKey === "firstPublishedAt") {
       cmp = (a.createdAt ?? 0) - (b.createdAt ?? 0);
     }
     return p.sortDir === "asc" ? cmp : -cmp;

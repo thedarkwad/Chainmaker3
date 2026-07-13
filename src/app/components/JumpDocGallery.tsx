@@ -30,7 +30,7 @@ import {
 // Public types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type SortKey = "name" | "updatedAt" | "createdAt";
+export type SortKey = "name" | "updatedAt" | "firstPublishedAt";
 export type SortDir = "asc" | "desc";
 
 export type JumpDocGalleryProps = {
@@ -132,7 +132,7 @@ const SEARCH_TIP = (
 const SORT_KEYS: { key: SortKey; label: string }[] = [
   { key: "name", label: "Name" },
   { key: "updatedAt", label: "Updated" },
-  { key: "createdAt", label: "Created" },
+  { key: "firstPublishedAt", label: "Created" },
 ];
 
 function GallerySortBar({
