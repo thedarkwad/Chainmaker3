@@ -1595,7 +1595,6 @@ export function useJumpConfig(jumpId: Id<GID.Jump>) {
           const p = c.purchases.O[id as any] as JumpPurchase | undefined;
           if (!p) continue;
           delete p.template;
-          const bp = p as BasicPurchase;
         }
 
         // Strip defaultCurrency (a JumpDoc-only hint) from all purchase subtypes
