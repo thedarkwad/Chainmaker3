@@ -332,7 +332,7 @@ export type ChainMutators = {
     data: {
       template: OriginTemplate;
       tags: Record<string, string>;
-      cost: SimpleValue<TID.Currency>;
+      cost: Value<TID.Currency>;
       freebie?: Id<TID.Companion>;
     },
     jumpId: Id<GID.Jump>,
@@ -876,11 +876,13 @@ export function createOriginSynergyListener(
           template.synergyBenefit === "free"
         ) {
           const originalCost = origin.template.originalCost;
+          const costAsValue = Array.isArray(template.cost)
+            ? template.cost
+            : [template.cost];
           if (!originalCost) continue;
           const originalHadSynergy =
             originalCost.modifier !== CostModifier.Full ||
-            (originalCost.cost[0]?.amount ?? template.cost.amount) <
-              template.cost.amount;
+            !valuesEqualTID(originalCost.cost, costAsValue);
           if (synergyPresent !== originalHadSynergy) {
             repriced.push(template.name);
             mutators.repriceOrigin(template.id, jumpId, charId, build, doc);
@@ -920,10 +922,8 @@ export function createStipendListener(
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
 
-
         const activeOriginTids = new Set(
-          build.origins
-            .map(o => o.template?.id)
+          build.origins.map(o => o.template?.id),
         );
         const activePurchaseTids = new Set(
           relevantPurchaseTemplates
@@ -1042,16 +1042,20 @@ export function createStipendListener(
 
         if (removed.length + created.length) c.budgetFlag += 1;
       });
-      if (removed.length && !created.length) toast.info(`Removed stipends: ${fmtNames(removed)}`);
-      if (created.length && !removed.length) toast.info(`Added stipends: ${fmtNames(created)}`);
-      if (created.length && removed.length) toast.info(`Replaced ${fmtNames(removed)} with ${fmtNames(created)}`);
+      if (removed.length && !created.length)
+        toast.info(`Removed stipends: ${fmtNames(removed)}`);
+      if (created.length && !removed.length)
+        toast.info(`Added stipends: ${fmtNames(created)}`);
+      if (created.length && removed.length)
+        toast.info(`Replaced ${fmtNames(removed)} with ${fmtNames(created)}`);
     },
     build => [
-      relevantOriginTemplates.length && build.origins
-        .map(o => o.template?.id ?? "")
-        .sort()
-        .join(","),
-      relevantPurchaseTemplates && Object.keys(build.purchases).length
+      relevantOriginTemplates.length &&
+        build.origins
+          .map(o => o.template?.id ?? "")
+          .sort()
+          .join(","),
+      relevantPurchaseTemplates && Object.keys(build.purchases).length,
     ],
   );
 }
@@ -1518,7 +1522,7 @@ function computeBuildData(
     currencyExchanges: jump.currencyExchanges[charId] ?? [],
     origins: Object.values(jump.origins[charId] ?? {}).flat(),
     originStipends,
-    purchaseStipends
+    purchaseStipends,
   };
 }
 
@@ -2350,7 +2354,7 @@ export function originInteraction(
   jumpId: Id<GID.Jump>,
   charId: Id<GID.Character>,
   internalTags: InternalTagsMap,
-  costOverride?: SimpleValue<TID.Currency>,
+  costOverride?: Value<TID.Currency>,
   companionTid?: Id<TID.Companion>,
 ): AnnotationInteraction<OriginInteractionState> {
   const groups = buildOriginOptionGroups(optionIndices, doc);
@@ -2380,28 +2384,22 @@ export function originInteraction(
     template !== undefined &&
     build.origins.some(o => o.template?.id == template.id);
 
-  const getCost = (build: JumpDocBuildData): SimpleValue<TID.Currency> => {
+  const getCost = (build: JumpDocBuildData): Value<TID.Currency> => {
     if (costOverride) return costOverride;
-    if (!template) return { amount: 0, currency: 0 as any };
+    if (!template) return [{ amount: 0, currency: 0 as any }];
     const hasSynergy = template.synergies?.some(sid =>
       build.origins.some(o => o.template?.id == sid),
     );
-    if (!hasSynergy) return template.cost;
+    const costAsValue = Array.isArray(template.cost) ? template.cost : [template.cost];
+    if (!hasSynergy) return costAsValue;
     switch (template.synergyBenefit) {
       case "free":
-        return { amount: 0, currency: 0 as any };
-      case "discounted": {
-        const threshold =
-          doc.currencies.O[template.cost.currency]?.discountFreeThreshold;
-        if (threshold != null && template.cost.amount <= threshold)
-          return { amount: 0, currency: 0 as any };
-        return {
-          amount: Math.floor(template.cost.amount / 2),
-          currency: template.cost.currency,
-        };
-      }
+        return [{ amount: 0, currency: 0 as any }];
+      case "discounted":
+        return purchaseValueWithThreshold(costAsValue, {modifier: CostModifier.Reduced}, true, doc.currencies);
+      case "access":
       default:
-        return template.cost;
+        return costAsValue;
     }
   };
 
@@ -2495,7 +2493,7 @@ export function originInteraction(
             const cost = getCost(build);
             const optStr = optionsCostStr(state);
             const base = formatCostDisplay(
-              [cost!],
+              cost,
               { modifier: CostModifier.Full },
               doc.currencies,
             );
@@ -2509,7 +2507,7 @@ export function originInteraction(
             {
               template,
               tags: state.tags,
-              cost: getCost(build)!,
+              cost: getCost(build),
               freebie: companionTid,
             },
             jumpId,
@@ -2579,8 +2577,8 @@ export function originInteraction(
                 ...(state.tags ?? {}),
                 ...objMap(internalTags, l => l(build)),
               },
-              [template.cost],
-              [getCost(build)],
+              Array.isArray(template.cost) ? template.cost : [template.cost],
+              getCost(build),
               doc.currencies,
             )
         : template.name
@@ -2591,7 +2589,7 @@ export function originInteraction(
       const cost = getCost(build);
       const base = template
         ? formatCostDisplay(
-            [cost!],
+            cost,
             { modifier: CostModifier.Full },
             doc.currencies,
           )
@@ -2605,7 +2603,7 @@ export function originInteraction(
       const cost = getCost(build);
       return template
         ? formatCostShort(
-            [cost],
+            cost,
             { modifier: CostModifier.Full },
             doc.currencies,
           )
@@ -2684,7 +2682,7 @@ export function randomizerInteraction(
               jumpId,
               charId,
               internalTags,
-              category.random!.cost,
+              [category.random!.cost],
             ) as AnnotationInteraction<object>,
           ];
         },
@@ -3087,6 +3085,7 @@ export function companionImportInteraction(
   charId: Id<GID.Character>,
   internalTags: Record<string, (build: JumpDocBuildData) => string>,
 ): AnnotationInteraction<CompanionInteractionState> {
+  // TODO: user tags
   const userTags = extractTagsWithExclusions(
     template.name +
       "\n" +
@@ -3846,17 +3845,15 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             list.splice(0, 1);
           }
 
-          const convertedCost = {
-            amount: cost.amount,
-            currency: convertCurrencyId(cost.currency, doc, jump.currencies),
-          };
+          const convertedCost = convertValue(cost, doc, jump.currencies);
+          const templateCostAsValue = Array.isArray(template.cost) ? template.cost : [template.cost];
 
           const newOrigin: Origin = {
             summary: applyTagsWithCost(
               template.name,
               tags,
-              [template.cost],
-              [cost],
+              templateCostAsValue,
+              cost,
               doc.currencies,
             ),
             ...(template.description
@@ -3864,8 +3861,8 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
                   description: applyTagsWithCost(
                     template.description,
                     tags,
-                    [template.cost],
-                    [cost],
+                    templateCostAsValue,
+                    cost,
                     doc.currencies,
                   ),
                 }
@@ -3874,7 +3871,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             template: {
               jumpdoc: "",
               id: template.id,
-              originalCost: { cost: [cost], modifier: CostModifier.Full },
+              originalCost: { cost: cost, modifier: CostModifier.Full },
             },
             ...(freebie !== undefined ? { freebie } : {}),
           };
@@ -4016,55 +4013,43 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
       const hasSynergy = template.synergies?.some(sid =>
         build.origins.some(o => o.template?.id === sid),
       );
-      let newTidCost: SimpleValue<TID.Currency> = template.cost;
-      if (hasSynergy) {
-        switch (template.synergyBenefit) {
-          case "free":
-            newTidCost = { amount: 0, currency: template.cost.currency };
-            break;
-          case "discounted": {
-            const threshold =
-              doc.currencies.O[template.cost.currency]?.discountFreeThreshold;
-            newTidCost =
-              threshold != null && template.cost.amount <= threshold
-                ? { amount: 0, currency: template.cost.currency }
-                : {
-                    amount: Math.floor(template.cost.amount / 2),
-                    currency: template.cost.currency,
-                  };
-            break;
-          }
-        }
+      let newTidCost = Array.isArray(template.cost)
+        ? template.cost
+        : [template.cost];
+      if (
+        hasSynergy &&
+        (template.synergyBenefit == "discounted" ||
+          template.synergyBenefit == "free")
+      ) {
+        newTidCost = purchaseValueWithThreshold(
+          newTidCost,
+          {
+            modifier:
+              template.synergyBenefit == "discounted"
+                ? CostModifier.Reduced
+                : CostModifier.Free,
+          },
+          true,
+          doc.currencies,
+        );
       }
+
       setTracked("Reprice origin", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
-        const charOrigins = jump.origins[charId] as
-          | Record<Id<LID.OriginCategory>, import("../data/Jump").Origin[]>
-          | undefined;
+        const charOrigins = jump.origins[charId];
         if (!charOrigins) return;
         for (const lidStr in charOrigins) {
-          const lid = createId<LID.OriginCategory>(+lidStr);
-          const list = charOrigins[lid];
-          if (!list) continue;
-          const origin = list.find(o => o.template?.id === templateId);
-          if (origin) {
-            origin.value = {
-              amount: newTidCost.amount,
-              currency: convertCurrencyId(
-                newTidCost.currency,
-                doc,
-                jump.currencies,
-              ),
-            };
-            if (origin.template)
-              (origin.template as any).originalCost = {
-                cost: [newTidCost],
-                modifier: CostModifier.Full,
-              };
-            c.budgetFlag += 1;
-            break;
-          }
+          const origin = charOrigins[lidStr as any]?.find(
+            o => o.template?.id === templateId,
+          );
+          if (!origin) continue;
+          origin.value = convertValue(newTidCost, doc, jump.currencies);
+          origin.template!.originalCost = {
+            cost: newTidCost,
+            modifier: CostModifier.Full,
+          };
+          c.budgetFlag += 1;
         }
       });
     }, []),

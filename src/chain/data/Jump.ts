@@ -90,7 +90,7 @@ export interface PurchaseSubtype<
 }
 
 export interface Origin {
-  value: SimpleValue;
+  value: SimpleValue | Value;
   summary: string;
   description?: string;
 

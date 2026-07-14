@@ -527,18 +527,22 @@ export function adjustBudget(
       for (const catIdStr in charOrigins) {
         for (const origin of charOrigins[+catIdStr as Id<LID.OriginCategory>] ??
           []) {
-          let stipendDeduction =
-            origin.value.currency == budget.originStipend.currency
-              ? Math.max(
-                  Math.min(budget.originStipend.amount, origin.value.amount),
-                  0,
-                )
-              : 0;
-          budget.originStipend.amount -= stipendDeduction;
-          budget.currency[origin.value.currency] =
-            (budget.currency[origin.value.currency] ?? 0) -
-            origin.value.amount +
-            stipendDeduction;
+          (Array.isArray(origin.value) ? origin.value : [origin.value]).forEach(
+            value => {
+              let stipendDeduction =
+                value.currency == budget!.originStipend.currency
+                  ? Math.max(
+                      Math.min(budget!.originStipend.amount, value.amount),
+                      0,
+                    )
+                  : 0;
+              budget!.originStipend.amount -= stipendDeduction;
+              budget!.currency[value.currency] =
+                (budget!.currency[value.currency] ?? 0) -
+                value.amount +
+                stipendDeduction;
+            },
+          );
         }
       }
     }
@@ -724,7 +728,7 @@ export function adjustBudget(
             });
           });
         }
-        if ((p.subtype ?? null) === null)
+        if (!("subtype" in p) || (p.subtype ?? null) === null)
           budget.currency[sv.currency] =
             (budget.currency[sv.currency] ?? 0) + amount;
         else

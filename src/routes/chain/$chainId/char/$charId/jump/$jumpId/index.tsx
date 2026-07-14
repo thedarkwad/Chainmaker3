@@ -1,9 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createId, type GID, type Id, type LID } from "@/chain/data/types";
-import { DEFAULT_CURRENCY_ID, type Currency, type Origin, type OriginCategory } from "@/chain/data/Jump";
-import type { SimpleValue } from "@/chain/data/Purchase";
+import {
+  createId,
+  Registry,
+  type GID,
+  type Id,
+  type LID,
+} from "@/chain/data/types";
+import {
+  DEFAULT_CURRENCY_ID,
+  type Currency,
+  type Origin,
+  type OriginCategory,
+} from "@/chain/data/Jump";
+import type { ModifiedCost, SimpleValue, Value } from "@/chain/data/Purchase";
 import {
   useJumpSettings,
   useJumpNotes,
@@ -16,11 +27,19 @@ import { EditableSection } from "@/ui/EditableSection";
 import { useDraft } from "@/chain/state/useDraft";
 import { DraggableList } from "@/chain/components/DraggableList";
 import { SelectField } from "@/ui/SelectField";
-import { AltFormEditor, ViewText, EditTextarea } from "@/chain/components/AltFormEditor";
+import {
+  AltFormEditor,
+  ViewText,
+  EditTextarea,
+} from "@/chain/components/AltFormEditor";
 import { NarrativeCard } from "@/chain/components/NarrativeCard";
 import { convertWhitespace } from "@/utilities/miscUtilities";
+import { CostDropdown } from "@/ui/CostDropdown";
+import { CostModifier } from "@/chain/data_old/Purchase";
 
-export const Route = createFileRoute("/chain/$chainId/char/$charId/jump/$jumpId/")({
+export const Route = createFileRoute(
+  "/chain/$chainId/char/$charId/jump/$jumpId/",
+)({
   validateSearch: (search: Record<string, unknown>) => ({
     origin: typeof search.origin === "string" ? search.origin : undefined,
   }),
@@ -31,7 +50,13 @@ export const Route = createFileRoute("/chain/$chainId/char/$charId/jump/$jumpId/
 // Notes card
 // ─────────────────────────────────────────────────────────────────────────────
 
-function NotesCard({ jumpId, charId }: { jumpId: Id<GID.Jump>; charId: Id<GID.Character> }) {
+function NotesCard({
+  jumpId,
+  charId,
+}: {
+  jumpId: Id<GID.Jump>;
+  charId: Id<GID.Character>;
+}) {
   const { notes, setNotes } = useJumpNotes(jumpId, charId);
   const draft = useDraft<{ text: string }>({ text: "" });
 
@@ -46,8 +71,8 @@ function NotesCard({ jumpId, charId }: { jumpId: Id<GID.Jump>; charId: Id<GID.Ch
       editContent={
         <EditTextarea
           value={draft.state.text}
-          onChange={(v) =>
-            draft.sync((d) => {
+          onChange={v =>
+            draft.sync(d => {
               d.text = v;
             })
           }
@@ -77,35 +102,30 @@ type OriginDraft = {
 function OriginEntryRow({
   entry,
   catName,
-  hasCurrencies,
-  currencyList,
+  currencies,
   canRemove,
   singleLine,
-  onAmountBlur,
-  onCurrencyChange,
+  onCostChange,
   onSummaryChange,
   onDescriptionChange,
   onRemove,
 }: {
   entry: Origin;
   catName: string;
-  hasCurrencies: boolean;
-  currencyList: [string, Currency][];
+  onCostChange: (value: Value<LID.Currency>) => void;
+  currencies: Registry<LID.Currency, Currency>;
   canRemove: boolean;
   singleLine: boolean;
-  onAmountBlur: (v: number) => void;
-  onCurrencyChange: (id: Id<LID.Currency>) => void;
   onSummaryChange: (v: string) => void;
   onDescriptionChange: (v: string) => void;
   onRemove: () => void;
 }) {
-  const [amtStr, setAmtStr] = useState(String(entry.value.amount));
-  useEffect(() => setAmtStr(String(entry.value.amount)), [entry.value.amount]);
-
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5">
-        <span className="text-sm font-medium text-muted shrink-0">{catName}:</span>
+        <span className="text-sm font-medium text-muted shrink-0">
+          {catName}:
+        </span>
         <div className="flex-1 min-w-0">
           <EditTextarea
             value={entry.summary}
@@ -114,42 +134,13 @@ function OriginEntryRow({
             singleLine
           />
         </div>
-        {hasCurrencies && (
-          <>
-            <input
-              type="number"
-              step={50}
-              value={amtStr}
-              onChange={(e) => {
-                const str = e.target.value;
-                setAmtStr(str);
-                if (str !== "" && str !== "-" && !str.endsWith(".") && !isNaN(+str)) {
-                  onAmountBlur(+str);
-                }
-              }}
-              onBlur={(e) => {
-                const v = +e.target.value || 0;
-                setAmtStr(String(v));
-                onAmountBlur(v);
-              }}
-              className="w-16 text-sm text-ink bg-transparent border border-edge rounded px-2 py-1 focus:outline-none focus:border-accent-ring shrink-0"
-            />
-            {currencyList.length === 1 ? (
-              <span className="text-xs text-muted shrink-0">{currencyList[0]![1].abbrev}</span>
-            ) : (
-              <SelectField
-                value={entry.value.currency as number}
-                onChange={(e) => onCurrencyChange(createId<LID.Currency>(+e.target.value))}
-              >
-                {currencyList.map(([cid, cur]) => (
-                  <option key={cid} value={cid}>
-                    {cur.abbrev}
-                  </option>
-                ))}
-              </SelectField>
-            )}
-          </>
-        )}
+        <CostDropdown
+          value={Array.isArray(entry.value) ? entry.value : [entry.value]}
+          cost={{ modifier: CostModifier.Full } as any}
+          hideModifier
+          currencies={currencies}
+          onChange={onCostChange}
+        />
         {canRemove && (
           <button
             type="button"
@@ -172,54 +163,84 @@ function OriginEntryRow({
   );
 }
 
-function OriginsCard({ jumpId, charId, forceOpenNonce }: { jumpId: Id<GID.Jump>; charId: Id<GID.Character>; forceOpenNonce?: number }) {
+function OriginsCard({
+  jumpId,
+  charId,
+  forceOpenNonce,
+}: {
+  jumpId: Id<GID.Jump>;
+  charId: Id<GID.Character>;
+  forceOpenNonce?: number;
+}) {
   const originCategories = useJumpOriginCategories(jumpId);
   const { origins, setOrigins } = useJumpOrigins(jumpId, charId);
   const currencies = useCurrencies(jumpId);
   const drafts = useDraft<OriginDraft[]>([]);
 
-  if (!originCategories || Object.keys(originCategories.O).length === 0) return null;
+  if (!originCategories || Object.keys(originCategories.O).length === 0)
+    return null;
 
   const catEntries = Object.entries(originCategories.O);
-  const currencyList = Object.entries(currencies?.O ?? {});
 
   const isEmpty = catEntries.every(([catIdStr, cat]) => {
     const catId = +catIdStr as Id<LID.OriginCategory>;
     const entries = origins?.[catId] ?? [];
     if (cat.default) return false;
     return (
-      entries.length === 0 || entries.every((e) => !e.summary.trim() && !e.description?.trim())
+      entries.length === 0 ||
+      entries.every(
+        e =>
+          !e.summary.trim() &&
+          !e.description?.trim() &&
+          (!Array.isArray(e.value) || e.value.every(a => a.amount == 0)),
+      )
     );
   });
 
   const makeBlankOrigin = (): Origin => ({
-    value: { amount: 0, currency: DEFAULT_CURRENCY_ID } as SimpleValue,
+    value: [{ amount: 0, currency: DEFAULT_CURRENCY_ID }],
     summary: "",
     description: "",
   });
 
-  const formatValue = (v: SimpleValue) => {
-    const cur = currencies?.O[v.currency] as Currency | undefined;
-    if (!cur || currencyList.length === 0) return null;
-    return `Cost: ${v.amount} ${cur.abbrev}`;
+  const formatValue = (v: SimpleValue | Value) => {
+    if (Array.isArray(v) && v.length == 0)
+      v = [{ amount: 0, currency: DEFAULT_CURRENCY_ID }];
+    return `Cost: ${(Array.isArray(v) ? v : [v])
+      .map(sv => {
+        const cur = currencies?.O?.[sv.currency] as Currency | undefined;
+        if (!cur) return "";
+        return `${sv.amount} ${cur.abbrev}`;
+      })
+      .join(", ")}`;
   };
 
-  const syncEntry = (di: number, ei: number, patch: Partial<Origin> | ((e: Origin) => Origin)) =>
-    drafts.sync((d) => {
+  const syncEntry = (
+    di: number,
+    ei: number,
+    patch: Partial<Origin> | ((e: Origin) => Origin),
+  ) =>
+    drafts.sync(d => {
       const item = d[di];
       if (!item) return;
       const old = item.entries[ei];
       if (!old) return;
-      item.entries[ei] = typeof patch === "function" ? patch(old) : { ...old, ...patch };
+      item.entries[ei] =
+        typeof patch === "function" ? patch(old) : { ...old, ...patch };
     });
 
-  const setEntry = (di: number, ei: number, patch: Partial<Origin> | ((e: Origin) => Origin)) =>
-    drafts.set("Update entry", (d) => {
+  const setEntry = (
+    di: number,
+    ei: number,
+    patch: Partial<Origin> | ((e: Origin) => Origin),
+  ) =>
+    drafts.set("Update entry", d => {
       const item = d[di];
       if (!item) return;
       const old = item.entries[ei];
       if (!old) return;
-      item.entries[ei] = typeof patch === "function" ? patch(old) : { ...old, ...patch };
+      item.entries[ei] =
+        typeof patch === "function" ? patch(old) : { ...old, ...patch };
     });
 
   const viewContent = (
@@ -227,7 +248,10 @@ function OriginsCard({ jumpId, charId, forceOpenNonce }: { jumpId: Id<GID.Jump>;
       {catEntries.map(([catIdStr, cat]) => {
         const catId = +catIdStr as Id<LID.OriginCategory>;
         const entries = (origins?.[catId] ?? []).filter(
-          (e) => e.summary.trim() || e.description?.trim(),
+          e =>
+            e.summary.trim() ||
+            e.description?.trim() ||
+            (Array.isArray(e.value) && e.value.some(a => a.amount != 0)),
         );
         if (entries.length === 0) {
           if (!cat.default) return null;
@@ -246,10 +270,16 @@ function OriginsCard({ jumpId, charId, forceOpenNonce }: { jumpId: Id<GID.Jump>;
             <div key={`${catIdStr}-${i}`}>
               <div className="flex items-baseline gap-1.5">
                 <p className="flex-1 min-w-0 text-sm text-ink">
-                  <span className="font-medium text-muted/80">{cat.name}: </span>
-                  {entry.summary || <span className="text-ghost italic">—</span>}
+                  <span className="font-medium text-muted/80">
+                    {cat.name}:{" "}
+                  </span>
+                  {entry.summary || (
+                    <span className="text-ghost italic">unset</span>
+                  )}
                 </p>
-                {val !== null && <span className="text-xs text-muted shrink-0">[{val}]</span>}
+                {val !== null && (
+                  <span className="text-xs text-muted shrink-0">[{val}]</span>
+                )}
               </div>
               {!cat.singleLine && entry.description?.trim() && (
                 <div className="text-xs text-muted flex flex-col gap-1.5 pl-2 mx-2 mt-0.5 border-l border-accent2/50">
@@ -273,20 +303,19 @@ function OriginsCard({ jumpId, charId, forceOpenNonce }: { jumpId: Id<GID.Jump>;
               key={ei}
               entry={entry}
               catName={draft.category.name}
-              hasCurrencies={currencyList.length > 0}
-              currencyList={currencyList}
+              currencies={currencies!}
               canRemove={draft.category.multiple}
               singleLine={draft.category.singleLine}
-              onAmountBlur={(v) =>
-                syncEntry(di, ei, (en) => ({ ...en, value: { ...en.value, amount: v } }))
+              onCostChange={v =>
+                syncEntry(di, ei, en => ({
+                  ...en,
+                  value: v,
+                }))
               }
-              onCurrencyChange={(id) =>
-                setEntry(di, ei, (en) => ({ ...en, value: { ...en.value, currency: id } }))
-              }
-              onSummaryChange={(v) => syncEntry(di, ei, { summary: v })}
-              onDescriptionChange={(v) => syncEntry(di, ei, { description: v })}
+              onSummaryChange={v => syncEntry(di, ei, { summary: v })}
+              onDescriptionChange={v => syncEntry(di, ei, { description: v })}
               onRemove={() =>
-                drafts.set("Remove entry", (d) => {
+                drafts.set("Remove entry", d => {
                   d[di]?.entries.splice(ei, 1);
                 })
               }
@@ -296,7 +325,7 @@ function OriginsCard({ jumpId, charId, forceOpenNonce }: { jumpId: Id<GID.Jump>;
             <button
               type="button"
               onClick={() =>
-                drafts.set("Add entry", (d) => {
+                drafts.set("Add entry", d => {
                   d[di]?.entries.push(makeBlankOrigin());
                 })
               }
@@ -325,24 +354,30 @@ function OriginsCard({ jumpId, charId, forceOpenNonce }: { jumpId: Id<GID.Jump>;
             const existing = origins?.[catId] ?? [];
             const entries =
               existing.length > 0
-                ? existing.map((e) => ({ ...e }))
+                ? existing.map(e => ({ ...e }))
                 : [{ ...makeBlankOrigin(), summary: cat.default ?? "" }];
             return { catId, category: cat, entries };
           }),
         );
       }}
       onSave={() => {
-        setOrigins((d) => {
+        setOrigins(d => {
           for (const draft of drafts.state) {
-            const filtered = draft.entries.filter((e) => e.summary.trim() || e.description?.trim());
+            const filtered = draft.entries.filter(
+              e =>
+                e.summary.trim() ||
+                e.description?.trim() ||
+                (Array.isArray(e.value) && e.value.some(a => a.amount != 0)),
+            );
             if (filtered.length === 0) {
               delete (d as Record<number, Origin[]>)[draft.catId as number];
             } else {
-              (d as Record<number, Origin[]>)[draft.catId as number] = filtered.map((e) => ({
-                ...e,
-                summary: e.summary.trimEnd(),
-                description: e.description?.trimEnd(),
-              }));
+              (d as Record<number, Origin[]>)[draft.catId as number] =
+                filtered.map(e => ({
+                  ...e,
+                  summary: e.summary.trimEnd(),
+                  description: e.description?.trimEnd(),
+                }));
             }
           }
         });
@@ -357,19 +392,29 @@ function OriginsCard({ jumpId, charId, forceOpenNonce }: { jumpId: Id<GID.Jump>;
 // Alt-forms section
 // ─────────────────────────────────────────────────────────────────────────────
 
-function AltFormsSection({ jumpId, charId }: { jumpId: Id<GID.Jump>; charId: Id<GID.Character> }) {
+function AltFormsSection({
+  jumpId,
+  charId,
+}: {
+  jumpId: Id<GID.Jump>;
+  charId: Id<GID.Character>;
+}) {
   const { altFormIds, actions } = useJumpAltForms(jumpId, charId);
-  const [newAltFormIds, setNewAltFormIds] = useState<Set<Id<GID.AltForm>>>(() => new Set());
+  const [newAltFormIds, setNewAltFormIds] = useState<Set<Id<GID.AltForm>>>(
+    () => new Set(),
+  );
 
   return (
     <div className="flex flex-col gap-1 mt-2">
       <div className="flex items-center justify-between px-1">
-        <p className="text-xs font-semibold text-muted uppercase tracking-wide">Alt-Forms</p>
+        <p className="text-xs font-semibold text-muted uppercase tracking-wide">
+          Alt-Forms
+        </p>
         <button
           type="button"
           onClick={() => {
             const id = actions.addAltForm();
-            setNewAltFormIds((prev) => new Set(prev).add(id));
+            setNewAltFormIds(prev => new Set(prev).add(id));
           }}
           className="flex items-center gap-1 text-xs text-accent hover:underline"
         >
@@ -377,12 +422,14 @@ function AltFormsSection({ jumpId, charId }: { jumpId: Id<GID.Jump>; charId: Id<
         </button>
       </div>
       {altFormIds.length === 0 ? (
-        <p className="text-xs text-ghost italic text-center py-2">No alt-forms yet.</p>
+        <p className="text-xs text-ghost italic text-center py-2">
+          No alt-forms yet.
+        </p>
       ) : (
         <DraggableList
           ids={altFormIds}
           onReorder={actions.reorderAltForms}
-          renderItem={(id) => (
+          renderItem={id => (
             <AltFormEditor
               id={id}
               deletable
@@ -415,8 +462,12 @@ function OverviewTab() {
 
   useEffect(() => {
     if (origin !== undefined) {
-      setInsertionNonce((n) => n + 1);
-      navigate({ to: ".", search: (s) => ({ ...s, origin: undefined }), replace: true });
+      setInsertionNonce(n => n + 1);
+      navigate({
+        to: ".",
+        search: s => ({ ...s, origin: undefined }),
+        replace: true,
+      });
     }
   }, [origin]);
 
@@ -427,7 +478,11 @@ function OverviewTab() {
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-2 items-start">
         {/* Left column */}
         <div className="flex flex-col gap-2">
-          <OriginsCard jumpId={jumpGid} charId={charGid} forceOpenNonce={insertionNonce} />
+          <OriginsCard
+            jumpId={jumpGid}
+            charId={charGid}
+            forceOpenNonce={insertionNonce}
+          />
           {useNarrative && <NarrativeCard jumpId={jumpGid} charId={charGid} />}
         </div>
 

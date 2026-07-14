@@ -10,7 +10,7 @@ import { CollapsibleSection } from "@/ui/CollapsibleSection";
 import { TemplateCard } from "./TemplateCard";
 import { DescriptionArea, BlurNumberInput, ChoiceContextEditor, InternalTagsField } from "./JumpDocFields";
 import { CostDropdown } from "@/ui/CostDropdown";
-import { CostModifier } from "@/chain/data/Purchase";
+import { CostModifier, Value } from "@/chain/data/Purchase";
 import type { AddBoundsTarget, SectionSharedProps } from "./sectionTypes";
 import {
   useJumpDocOriginCategory,
@@ -266,7 +266,7 @@ const OriginCard = memo(function OriginCard({
 
   const key = `origin-${id}`;
   const fullCost = { modifier: CostModifier.Full } as const;
-  const costAsValue = origin.cost.amount !== 0 ? [origin.cost] : [];
+  const costAsValue = Array.isArray(origin.cost) ? origin.cost : [origin.cost];
 
   return (
     <TemplateCard<TID.Origin>
@@ -298,7 +298,7 @@ const OriginCard = memo(function OriginCard({
             hideModifier
             onChange={(v) =>
               modify("Set Origin Cost", (t) => {
-                t.cost = v[0] ?? { amount: 0, currency: t.cost.currency };
+                t.cost = v;
               })
             }
           />

@@ -29,6 +29,7 @@ export function ElectronChainNav({
         <Link
           to="/chain/$chainId/char/$charId/jump/$jumpId"
           params={{ chainId, charId, jumpId }}
+          search={{origin: undefined}}
           className={navButtonClass(inJump)}
         >
           Jump Itinerary

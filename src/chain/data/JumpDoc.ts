@@ -69,7 +69,7 @@ export type OriginTemplate = {
   id: Id<TID.Origin>;
   description?: string;
   choiceContext?: string;
-  cost: SimpleValue<TID.Currency>;
+  cost: SimpleValue<TID.Currency> | Value<TID.Currency>;
   type: Id<TID.OriginCategory>;
   bounds?: PageRect[];
   /** Stipend entries granted to the character while this origin is held. */

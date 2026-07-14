@@ -134,7 +134,7 @@ export function DrawbackOverrideCard({ id, jumpId, charId, chainId }: DrawbackOv
           charId: String(charId as number),
           jumpId: String(sourceJumpId as number),
         }}
-        search={{ scrollTo: undefined }}
+        search={{ scrollTo: undefined, exchange: undefined }}
         className={pillClass}
       >
         {sourceJumpName || "[unnamed jump]"}
