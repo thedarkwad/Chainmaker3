@@ -1,6 +1,11 @@
 import type { Chain } from "@/chain/data/Chain";
 import type { CalculatedData } from "@/chain/data/CalculatedData";
-import { DEFAULT_CURRENCY_ID, type Jump } from "@/chain/data/Jump";
+import {
+  DEFAULT_CURRENCY_ID,
+  Origin,
+  PurchaseSubtype,
+  type Jump,
+} from "@/chain/data/Jump";
 import type { Duration } from "@/utilities/units";
 import {
   CostModifier,
@@ -154,14 +159,18 @@ function buildScenarioIR(
       }
       case RewardType.Item:
       case RewardType.Perk: {
-        const reward = Object.values(chain.purchases.O).find((p) => (p as BasicPurchase).template?.id === r.id);
+        const reward = Object.values(chain.purchases.O).find(
+          p => (p as BasicPurchase).template?.id === r.id,
+        );
         if (reward) rewardStrings.push(reward.name);
         break;
       }
       case RewardType.Stipend: {
         const cur = jump.currencies.O[r.currency];
         const sub = jump.purchaseSubtypes.O[r.subtype];
-        rewardStrings.push(`${r.value} ${cur?.abbrev ?? "CP"} stipend (${sub?.name ?? ""})`);
+        rewardStrings.push(
+          `${r.value} ${cur?.abbrev ?? "CP"} stipend (${sub?.name ?? ""})`,
+        );
         break;
       }
       case RewardType.Note:
@@ -227,14 +236,18 @@ function buildSupplementSectionIR(
       calculatedData.supplementBudgets?.[charId]?.[jumpId]?.[suppId] ?? null;
 
     if (remainingBudget !== null) {
-      const totalSpent = [...perks, ...items].reduce((sum, p) => sum + (p.cost?.raw ?? 0), 0);
+      const totalSpent = [...perks, ...items].reduce(
+        (sum, p) => sum + (p.cost?.raw ?? 0),
+        0,
+      );
       prePurchaseBudget = remainingBudget + totalSpent;
     }
 
     const investmentAmount = jump.supplementInvestments?.[charId]?.[suppId];
     if (investmentAmount && investmentAmount !== 0) {
       investment = investmentAmount;
-      investmentCurrencyAbbrev = jump.currencies.O[DEFAULT_CURRENCY_ID]?.abbrev ?? "CP";
+      investmentCurrencyAbbrev =
+        jump.currencies.O[DEFAULT_CURRENCY_ID]?.abbrev ?? "CP";
     }
   }
 
@@ -268,7 +281,7 @@ function buildStartingPoints(
   if (char.primary) {
     return Object.values(jump.currencies.O)
       .filter((c): c is NonNullable<typeof c> => !!c && c.budget !== 0)
-      .map((c) => ({ currencyAbbrev: c.abbrev, amount: c.budget }));
+      .map(c => ({ currencyAbbrev: c.abbrev, amount: c.budget }));
   }
 
   // Companion: find the import that includes this character
@@ -278,10 +291,12 @@ function buildStartingPoints(
       if (!p || p.type !== PurchaseType.Companion) continue;
       const ci = p as CompanionImport;
       if (!ci.importData.characters.includes(characterId)) continue;
-      return Object.entries(ci.importData.allowances).map(([curIdStr, amount]) => ({
-        currencyAbbrev: abbrevFor(createId<LID.Currency>(Number(curIdStr))),
-        amount: amount as number,
-      }));
+      return Object.entries(ci.importData.allowances).map(
+        ([curIdStr, amount]) => ({
+          currencyAbbrev: abbrevFor(createId<LID.Currency>(Number(curIdStr))),
+          amount: amount as number,
+        }),
+      );
     }
   }
   return [];
@@ -328,7 +343,10 @@ function buildBudgetSummary(
     if (isPrimary) {
       for (const [, currency] of Object.entries(jump.currencies.O)) {
         if (currency && currency.budget !== 0) {
-          startDelta.set(currency.abbrev, (startDelta.get(currency.abbrev) ?? 0) + currency.budget);
+          startDelta.set(
+            currency.abbrev,
+            (startDelta.get(currency.abbrev) ?? 0) + currency.budget,
+          );
         }
       }
     } else {
@@ -339,9 +357,14 @@ function buildBudgetSummary(
           if (!p || p.type !== PurchaseType.Companion) continue;
           const ci = p as CompanionImport;
           if (!ci.importData.characters.includes(characterId)) continue;
-          for (const [curIdStr, amount] of Object.entries(ci.importData.allowances)) {
+          for (const [curIdStr, amount] of Object.entries(
+            ci.importData.allowances,
+          )) {
             const abbrev = abbrevFor(createId<LID.Currency>(Number(curIdStr)));
-            startDelta.set(abbrev, (startDelta.get(abbrev) ?? 0) + (amount as number));
+            startDelta.set(
+              abbrev,
+              (startDelta.get(abbrev) ?? 0) + (amount as number),
+            );
           }
           break;
         }
@@ -353,18 +376,25 @@ function buildBudgetSummary(
   // Maintain a local stipend tracker (subtype → currency → available amount)
   // so purchase costs can be net of stipend absorption.
   const stipends: Record<number, Record<number, number>> = {};
-  for (const [stIdStr, st] of Object.entries(jump.purchaseSubtypes.O) as [string, NonNullable<typeof jump.purchaseSubtypes.O[Id<LID.PurchaseSubtype>]>][]) {
+  for (const [stIdStr, st] of Object.entries(jump.purchaseSubtypes.O) as [
+    string,
+    NonNullable<(typeof jump.purchaseSubtypes.O)[Id<LID.PurchaseSubtype>]>,
+  ][]) {
     const stId = Number(stIdStr);
     stipends[stId] = {};
     for (const sv of st.stipend) {
-      stipends[stId][sv.currency as number] = (stipends[stId][sv.currency as number] ?? 0) + sv.amount;
+      stipends[stId][sv.currency as number] =
+        (stipends[stId][sv.currency as number] ?? 0) + sv.amount;
     }
   }
 
   // ── Bank Deposit ──
   const bankDeposit = jump.bankDeposits?.[characterId] ?? 0;
   if (bankDeposit !== 0) {
-    push("Bank Deposit", new Map([[abbrevFor(DEFAULT_CURRENCY_ID), -bankDeposit]]));
+    push(
+      "Bank Deposit",
+      new Map([[abbrevFor(DEFAULT_CURRENCY_ID), -bankDeposit]]),
+    );
   }
 
   // ── Origin Costs ──
@@ -372,12 +402,18 @@ function buildBudgetSummary(
     const originDelta = new Map<string, number>();
     const charOrigins = jump.origins?.[characterId];
     if (charOrigins) {
-      for (const [, originList] of Object.entries(charOrigins) as [string, import("@/chain/data/Jump").Origin[] | undefined][]) {
+      for (const [, originList] of Object.entries(charOrigins) as [
+        string,
+        Origin[] | undefined,
+      ][]) {
         for (const origin of originList ?? []) {
-          if (origin.value?.amount) {
-            const abbrev = abbrevFor(origin.value.currency);
-            originDelta.set(abbrev, (originDelta.get(abbrev) ?? 0) - origin.value.amount);
-          }
+          let value = Array.isArray(origin.value)
+            ? origin.value
+            : [origin.value];
+          value.forEach(({ amount, currency }) => {
+            const abbrev = abbrevFor(currency);
+            originDelta.set(abbrev, (originDelta.get(abbrev) ?? 0) - amount);
+          });
         }
       }
     }
@@ -390,7 +426,8 @@ function buildBudgetSummary(
     const charInv = jump.supplementInvestments?.[characterId];
     if (charInv) {
       let total = 0;
-      for (const suppIdStr in charInv) total += (charInv as Record<string, number>)[suppIdStr] ?? 0;
+      for (const suppIdStr in charInv)
+        total += (charInv as Record<string, number>)[suppIdStr] ?? 0;
       if (total !== 0) investDelta.set(abbrevFor(DEFAULT_CURRENCY_ID), -total);
     }
     push("Supplement Investments", investDelta);
@@ -402,8 +439,14 @@ function buildBudgetSummary(
     for (const ex of jump.currencyExchanges?.[characterId] ?? []) {
       const oAbbrev = abbrevFor(ex.oCurrency);
       const tAbbrev = abbrevFor(ex.tCurrency);
-      exchangeDelta.set(oAbbrev, (exchangeDelta.get(oAbbrev) ?? 0) - ex.oamount);
-      exchangeDelta.set(tAbbrev, (exchangeDelta.get(tAbbrev) ?? 0) + ex.tamount);
+      exchangeDelta.set(
+        oAbbrev,
+        (exchangeDelta.get(oAbbrev) ?? 0) - ex.oamount,
+      );
+      exchangeDelta.set(
+        tAbbrev,
+        (exchangeDelta.get(tAbbrev) ?? 0) + ex.tamount,
+      );
     }
     push("Currency Exchanges", exchangeDelta);
   }
@@ -416,11 +459,16 @@ function buildBudgetSummary(
       const p = chain.purchases.O[pId as Id<GID.Purchase>];
       if (!p || p.type !== PurchaseType.Companion) continue;
       const ci = p as CompanionImport;
-      for (const [stIdStr, stAmounts] of Object.entries(ci.importData.stipend ?? {})) {
+      for (const [stIdStr, stAmounts] of Object.entries(
+        ci.importData.stipend ?? {},
+      )) {
         const stId = Number(stIdStr);
         if (!stipends[stId]) stipends[stId] = {};
-        for (const [curIdStr, amount] of Object.entries(stAmounts as Record<string, number>)) {
-          stipends[stId][Number(curIdStr)] = (stipends[stId][Number(curIdStr)] ?? 0) + (amount as number);
+        for (const [curIdStr, amount] of Object.entries(
+          stAmounts as Record<string, number>,
+        )) {
+          stipends[stId][Number(curIdStr)] =
+            (stipends[stId][Number(curIdStr)] ?? 0) + (amount as number);
         }
       }
     }
@@ -430,15 +478,21 @@ function buildBudgetSummary(
   {
     const rewardDelta = new Map<string, number>();
     for (const pId of jump.scenarios?.[characterId] ?? []) {
-      const sc = chain.purchases.O[pId as Id<GID.Purchase>] as Scenario | undefined;
+      const sc = chain.purchases.O[pId as Id<GID.Purchase>] as
+        | Scenario
+        | undefined;
       if (!sc) continue;
       for (const r of sc.rewards) {
         if (r.type === RewardType.Currency) {
-          rewardDelta.set(abbrevFor(r.currency), (rewardDelta.get(abbrevFor(r.currency)) ?? 0) + r.value);
+          rewardDelta.set(
+            abbrevFor(r.currency),
+            (rewardDelta.get(abbrevFor(r.currency)) ?? 0) + r.value,
+          );
         } else if (r.type === RewardType.Stipend) {
           const stId = r.subtype as number;
           if (!stipends[stId]) stipends[stId] = {};
-          stipends[stId][r.currency as number] = (stipends[stId][r.currency as number] ?? 0) + r.value;
+          stipends[stId][r.currency as number] =
+            (stipends[stId][r.currency as number] ?? 0) + r.value;
         }
       }
     }
@@ -446,10 +500,15 @@ function buildBudgetSummary(
   }
 
   // Helper: deduct a cost (Value) from stipend bucket then main currency, return main-currency delta
-  function deductCost(value: Value | number, cost: ModifiedCost, subtypeId: number | undefined): Map<string, number> {
+  function deductCost(
+    value: Value | number,
+    cost: ModifiedCost,
+    subtypeId: number | undefined,
+  ): Map<string, number> {
     const delta = new Map<string, number>();
     let resolved = purchaseValue(value, cost);
-    if (typeof resolved === "number") resolved = [{ currency: DEFAULT_CURRENCY_ID, amount: resolved }];
+    if (typeof resolved === "number")
+      resolved = [{ currency: DEFAULT_CURRENCY_ID, amount: resolved }];
     for (const sv of resolved) {
       let remaining = sv.amount;
       if (subtypeId != null && stipends[subtypeId]) {
@@ -469,10 +528,17 @@ function buildBudgetSummary(
   }
 
   // Helper: add a drawback value to a delta map (positive gain)
-  function addDrawbackValue(value: Value | number, cost: ModifiedCost, delta: Map<string, number>) {
+  function addDrawbackValue(
+    value: Value | number,
+    cost: ModifiedCost,
+    delta: Map<string, number>,
+  ) {
     let resolved = purchaseValue(value, cost);
     if (typeof resolved === "number") {
-      delta.set(abbrevFor(DEFAULT_CURRENCY_ID), (delta.get(abbrevFor(DEFAULT_CURRENCY_ID)) ?? 0) + resolved);
+      delta.set(
+        abbrevFor(DEFAULT_CURRENCY_ID),
+        (delta.get(abbrevFor(DEFAULT_CURRENCY_ID)) ?? 0) + resolved,
+      );
     } else {
       for (const sv of resolved) {
         const abbrev = abbrevFor(sv.currency);
@@ -484,19 +550,32 @@ function buildBudgetSummary(
   // ── Chain Drawbacks ──
   {
     const delta = new Map<string, number>();
-    const chainDrawbackIds = calculatedData.chainDrawbacks?.[characterId]?.[jumpId] ?? [];
+    const chainDrawbackIds =
+      calculatedData.chainDrawbacks?.[characterId]?.[jumpId] ?? [];
     for (const pId of chainDrawbackIds) {
       const p = chain.purchases.O[pId] as Drawback | undefined;
       if (!p) continue;
       const override = p.overrides?.[jumpId]?.[characterId];
       if (override?.type === OverrideType.Excluded) continue;
-      if (override?.type === OverrideType.BoughtOffTemp || override?.type === OverrideType.BoughtOffPermanent) {
+      if (
+        override?.type === OverrideType.BoughtOffTemp ||
+        override?.type === OverrideType.BoughtOffPermanent
+      ) {
         // Deduct buyoff cost
-        const buyoffCost = deductCost(p.value as Value | number, override.modifier ?? FULL_COST, undefined);
-        for (const [abbrev, amount] of buyoffCost) delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
+        const buyoffCost = deductCost(
+          p.value as Value | number,
+          override.modifier ?? FULL_COST,
+          undefined,
+        );
+        for (const [abbrev, amount] of buyoffCost)
+          delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
         continue;
       }
-      addDrawbackValue(p.value as Value | number, override?.modifier ?? FULL_COST, delta);
+      addDrawbackValue(
+        p.value as Value | number,
+        override?.modifier ?? FULL_COST,
+        delta,
+      );
     }
     push("Chain Drawbacks", delta);
   }
@@ -504,18 +583,31 @@ function buildBudgetSummary(
   // ── Retained Drawbacks ──
   {
     const delta = new Map<string, number>();
-    const retained = calculatedData.retainedDrawbacks?.[characterId]?.[jumpId] ?? [];
+    const retained =
+      calculatedData.retainedDrawbacks?.[characterId]?.[jumpId] ?? [];
     for (const pId of retained) {
       const p = chain.purchases.O[pId] as Drawback | undefined;
       if (!p) continue;
       const override = p.overrides?.[jumpId]?.[characterId];
       if (override?.type === OverrideType.Excluded) continue;
-      if (override?.type === OverrideType.BoughtOffTemp || override?.type === OverrideType.BoughtOffPermanent) {
-        const buyoffCost = deductCost(p.value as Value | number, override.modifier ?? FULL_COST, undefined);
-        for (const [abbrev, amount] of buyoffCost) delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
+      if (
+        override?.type === OverrideType.BoughtOffTemp ||
+        override?.type === OverrideType.BoughtOffPermanent
+      ) {
+        const buyoffCost = deductCost(
+          p.value as Value | number,
+          override.modifier ?? FULL_COST,
+          undefined,
+        );
+        for (const [abbrev, amount] of buyoffCost)
+          delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
         continue;
       }
-      addDrawbackValue(p.value as Value | number, override?.modifier ?? FULL_COST, delta);
+      addDrawbackValue(
+        p.value as Value | number,
+        override?.modifier ?? FULL_COST,
+        delta,
+      );
     }
     push("Retained Drawbacks", delta);
   }
@@ -524,7 +616,9 @@ function buildBudgetSummary(
   {
     const delta = new Map<string, number>();
     for (const pId of jump.drawbacks?.[characterId] ?? []) {
-      const p = chain.purchases.O[pId as Id<GID.Purchase>] as Drawback | undefined;
+      const p = chain.purchases.O[pId as Id<GID.Purchase>] as
+        | Drawback
+        | undefined;
       if (!p) continue;
       addDrawbackValue(p.value as Value | number, p.cost ?? FULL_COST, delta);
     }
@@ -539,21 +633,28 @@ function buildBudgetSummary(
       if (!p || p.type !== PurchaseType.Perk) continue;
       const subtypeId = (p as BasicPurchase).subtype as number | undefined;
       const d = deductCost(p.value as Value, p.cost ?? FULL_COST, subtypeId);
-      for (const [abbrev, amount] of d) delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
+      for (const [abbrev, amount] of d)
+        delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
       // Subpurchases
       const bp = p as BasicPurchase;
       if (bp.subpurchases) {
         if (subtypeId != null) {
           if (!stipends[subtypeId]) stipends[subtypeId] = {};
           for (const sv of bp.subpurchases.stipend ?? []) {
-            stipends[subtypeId][sv.currency as number] = (stipends[subtypeId][sv.currency as number] ?? 0) + sv.amount;
+            stipends[subtypeId][sv.currency as number] =
+              (stipends[subtypeId][sv.currency as number] ?? 0) + sv.amount;
           }
         }
         for (const subId of bp.subpurchases.list) {
           const sub = chain.purchases.O[subId];
           if (!sub) continue;
-          const sd = deductCost(sub.value as Value, sub.cost ?? FULL_COST, subtypeId);
-          for (const [abbrev, amount] of sd) delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
+          const sd = deductCost(
+            sub.value as Value,
+            sub.cost ?? FULL_COST,
+            subtypeId,
+          );
+          for (const [abbrev, amount] of sd)
+            delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
         }
       }
     }
@@ -568,20 +669,27 @@ function buildBudgetSummary(
       if (!p || p.type !== PurchaseType.Item) continue;
       const subtypeId = (p as BasicPurchase).subtype as number | undefined;
       const d = deductCost(p.value as Value, p.cost ?? FULL_COST, subtypeId);
-      for (const [abbrev, amount] of d) delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
+      for (const [abbrev, amount] of d)
+        delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
       const bp = p as BasicPurchase;
       if (bp.subpurchases) {
         if (subtypeId != null) {
           if (!stipends[subtypeId]) stipends[subtypeId] = {};
           for (const sv of bp.subpurchases.stipend ?? []) {
-            stipends[subtypeId][sv.currency as number] = (stipends[subtypeId][sv.currency as number] ?? 0) + sv.amount;
+            stipends[subtypeId][sv.currency as number] =
+              (stipends[subtypeId][sv.currency as number] ?? 0) + sv.amount;
           }
         }
         for (const subId of bp.subpurchases.list) {
           const sub = chain.purchases.O[subId];
           if (!sub) continue;
-          const sd = deductCost(sub.value as Value, sub.cost ?? FULL_COST, subtypeId);
-          for (const [abbrev, amount] of sd) delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
+          const sd = deductCost(
+            sub.value as Value,
+            sub.cost ?? FULL_COST,
+            subtypeId,
+          );
+          for (const [abbrev, amount] of sd)
+            delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
         }
       }
     }
@@ -596,7 +704,8 @@ function buildBudgetSummary(
       if (!p || p.type !== PurchaseType.Companion) continue;
       const ci = p as CompanionImport;
       const d = deductCost(ci.value as Value, ci.cost ?? FULL_COST, undefined);
-      for (const [abbrev, amount] of d) delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
+      for (const [abbrev, amount] of d)
+        delta.set(abbrev, (delta.get(abbrev) ?? 0) + amount);
     }
     push("Companion Imports", delta);
   }
@@ -609,7 +718,7 @@ function buildBudgetSummary(
     .filter(([abbrev, amount]) => amount !== 0 || abbrev === primaryAbbrev)
     .map(([currencyAbbrev, amount]) => ({ currencyAbbrev, amount }));
   // Ensure primary currency appears even if it was never touched
-  if (!totals.some((e) => e.currencyAbbrev === primaryAbbrev)) {
+  if (!totals.some(e => e.currencyAbbrev === primaryAbbrev)) {
     totals.push({ currencyAbbrev: primaryAbbrev, amount: 0 });
   }
 
@@ -636,7 +745,7 @@ export function buildExportIR(
     scope.kind === "chain"
       ? chain.jumpList
       : scope.kind === "jump"
-        ? chain.jumpList.filter((jId) => jId === scope.jumpId)
+        ? chain.jumpList.filter(jId => jId === scope.jumpId)
         : chain.jumpList;
 
   const jumps: IRJump[] = [];
@@ -647,11 +756,13 @@ export function buildExportIR(
 
     // Primary characters always participate in every jump.
     // Companions only participate in jumps they were explicitly added to.
-    const isPrimaryCharacter = chain.characters.O[characterId]?.primary ?? false;
+    const isPrimaryCharacter =
+      chain.characters.O[characterId]?.primary ?? false;
     if (!isPrimaryCharacter && !jump.characters.includes(characterId)) continue;
 
     const rawJumpNumber = calculatedData.jumpNumber?.[jumpId] ?? 0;
-    const jumpNumber = rawJumpNumber + (chain.chainSettings.startWithJumpZero ? 0 : 1);
+    const jumpNumber =
+      rawJumpNumber + (chain.chainSettings.startWithJumpZero ? 0 : 1);
 
     // ── Starting Points ──
     const startingPoints = sections.costs
@@ -659,7 +770,8 @@ export function buildExportIR(
       : null;
 
     // ── Origins ──
-    const abbrevFor = (curId: Id<LID.Currency>) => jump.currencies.O[curId]?.abbrev ?? "CP";
+    const abbrevFor = (curId: Id<LID.Currency>) =>
+      jump.currencies.O[curId]?.abbrev ?? "CP";
 
     // ── Bank Deposit ──
     const bankDepositRaw = sections.costs
@@ -667,13 +779,19 @@ export function buildExportIR(
       : 0;
     const bankDeposit: IRBudgetEntry | null =
       bankDepositRaw !== 0
-        ? { amount: bankDepositRaw, currencyAbbrev: abbrevFor(DEFAULT_CURRENCY_ID) }
+        ? {
+            amount: bankDepositRaw,
+            currencyAbbrev: abbrevFor(DEFAULT_CURRENCY_ID),
+          }
         : null;
     const origins: IROrigin[] = [];
     if (sections.origins) {
       const charOrigins = jump.origins?.[characterId];
       if (charOrigins) {
-        for (const [catIdStr, originList] of Object.entries(charOrigins) as [string, import("@/chain/data/Jump").Origin[] | undefined][]) {
+        for (const [catIdStr, originList] of Object.entries(charOrigins) as [
+          string,
+          Origin[] | undefined,
+        ][]) {
           if (!originList) continue;
           const catId = createId<LID.OriginCategory>(Number(catIdStr));
           const cat = jump.originCategories.O[catId];
@@ -682,20 +800,18 @@ export function buildExportIR(
             const summary = origin.summary ?? "";
             if (!summary) continue;
             const rawDesc = origin.description;
-            const originValue = origin.value;
-            const cost: IRCost | null =
-              sections.costs && originValue?.amount
-                ? {
-                    display: `${originValue.amount} ${abbrevFor(originValue.currency)}`,
-                    raw: originValue.amount,
-                    currencyAbbrev: abbrevFor(originValue.currency),
-                  }
-                : null;
+            const cost: IRCost | null = formatCostForExport(
+              Array.isArray(origin.value) ? origin.value : [origin.value],
+              { modifier: CostModifier.Full },
+              jump.currencies,
+            );
             origins.push({
               categoryName: catName,
               summary,
               description:
-                sections.descriptions && rawDesc && rawDesc !== "undefined" ? rawDesc : "",
+                sections.descriptions && rawDesc && rawDesc !== "undefined"
+                  ? rawDesc
+                  : "",
               cost,
             });
           }
@@ -711,15 +827,28 @@ export function buildExportIR(
     for (const id of purchaseIds) {
       const p = chain.purchases.O[id as Id<GID.Purchase>];
       if (!p) continue;
-      const subtypeId: number | null = (p as BasicPurchase).subtype as number ?? null;
+      const subtypeId: number | null =
+        ((p as BasicPurchase).subtype as number) ?? null;
       if (p.type === PurchaseType.Perk) {
-        const ir = buildPurchaseIR(id, chain, jump, sections.costs, sections.descriptions);
+        const ir = buildPurchaseIR(
+          id,
+          chain,
+          jump,
+          sections.costs,
+          sections.descriptions,
+        );
         if (ir) {
           if (!perksBySubtype.has(subtypeId)) perksBySubtype.set(subtypeId, []);
           perksBySubtype.get(subtypeId)!.push(ir);
         }
       } else if (p.type === PurchaseType.Item) {
-        const ir = buildPurchaseIR(id, chain, jump, sections.costs, sections.descriptions);
+        const ir = buildPurchaseIR(
+          id,
+          chain,
+          jump,
+          sections.costs,
+          sections.descriptions,
+        );
         if (ir) {
           if (!itemsBySubtype.has(subtypeId)) itemsBySubtype.set(subtypeId, []);
           itemsBySubtype.get(subtypeId)!.push(ir);
@@ -731,7 +860,10 @@ export function buildExportIR(
     const perkSections: IRPurchaseSection[] = [];
     const itemSections: IRPurchaseSection[] = [];
 
-    for (const [stIdStr, st] of Object.entries(jump.purchaseSubtypes.O) as [string, import("@/chain/data/Jump").PurchaseSubtype | undefined][]) {
+    for (const [stIdStr, st] of Object.entries(jump.purchaseSubtypes.O) as [
+      string,
+      PurchaseSubtype | undefined,
+    ][]) {
       if (!st) continue;
       const stId = Number(stIdStr);
       const stPerks = perksBySubtype.get(stId);
@@ -753,24 +885,56 @@ export function buildExportIR(
     const drawbacks: IRDrawback[] = [];
     if (sections.drawbacks) {
       // Chain drawbacks first
-      const chainDrawbacks = calculatedData.chainDrawbacks?.[characterId]?.[jumpId] ?? [];
+      const chainDrawbacks =
+        calculatedData.chainDrawbacks?.[characterId]?.[jumpId] ?? [];
       for (const id of chainDrawbacks) {
-        const ir = buildDrawbackIR(id, chain, jump, jumpId, characterId, sections.costs, sections.descriptions, false, true);
+        const ir = buildDrawbackIR(
+          id,
+          chain,
+          jump,
+          jumpId,
+          characterId,
+          sections.costs,
+          sections.descriptions,
+          false,
+          true,
+        );
         if (ir) drawbacks.push(ir);
       }
 
       // Drawbacks taken this jump
       const drawbackIds = jump.drawbacks?.[characterId] ?? [];
       for (const id of drawbackIds) {
-        const ir = buildDrawbackIR(id, chain, jump, jumpId, characterId, sections.costs, sections.descriptions, false, false);
+        const ir = buildDrawbackIR(
+          id,
+          chain,
+          jump,
+          jumpId,
+          characterId,
+          sections.costs,
+          sections.descriptions,
+          false,
+          false,
+        );
         if (ir) drawbacks.push(ir);
       }
 
       // Retained drawbacks from previous jumps
-      const retained = calculatedData.retainedDrawbacks?.[characterId]?.[jumpId] ?? [];
+      const retained =
+        calculatedData.retainedDrawbacks?.[characterId]?.[jumpId] ?? [];
       for (const id of retained) {
         if (drawbackIds.includes(id)) continue;
-        const ir = buildDrawbackIR(id, chain, jump, jumpId, characterId, sections.costs, sections.descriptions, true, false);
+        const ir = buildDrawbackIR(
+          id,
+          chain,
+          jump,
+          jumpId,
+          characterId,
+          sections.costs,
+          sections.descriptions,
+          true,
+          false,
+        );
         if (ir) drawbacks.push(ir);
       }
     }
@@ -780,7 +944,13 @@ export function buildExportIR(
     if (sections.scenarios) {
       const scenarioIds = jump.scenarios?.[characterId] ?? [];
       for (const id of scenarioIds) {
-        const ir = buildScenarioIR(id, chain, jump, sections.costs, sections.descriptions);
+        const ir = buildScenarioIR(
+          id,
+          chain,
+          jump,
+          sections.costs,
+          sections.descriptions,
+        );
         if (ir) scenarios.push(ir);
       }
     }
@@ -793,7 +963,7 @@ export function buildExportIR(
         if (!p || p.type !== PurchaseType.Companion) continue;
         const ci = p as CompanionImport;
         const characterNames = ci.importData.characters
-          .map((cId) => chain.characters.O[cId]?.name)
+          .map(cId => chain.characters.O[cId]?.name)
           .filter((n): n is string => !!n);
         const cost = sections.costs
           ? formatCostForExport(ci.value, ci.cost, jump.currencies)
@@ -805,7 +975,10 @@ export function buildExportIR(
     // ── Supplements ──
     const supplementSections: IRSupplementSection[] = [];
     const suppFilter = sections.supplements;
-    if (jump.useSupplements && (suppFilter === "all" || suppFilter.length > 0)) {
+    if (
+      jump.useSupplements &&
+      (suppFilter === "all" || suppFilter.length > 0)
+    ) {
       for (const [suppIdStr] of Object.entries(
         jump.supplementPurchases?.[characterId] ?? {},
       )) {
@@ -854,7 +1027,8 @@ export function buildExportIR(
         if (!af) continue;
         let imageUrl: string | null = null;
         if (af.image?.type === "external") imageUrl = af.image.URL;
-        else if (af.image?.type === "internal") imageUrl = imageUrls[af.image.imgId] ?? null;
+        else if (af.image?.type === "internal")
+          imageUrl = imageUrls[af.image.imgId] ?? null;
         altForms.push({
           name: af.name,
           species: af.species,
