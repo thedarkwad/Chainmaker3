@@ -27,7 +27,7 @@ import {
 } from "../data/Purchase";
 
 import { InteractionDialog } from "../handlers/components/InteractionDialog";
-import { useChainMutators } from "../handlers/mutators/useChainMutators";
+import { useChainMutators } from "../handlers/utils";
 
 // Listeners
 import { createPrereqRemovalListener } from "../handlers/listeners/prereqRemovalListener";

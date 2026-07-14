@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
   createId,
   GID,
@@ -551,4 +551,113 @@ export function useJumpDocInternalTags(doc: JumpDoc | null): InternalTagsMap {
       ]),
     );
   }, [doc]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// useChainMutators hook
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { useCreateCompanion, useRemoveCharacter } from "../state/hooks";
+import { ChainMutators } from "./types";
+import { addPurchaseFromTemplate } from "./mutators/addPurchaseFromTemplate";
+import { addOriginFromTemplate } from "./mutators/addOriginFromTemplate";
+import { addScenarioFromTemplate } from "./mutators/addScenarioFromTemplate";
+import { setNameDescription } from "./mutators/setNameDescription";
+import { repricePurchase } from "./mutators/repricePurchase";
+import { repriceOrigin } from "./mutators/repriceOrigin";
+import { removePurchase } from "./mutators/removePurchase";
+import { addCompanionImport } from "./mutators/addCompanionImport";
+import { addFollower } from "./mutators/addFollower";
+import { removeOrigin } from "./mutators/removeOrigin";
+import { addCurrencyExchangeFromDoc } from "./mutators/addCurrencyExchangeFromDoc";
+import { removeCurrencyExchangeFromDoc } from "./mutators/removeCurrencyExchangeFromDoc";
+import { setFreeFormOrigin } from "./mutators/setFreeFormOrigin";
+
+export function useChainMutators(): Omit<ChainMutators, "navigate"> {
+  const createCompanion = useCreateCompanion();
+  const removeCharacterFn = useRemoveCharacter();
+
+  return {
+    addPurchaseFromTemplate: useCallback(
+      (data, jumpId, charId, doc) =>
+        addPurchaseFromTemplate(data, jumpId, charId, doc),
+      [],
+    ),
+    addOriginFromTemplate: useCallback(
+      (data, jumpId, charId, doc) =>
+        addOriginFromTemplate(data, jumpId, charId, doc),
+      [],
+    ),
+    addScenarioFromTemplate: useCallback(
+      (data, jumpId, charId, doc) =>
+        addScenarioFromTemplate(data, jumpId, charId, doc),
+      [],
+    ),
+    setNameDescription: useCallback(
+      (id, name, description) => setNameDescription(id, name, description),
+      [],
+    ),
+    repricePurchase: useCallback(
+      (id, cost, doc) => repricePurchase(id, cost, doc),
+      [],
+    ),
+    repriceOrigin: useCallback(
+      (templateId, jumpId, charId, build, doc) =>
+        repriceOrigin(templateId, jumpId, charId, build, doc),
+      [],
+    ),
+    removePurchase: useCallback(
+      (id, build) => removePurchase(id, build),
+      [],
+    ),
+    addCompanionImport: useCallback(
+      (data, jumpId, charId, doc) =>
+        addCompanionImport(data, jumpId, charId, doc),
+      [],
+    ),
+    createCompanion: useCallback(
+      ({ template, name, gender, species }) =>
+        createCompanion({
+          name,
+          gender,
+          age: 0,
+          backgroundSummary: template.name,
+          backgroundDescription: template.description,
+          personality: "",
+          species,
+        }),
+      [createCompanion],
+    ),
+    addFollower: useCallback(
+      (data, jumpId, charId, doc) =>
+        addFollower(data, jumpId, charId, doc),
+      [],
+    ),
+    removeCharacters: useCallback(
+      ids => {
+        for (const id of ids) removeCharacterFn(id);
+      },
+      [removeCharacterFn],
+    ),
+    removeOrigin: useCallback(
+      (templateId, jumpId, charId) =>
+        removeOrigin(templateId, jumpId, charId),
+      [],
+    ),
+    addCurrencyExchangeFromDoc: useCallback(
+      (opts, jumpId, charId, doc) =>
+        addCurrencyExchangeFromDoc(opts, jumpId, charId, doc),
+      [],
+    ),
+    removeCurrencyExchangeFromDoc: useCallback(
+      (opts, jumpId, charId) =>
+        removeCurrencyExchangeFromDoc(opts, jumpId, charId),
+      [],
+    ),
+    setFreeFormOrigin: useCallback(
+      (data, jumpId, charId, doc) =>
+        setFreeFormOrigin(data, jumpId, charId, doc),
+      [],
+    ),
+  };
 }
