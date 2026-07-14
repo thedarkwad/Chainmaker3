@@ -1,4 +1,4 @@
-import { Annotation, JumpDoc } from "../../data/JumpDoc";
+import { Annotation, JumpDoc } from "@/jumpdoc/data/JumpDoc";
 import { Id, GID } from "../../data/types";
 import {
   AnnotationInteraction,

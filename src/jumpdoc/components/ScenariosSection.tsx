@@ -47,7 +47,7 @@ import {
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
-import type { ScenarioRewardTemplate } from "@/chain/data/JumpDoc";
+import type { ScenarioRewardTemplate } from "@/jumpdoc/data/JumpDoc";
 import { PurchaseType, RewardType } from "@/chain/data/Purchase";
 import { DurationModActiveRow } from "./DrawbacksSection";
 
@@ -324,11 +324,10 @@ function OutcomesEditor({ id }: { id: Id<TID.Scenario> }) {
             key={i}
             type="button"
             onClick={() => setActiveIndex(clampedActive === i ? null : i)}
-            className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${
-              clampedActive === i
+            className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${clampedActive === i
                 ? "bg-violet-400/15 text-violet-400 border-violet-400/50"
                 : "bg-surface text-ink border-edge hover:border-violet-400/50 hover:text-violet-400"
-            }`}
+              }`}
           >
             {g.title || `Outcome ${i + 1}`}
           </button>

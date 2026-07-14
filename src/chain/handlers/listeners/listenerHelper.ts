@@ -1,6 +1,6 @@
 import { JumpDocBuildData, BuildListener } from "../../state/ViewerActionStore";
 import { Chain } from "../../data/Chain";
-import { JumpDoc } from "../../data/JumpDoc";
+import { JumpDoc } from "@/jumpdoc/data/JumpDoc";
 import { ChainMutators } from "../types";
 
 export function createListener(

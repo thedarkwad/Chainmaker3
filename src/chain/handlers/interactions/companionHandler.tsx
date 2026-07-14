@@ -1,4 +1,4 @@
-import { CompanionTemplate, JumpDoc, VariableCost } from "../../data/JumpDoc";
+import { CompanionTemplate, JumpDoc, VariableCost } from "@/jumpdoc/data/JumpDoc";
 import { createId, Id, TID, GID } from "../../data/types";
 import {
   AnnotationInteraction,

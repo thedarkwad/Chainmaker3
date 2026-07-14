@@ -28,7 +28,7 @@ import {
 import type { Id } from "@/chain/data/types";
 import { TID, LID } from "@/chain/data/types";
 import type { SimpleValue } from "@/chain/data/Purchase";
-import { VariableCost } from "@/chain/data/JumpDoc";
+import { VariableCost } from "@/jumpdoc/data/JumpDoc";
 import { extractTags } from "@/utilities/tags";
 import { Link } from "@tanstack/react-router";
 
@@ -472,36 +472,36 @@ function BoostedByMultiselect({
   const dropdown =
     open && availableOptions.length > 0
       ? createPortal(
-          <div
-            ref={dropdownRef}
-            style={{
-              position: "fixed",
-              top: dropdownPos.top,
-              left: dropdownPos.left,
-              zIndex: 9999,
-            }}
-            className="w-52 bg-canvas border border-edge rounded-md shadow-lg max-h-52 overflow-y-auto"
-          >
-            {availableOptions.map(b => (
-              <button
-                key={b.id}
-                onClick={() => {
-                  onAdd(b.id, b.kind);
-                  setOpen(false);
-                }}
-                className="w-full text-left px-3 py-1.5 text-sm text-ink hover:bg-tint transition-colors"
-              >
-                {b.name}
-                {b.kind === "drawback" && (
-                  <span className="ml-1.5 text-[10px] text-red-400 opacity-70">
-                    drawback
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>,
-          document.body,
-        )
+        <div
+          ref={dropdownRef}
+          style={{
+            position: "fixed",
+            top: dropdownPos.top,
+            left: dropdownPos.left,
+            zIndex: 9999,
+          }}
+          className="w-52 bg-canvas border border-edge rounded-md shadow-lg max-h-52 overflow-y-auto"
+        >
+          {availableOptions.map(b => (
+            <button
+              key={b.id}
+              onClick={() => {
+                onAdd(b.id, b.kind);
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-1.5 text-sm text-ink hover:bg-tint transition-colors"
+            >
+              {b.name}
+              {b.kind === "drawback" && (
+                <span className="ml-1.5 text-[10px] text-red-400 opacity-70">
+                  drawback
+                </span>
+              )}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )
       : null;
 
   return (

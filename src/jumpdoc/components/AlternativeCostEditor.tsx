@@ -11,7 +11,7 @@ import { PickerModal, PickerGroup, PickerItem } from "./PickerModal";
 import type {
   AlternativeCost,
   AlternativeCostPrerequisite,
-} from "@/chain/data/JumpDoc";
+} from "@/jumpdoc/data/JumpDoc";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
 import {

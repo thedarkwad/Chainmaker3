@@ -5,7 +5,7 @@ import { toast } from "react-toastify";
 
 import { loadJumpDoc } from "@/api/jumpdocs";
 import { useCurrentUser } from "@/app/state/auth";
-import type { JumpDoc } from "@/chain/data/JumpDoc";
+import type { JumpDoc } from "@/jumpdoc/data/JumpDoc";
 import { useAddJumpFromDoc, useChain } from "@/chain/state/hooks";
 import { useChainStore } from "@/chain/state/Store";
 import { ChainSaveCtx } from "@/routes/chain/$chainId";

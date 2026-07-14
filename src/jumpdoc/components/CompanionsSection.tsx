@@ -26,7 +26,7 @@ import {
   PurchasePrerequisitePickerModal,
 } from "./PurchasesSection";
 import { RareFieldsGroup } from "./RareFieldsGroup";
-import type { AlternativeCostPrerequisite, VariableCost } from "@/chain/data/JumpDoc";
+import type { AlternativeCostPrerequisite, VariableCost } from "@/jumpdoc/data/JumpDoc";
 import { CostDropdown } from "@/ui/CostDropdown";
 import { CostModifier } from "@/chain/data/Purchase";
 import type { SectionSharedProps } from "./sectionTypes";
@@ -61,7 +61,7 @@ function FreebiesEditor({
   onRemove,
 }: {
   freebies: AlternativeCostPrerequisite[];
-  onAdd: (item: AlternativeCostPrerequisite & {type: "purchase" | "drawback" | "origin"}) => void;
+  onAdd: (item: AlternativeCostPrerequisite & { type: "purchase" | "drawback" | "origin" }) => void;
   onRemove: (index: number) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -520,14 +520,14 @@ const CompanionCard = memo(function CompanionCard({
         onToggleOrigin={(originId, willBeSelected) =>
           willBeSelected
             ? modify("Add Origin to Companion", t => {
-                if (!t.origins) t.origins = [];
-                t.origins.push(originId);
-              })
+              if (!t.origins) t.origins = [];
+              t.origins.push(originId);
+            })
             : modify("Remove Origin from Companion", t => {
-                const filtered = (t.origins ?? []).filter(o => o !== originId);
-                t.origins = filtered;
-                if (!filtered.length) t.originBenefit = undefined;
-              })
+              const filtered = (t.origins ?? []).filter(o => o !== originId);
+              t.origins = filtered;
+              if (!filtered.length) t.originBenefit = undefined;
+            })
         }
         onBenefitChange={v =>
           modify("Set Companion Origin Benefit", t => {

@@ -1,8 +1,8 @@
 import { Duration } from "@/utilities/units";
-import { Currency, OriginCategory, PurchaseSubtype } from "./Jump";
-import { RewardType, SimpleValue, Value } from "./Purchase";
-import { createId, Id, Lookup, PartialLookup, Registry, TID } from "./types";
 import { objFilter } from "@/utilities/miscUtilities";
+import { RewardType, SimpleValue, Value } from "@/chain/data/Purchase";
+import { Currency, OriginCategory, PurchaseSubtype } from "@/chain/data/Jump";
+import { createId, Id, Lookup, PartialLookup, Registry, TID } from "@/chain/data/types";
 
 export type DocOriginCategory = OriginCategory & { max?: number } & (
     | { singleLine: true; options: FreeFormOrigin[] }

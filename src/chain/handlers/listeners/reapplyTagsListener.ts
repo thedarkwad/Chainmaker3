@@ -5,7 +5,7 @@ import { BuildListener } from "../../state/ViewerActionStore";
 import { JumpPurchase, PurchaseType, CostModifier, purchaseValue } from "../../data/Purchase";
 import { objMap } from "@/utilities/miscUtilities";
 import { applyTags, applyTagsWithCost } from "../../../utilities/tags";
-import { JumpDoc } from "../../data/JumpDoc";
+import { JumpDoc } from "@/jumpdoc/data/JumpDoc";
 
 const fmtNames = (names: string[]) => names.map(n => `"${n}"`).join(", ");
 

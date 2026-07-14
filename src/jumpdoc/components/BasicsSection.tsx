@@ -52,7 +52,7 @@ import type {
   FreeFormOrigin,
   PageRect,
   AlternativeCost,
-} from "@/chain/data/JumpDoc";
+} from "@/jumpdoc/data/JumpDoc";
 import { AlternativeCostEditor } from "./AlternativeCostEditor";
 import type { Currency } from "@/chain/data/Jump";
 import type { AddBoundsTarget } from "./sectionTypes";
@@ -211,11 +211,10 @@ function FreeFormOptionRow({
         type="button"
         title={isAddTarget ? "Drawing mode — drag a rect on the PDF" : "Link to PDF region"}
         onClick={() => onAddBoundsRequest?.(boundKey, idx)}
-        className={`shrink-0 p-0.5 rounded transition-colors ${
-          isAddTarget
+        className={`shrink-0 p-0.5 rounded transition-colors ${isAddTarget
             ? "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/40"
             : "text-ghost hover:text-ink hover:bg-surface"
-        }`}
+          }`}
       >
         <Crosshair size={11} />
       </button>
@@ -275,11 +274,10 @@ export function RandomToggle({
       <button
         type="button"
         onClick={handleToggle}
-        className={`inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
-          isEnabled
+        className={`inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${isEnabled
             ? "bg-accent2-tint text-accent2 border-accent2 shadow-[0_0_10px_rgba(139,92,246,0.2)]"
             : "bg-surface text-ghost border-edge hover:border-ink hover:text-ink"
-        }`}
+          }`}
       >
         <Shuffle size={12} />
         Player Can Randomize
@@ -319,11 +317,10 @@ export function RandomToggle({
                 : "Link random choice to PDF region"
             }
             onClick={() => onAddBoundsRequest?.("origin-random", catId as number)}
-            className={`p-1 rounded transition-colors ${
-              isAddTarget
+            className={`p-1 rounded transition-colors ${isAddTarget
                 ? "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/40"
                 : "text-ghost hover:text-violet-400 hover:bg-violet-400/10"
-            }`}
+              }`}
           >
             <Crosshair size={12} />
           </button>
@@ -455,11 +452,10 @@ function CurrencyExchangeRow({
         type="button"
         title={isAddTarget ? "Drawing mode — drag a rect on the PDF" : "Link to PDF region"}
         onClick={() => onAddBoundsRequest?.(boundKey, idx)}
-        className={`shrink-0 p-0.5 rounded transition-colors ${
-          isAddTarget
+        className={`shrink-0 p-0.5 rounded transition-colors ${isAddTarget
             ? "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/40"
             : "text-ghost hover:text-ink hover:bg-surface"
-        }`}
+          }`}
       >
         <Crosshair size={11} />
       </button>
@@ -890,11 +886,10 @@ function SubtypeEditor({ id, onDelete }: { id: Id<TID.PurchaseSubtype>; onDelete
                       s.defaultCurrency = isActive ? undefined : cid;
                     })
                   }
-                  className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${
-                    isActive
+                  className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${isActive
                       ? "bg-accent2-tint text-accent2 border-accent2"
                       : "bg-surface text-ink border-edge hover:border-accent2 hover:text-accent2"
-                  }`}
+                    }`}
                 >
                   {cur.name}
                   <span className="ml-1 font-mono text-[10px] opacity-60">{cur.abbrev}</span>

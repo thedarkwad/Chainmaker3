@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { X, Plus } from "lucide-react";
-import type { VariableCost } from "@/chain/data/JumpDoc";
+import type { VariableCost } from "@/jumpdoc/data/JumpDoc";
 import { TID } from "@/chain/data/types";
 import { createId, Id } from "@/chain/data/types";
 import { useJumpDocCurrency, useJumpDocCurrencyIds } from "../state/hooks";
@@ -98,15 +98,15 @@ export function VariableCostEditor({
             <div className="text-xs text-ghost uppercase">Variable Value</div>
           </div>
         )}
-      <div className="flex flex-col gap-1.5 bg-tint border items-stretch border-edge rounded-xs py-2 px-3 mx-1">
-        <ExpressionInput
-          currencyId={id}
-          value={value[id] ?? ""}
-          onCommit={expr => setExpr(id, expr)}
-          onRemove={onRemove}
-          showRemove={true}
-        />
-      </div>
+        <div className="flex flex-col gap-1.5 bg-tint border items-stretch border-edge rounded-xs py-2 px-3 mx-1">
+          <ExpressionInput
+            currencyId={id}
+            value={value[id] ?? ""}
+            onCommit={expr => setExpr(id, expr)}
+            onRemove={onRemove}
+            showRemove={true}
+          />
+        </div>
       </div>
     );
   }

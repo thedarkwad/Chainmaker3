@@ -4,7 +4,7 @@ import { createId, Id, TID, GID } from "../../data/types";
 import { BuildListener } from "../../state/ViewerActionStore";
 import { setTracked } from "../../state/hooks";
 import { formatDuration } from "@/utilities/units";
-import { JumpDoc } from "../../data/JumpDoc";
+import { JumpDoc } from "@/jumpdoc/data/JumpDoc";
 
 export function createDurationListener(
   jumpId: Id<GID.Jump>,

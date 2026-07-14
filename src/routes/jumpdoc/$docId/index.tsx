@@ -36,7 +36,7 @@ import { CompanionsSection } from "@/jumpdoc/components/CompanionsSection";
 import { DrawbacksSection } from "@/jumpdoc/components/DrawbacksSection";
 import { ScenariosSection } from "@/jumpdoc/components/ScenariosSection";
 import type { ToolType } from "@/jumpdoc/components/toolTypes";
-import type { PageRect } from "@/chain/data/JumpDoc";
+import type { PageRect } from "@/jumpdoc/data/JumpDoc";
 import { createId, Id, Registry, TID } from "@/chain/data/types";
 import { Currency } from "@/chain/data/Jump";
 

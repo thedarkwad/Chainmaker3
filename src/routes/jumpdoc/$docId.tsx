@@ -28,7 +28,7 @@ import {
   loadJumpDoc,
   sendTrustedEditMessage,
 } from "@/api/jumpdocs";
-import { type JumpDoc, preprocessJumpDoc } from "@/chain/data/JumpDoc";
+import { type JumpDoc, preprocessJumpDoc } from "@/jumpdoc/data/JumpDoc";
 
 export const Route = createFileRoute("/jumpdoc/$docId")({
   component: JumpDocLoader,
@@ -60,8 +60,8 @@ function JumpDocLoader() {
   // Tracks the edits count last synced with the server.
   const editsRef = useRef(0);
   // Keep a stable ref to handleSave so the autosave interval doesn't need to be re-registered.
-  const handleSaveRef = useRef<() => Promise<void>>(async () => {});
-  const handleAutoSaveRef = useRef<() => Promise<void>>(async () => {});
+  const handleSaveRef = useRef<() => Promise<void>>(async () => { });
+  const handleAutoSaveRef = useRef<() => Promise<void>>(async () => { });
   // True until the first successful save — allows saving even with 0 patches (initial save).
   const isPendingRef = useRef(false);
 

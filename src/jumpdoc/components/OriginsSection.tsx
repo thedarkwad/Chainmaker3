@@ -33,7 +33,7 @@ import {
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
-import type { StipendEntry } from "@/chain/data/JumpDoc";
+import type { StipendEntry } from "@/jumpdoc/data/JumpDoc";
 import {
   PurchasePrerequisiteEditor,
   PurchasePrerequisitePickerModal,
@@ -412,45 +412,45 @@ const OriginCard = memo(function OriginCard({
           },
           ...(synergyCats.length > 0
             ? [
-                {
-                  key: "synergy",
-                  isActive: showSynergySection,
-                  dormant: () => (
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-0.5 text-xs text-ghost hover:text-accent2 transition-colors"
-                      onClick={() => setShowSynergySection(true)}
-                    >
-                      <Plus size={10} /> Add Synergy with Other Origin(s)
-                    </button>
-                  ),
-                  active: () => (
-                    <div className="pt-1.5 border-t border-line">
-                      <OriginBenefitSection
-                        selectedOriginIds={new Set(origin.synergies ?? [])}
-                        originBenefit={origin.synergyBenefit}
-                        discountGroups={synergyCats}
-                        onToggleOrigin={(oid, willBeSelected) =>
-                          willBeSelected
-                            ? modify("Add Origin to Purchase", (t) => {
-                                if (!t.synergies) t.synergies = [];
-                                t.synergies.push(oid);
-                              })
-                            : modify("Remove Origin from Purchase", (t) => {
-                                if (!t.synergies) return;
-                                t.synergies = t.synergies.filter((o) => o !== oid);
-                              })
-                        }
-                        onBenefitChange={(v) =>
-                          modify("Set Origin Benefit", (t) => {
-                            t.synergyBenefit = v;
+              {
+                key: "synergy",
+                isActive: showSynergySection,
+                dormant: () => (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-0.5 text-xs text-ghost hover:text-accent2 transition-colors"
+                    onClick={() => setShowSynergySection(true)}
+                  >
+                    <Plus size={10} /> Add Synergy with Other Origin(s)
+                  </button>
+                ),
+                active: () => (
+                  <div className="pt-1.5 border-t border-line">
+                    <OriginBenefitSection
+                      selectedOriginIds={new Set(origin.synergies ?? [])}
+                      originBenefit={origin.synergyBenefit}
+                      discountGroups={synergyCats}
+                      onToggleOrigin={(oid, willBeSelected) =>
+                        willBeSelected
+                          ? modify("Add Origin to Purchase", (t) => {
+                            if (!t.synergies) t.synergies = [];
+                            t.synergies.push(oid);
                           })
-                        }
-                      />
-                    </div>
-                  ),
-                },
-              ]
+                          : modify("Remove Origin from Purchase", (t) => {
+                            if (!t.synergies) return;
+                            t.synergies = t.synergies.filter((o) => o !== oid);
+                          })
+                      }
+                      onBenefitChange={(v) =>
+                        modify("Set Origin Benefit", (t) => {
+                          t.synergyBenefit = v;
+                        })
+                      }
+                    />
+                  </div>
+                ),
+              },
+            ]
             : []),
         ]}
       />

@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { toast } from "react-toastify";
 import withReactContent from "sweetalert2-react-content";
 import Swal from "sweetalert2";
 
 import {
-  createId,
   GID,
   Id,
-  LID,
   PartialIndex,
-  Registry,
   TID,
 } from "../data/types";
 import { setTracked, useChain, useCharacter, useUpdateStack } from "../state/hooks";
@@ -22,7 +18,6 @@ import {
 import { Chain } from "../data/Chain";
 import {
   BasicPurchase,
-  CompanionImport,
   CostModifier,
   Drawback,
   JumpPurchase,
@@ -30,7 +25,6 @@ import {
   PurchaseType,
   Value,
 } from "../data/Purchase";
-import { JumpDoc } from "../data/JumpDoc";
 
 import { InteractionDialog } from "../handlers/components/InteractionDialog";
 import { useChainMutators } from "../handlers/mutators/useChainMutators";
@@ -50,6 +44,7 @@ import {
   AnnotationInteractionHandlerProps,
   ChainMutators
 } from "../handlers/types";
+import { JumpDoc } from "@/jumpdoc/data/JumpDoc";
 
 // Re-exports
 export type {

@@ -24,7 +24,7 @@ import type {
   DocOriginCategory,
   AlternativeCost,
   JumpDocPrerequisite,
-} from "@/chain/data/JumpDoc";
+} from "@/jumpdoc/data/JumpDoc";
 import type { SimpleValue } from "@/chain/data/Purchase";
 import type { Currency, PurchaseSubtype } from "@/chain/data/Jump";
 import {
@@ -35,7 +35,7 @@ import {
   createId,
 } from "@/chain/data/types";
 import { PurchaseType, RewardType } from "@/chain/data/Purchase";
-import type { ScenarioRewardTemplate } from "@/chain/data/JumpDoc";
+import type { ScenarioRewardTemplate } from "@/jumpdoc/data/JumpDoc";
 import { ParsedEntry } from "@/routes/jumpdoc/$docId/index";
 
 // ── Top-level doc ─────────────────────────────────────────────────────────────
@@ -238,8 +238,8 @@ export function useJumpDocOriginCategoryIds(): Id<TID.OriginCategory>[] {
     useShallow(s =>
       s.doc
         ? (Object.keys(s.doc.originCategories.O).map(
-            Number,
-          ) as Id<TID.OriginCategory>[])
+          Number,
+        ) as Id<TID.OriginCategory>[])
         : [],
     ),
   );
@@ -296,8 +296,8 @@ export function useJumpDocPurchaseSubtypeIds(): Id<TID.PurchaseSubtype>[] {
     useShallow(s =>
       s.doc
         ? (Object.keys(s.doc.purchaseSubtypes.O).map(
-            Number,
-          ) as Id<TID.PurchaseSubtype>[])
+          Number,
+        ) as Id<TID.PurchaseSubtype>[])
         : [],
     ),
   );
@@ -519,8 +519,8 @@ export function useJumpDocPurchaseIds(): Id<TID.Purchase>[] {
     useShallow(s =>
       s.doc
         ? (Object.keys(s.doc.availablePurchases.O).map(
-            Number,
-          ) as Id<TID.Purchase>[])
+          Number,
+        ) as Id<TID.Purchase>[])
         : [],
     ),
   );
@@ -607,33 +607,33 @@ export function useAddJumpDocPrereq(
           const reversePrereq: JumpDocPrerequisite =
             sourceType === "purchase"
               ? {
-                  type: "purchase",
-                  id: sourceId as Id<TID.Purchase>,
-                  positive: false,
-                }
+                type: "purchase",
+                id: sourceId as Id<TID.Purchase>,
+                positive: false,
+              }
               : sourceType === "drawback"
                 ? {
-                    type: "drawback",
-                    id: sourceId as Id<TID.Drawback>,
-                    positive: false,
-                  }
+                  type: "drawback",
+                  id: sourceId as Id<TID.Drawback>,
+                  positive: false,
+                }
                 : sourceType === "scenario"
                   ? {
-                      type: "scenario",
-                      id: sourceId as Id<TID.Scenario>,
-                      positive: false,
-                    }
+                    type: "scenario",
+                    id: sourceId as Id<TID.Scenario>,
+                    positive: false,
+                  }
                   : sourceType === "companion"
                     ? {
-                        type: "companion",
-                        id: sourceId as Id<TID.Companion>,
-                        positive: false,
-                      }
+                      type: "companion",
+                      id: sourceId as Id<TID.Companion>,
+                      positive: false,
+                    }
                     : {
-                        type: "origin",
-                        id: sourceId as Id<TID.Origin>,
-                        positive: false,
-                      };
+                      type: "origin",
+                      id: sourceId as Id<TID.Origin>,
+                      positive: false,
+                    };
           const tgtPrereqs = getDocPrereqs(d, prereq.type, prereq.id as number);
           if (
             tgtPrereqs &&
@@ -747,8 +747,8 @@ export function useJumpDocDrawbackIds(): Id<TID.Drawback>[] {
     useShallow(s =>
       s.doc
         ? (Object.keys(s.doc.availableDrawbacks.O).map(
-            Number,
-          ) as Id<TID.Drawback>[])
+          Number,
+        ) as Id<TID.Drawback>[])
         : [],
     ),
   );
@@ -829,8 +829,8 @@ export function useJumpDocScenarioIds(): Id<TID.Scenario>[] {
     useShallow(s =>
       s.doc
         ? (Object.keys(s.doc.availableScenarios.O).map(
-            Number,
-          ) as Id<TID.Scenario>[])
+          Number,
+        ) as Id<TID.Scenario>[])
         : [],
     ),
   );
@@ -926,8 +926,8 @@ export function useJumpDocCompanionIds(): Id<TID.Companion>[] {
     useShallow(s =>
       s.doc
         ? (Object.keys(s.doc.availableCompanions.O).map(
-            Number,
-          ) as Id<TID.Companion>[])
+          Number,
+        ) as Id<TID.Companion>[])
         : [],
     ),
   );

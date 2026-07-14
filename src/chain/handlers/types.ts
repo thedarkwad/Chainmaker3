@@ -8,7 +8,7 @@ import {
   CompanionTemplate,
   ScenarioTemplate,
   JumpDoc,
-} from "../data/JumpDoc";
+} from "@/jumpdoc/data/JumpDoc";
 
 export type InternalTagsMap = Record<
   string,
@@ -30,10 +30,10 @@ export type PossibleCost = ModifiedCost<TID.Currency> & {
 export type MutatorNavTarget =
   | { sub: "purchases"; scrollTo?: Id<GID.Purchase> }
   | {
-      sub: "drawbacks";
-      scrollTo?: Id<GID.Purchase>;
-      extraSearch?: Record<string, string>;
-    }
+    sub: "drawbacks";
+    scrollTo?: Id<GID.Purchase>;
+    extraSearch?: Record<string, string>;
+  }
   | { sub: "companions"; scrollTo?: Id<GID.Purchase> }
   | { sub: ""; extraSearch?: Record<string, string> };
 

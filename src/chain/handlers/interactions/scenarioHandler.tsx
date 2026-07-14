@@ -2,7 +2,7 @@ import {
   ScenarioTemplate,
   JumpDoc,
   ScenarioRewardTemplate,
-} from "../../data/JumpDoc";
+} from "@/jumpdoc/data/JumpDoc";
 import { Id, TID, GID } from "../../data/types";
 import {
   AnnotationInteraction,
@@ -86,11 +86,10 @@ function ScenarioOutcomeSelector({
             key={i}
             type="button"
             onClick={() => onSelect(i)}
-            className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${
-              selectedIndex === i
+            className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${selectedIndex === i
                 ? "bg-accent2-tint text-accent2 border-accent2"
                 : "bg-surface text-ink border-edge hover:border-accent2 hover:text-accent2"
-            }`}
+              }`}
           >
             {g.title || `Outcome ${i + 1}`}
           </button>
@@ -163,93 +162,93 @@ export function scenarioInteraction(
   const actions = (
     _: JumpDocBuildData,
   ): AnnotationAction<ScenarioInteractionState>[] => [
-    {
-      name: "Remove",
-      variant: "danger",
-      condition: build => copies(build).length > 0,
-      execute: (build, mutators) => {
-        mutators.removePurchase(copies(build)[0], build);
-        mutators.navigate({ sub: "drawbacks" });
-        return [];
+      {
+        name: "Remove",
+        variant: "danger",
+        condition: build => copies(build).length > 0,
+        execute: (build, mutators) => {
+          mutators.removePurchase(copies(build)[0], build);
+          mutators.navigate({ sub: "drawbacks" });
+          return [];
+        },
       },
-    },
-    {
-      name: "Add",
-      condition: build => copies(build).length == 0 || template.allowMultiple,
-      execute: (build, mutators, { tags: tagValues, selectedOutcome }) => {
-        const newId = mutators.addScenarioFromTemplate(
-          {
-            template,
-            tags: { ...tagValues, ...objMap(internalTags, f => f(build)) },
-            rewardGroupIndex:
-              rewardGroups.length > 0 ? selectedOutcome : undefined,
-          },
-          jumpId,
-          charId,
-          doc,
-        );
-        if (newId !== undefined)
-          mutators.navigate({ sub: "drawbacks", scrollTo: newId });
+      {
+        name: "Add",
+        condition: build => copies(build).length == 0 || template.allowMultiple,
+        execute: (build, mutators, { tags: tagValues, selectedOutcome }) => {
+          const newId = mutators.addScenarioFromTemplate(
+            {
+              template,
+              tags: { ...tagValues, ...objMap(internalTags, f => f(build)) },
+              rewardGroupIndex:
+                rewardGroups.length > 0 ? selectedOutcome : undefined,
+            },
+            jumpId,
+            charId,
+            doc,
+          );
+          if (newId !== undefined)
+            mutators.navigate({ sub: "drawbacks", scrollTo: newId });
 
-        const group = rewardGroups[selectedOutcome];
-        if (!group) return [];
+          const group = rewardGroups[selectedOutcome];
+          if (!group) return [];
 
-        const freeOverride = {
-          cost: {
-            cost: [] as Value<TID.Currency>,
-            modifier: CostModifier.Free,
-          } as PossibleCost,
-          type: "scenario" as const,
-          source: template.id,
-        };
+          const freeOverride = {
+            cost: {
+              cost: [] as Value<TID.Currency>,
+              modifier: CostModifier.Free,
+            } as PossibleCost,
+            type: "scenario" as const,
+            source: template.id,
+          };
 
-        const purchaseRewards = group.rewards
-          .filter(
-            (
-              r,
-            ): r is Extract<
-              ScenarioRewardTemplate,
-              { type: RewardType.Item | RewardType.Perk }
-            > => r.type === RewardType.Item || r.type === RewardType.Perk,
-          )
-          .flatMap(r => {
-            const tmpl = doc.availablePurchases.O[r.id];
-            return [
-              purchaseInteraction(
-                "purchase",
-                tmpl,
-                doc,
-                jumpId,
-                charId,
-                internalTags,
-                freeOverride,
-              ) as AnnotationInteraction<object>,
-            ];
-          });
+          const purchaseRewards = group.rewards
+            .filter(
+              (
+                r,
+              ): r is Extract<
+                ScenarioRewardTemplate,
+                { type: RewardType.Item | RewardType.Perk }
+              > => r.type === RewardType.Item || r.type === RewardType.Perk,
+            )
+            .flatMap(r => {
+              const tmpl = doc.availablePurchases.O[r.id];
+              return [
+                purchaseInteraction(
+                  "purchase",
+                  tmpl,
+                  doc,
+                  jumpId,
+                  charId,
+                  internalTags,
+                  freeOverride,
+                ) as AnnotationInteraction<object>,
+              ];
+            });
 
-        const companionRewards = group.rewards
-          .filter(
-            (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
-              r.type === RewardType.Companion,
-          )
-          .flatMap(r => {
-            const tmpl = doc.availableCompanions.O[r.id];
-            if (!tmpl) return [];
-            return [
-              companionImportInteraction(
-                tmpl,
-                doc,
-                jumpId,
-                charId,
-                internalTags,
-              ) as AnnotationInteraction<object>,
-            ];
-          });
+          const companionRewards = group.rewards
+            .filter(
+              (r): r is Extract<typeof r, { type: RewardType.Companion }> =>
+                r.type === RewardType.Companion,
+            )
+            .flatMap(r => {
+              const tmpl = doc.availableCompanions.O[r.id];
+              if (!tmpl) return [];
+              return [
+                companionImportInteraction(
+                  tmpl,
+                  doc,
+                  jumpId,
+                  charId,
+                  internalTags,
+                ) as AnnotationInteraction<object>,
+              ];
+            });
 
-        return [...purchaseRewards, ...companionRewards];
+          return [...purchaseRewards, ...companionRewards];
+        },
       },
-    },
-  ];
+    ];
 
   return {
     initialize: () => ({ tags: {}, selectedOutcome: 0 }),

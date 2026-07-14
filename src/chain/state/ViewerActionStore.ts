@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { GID, Id, PartialIndex, TID } from "../data/types";
 import { ReactNode } from "react";
 import { CurrencyExchange, Origin } from "../data/Jump";
-import { JumpDoc } from "../data/JumpDoc";
+import { JumpDoc } from "@/jumpdoc/data/JumpDoc";
 import { ChainMutators } from "../components/AnnotationInteractionHandler";
 import { Chain } from "../data/Chain";
 
@@ -22,12 +22,12 @@ export type JumpDocBuildData = {
 
 export type BuildListener = {
   action: (build: JumpDocBuildData, chain: Chain, doc: JumpDoc, mutators: ChainMutators) => void;
-  condition: (build: JumpDocBuildData,chain: Chain) => boolean;
- };
+  condition: (build: JumpDocBuildData, chain: Chain) => boolean;
+};
 
 export type AnnotationAction<A> = {
   name: string | ((buildData: JumpDocBuildData, state: A) => string);
-  execute: (buildData: JumpDocBuildData, mutators: ChainMutators, state: A) => AnnotationInteraction<object>[] | {interaction: [AnnotationInteraction<object>], character: Id<GID.Character>}[];
+  execute: (buildData: JumpDocBuildData, mutators: ChainMutators, state: A) => AnnotationInteraction<object>[] | { interaction: [AnnotationInteraction<object>], character: Id<GID.Character> }[];
   condition: (buildData: JumpDocBuildData) => boolean;
   variant?: "confirm" | "warn" | "danger";
   blocker?: string | ((buildData: JumpDocBuildData, state: A) => string | undefined);

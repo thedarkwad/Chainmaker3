@@ -22,7 +22,7 @@ import {
   OriginTemplate,
   ScenarioTemplate,
   VariableCost,
-} from "../../data/JumpDoc";
+} from "@/jumpdoc/data/JumpDoc";
 import {
   BasicPurchase,
   CompanionImport,
@@ -213,14 +213,14 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             ),
             ...(template.description
               ? {
-                  description: applyTagsWithCost(
-                    template.description,
-                    tags,
-                    templateCostAsValue,
-                    cost,
-                    doc.currencies,
-                  ),
-                }
+                description: applyTagsWithCost(
+                  template.description,
+                  tags,
+                  templateCostAsValue,
+                  cost,
+                  doc.currencies,
+                ),
+              }
               : {}),
             value: convertedCost,
             template: {
@@ -775,7 +775,7 @@ export const purchaseValueWithThreshold = <
       return value.map(val => ({
         amount:
           freebieAllowed &&
-          val.amount <= (currencies.O[val.currency]?.discountFreeThreshold ?? 0)
+            val.amount <= (currencies.O[val.currency]?.discountFreeThreshold ?? 0)
             ? Math.min(0, val.amount)
             : Math.min(val.amount, Math.floor(val.amount / 2)),
         currency: val.currency,

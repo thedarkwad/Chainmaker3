@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Copy, Crosshair, Trash2, X } from "lucide-react";
 import { Tip } from "@/ui/Tip";
-import type { PageRect } from "@/chain/data/JumpDoc";
+import type { PageRect } from "@/jumpdoc/data/JumpDoc";
 import type { ToolType } from "./toolTypes";
 
 function colorForType(type: string): string {
@@ -245,11 +245,10 @@ function TemplateCardInner<T extends TID>({
           {/* Add-bound button */}
           <button
             onClick={onAddBound}
-            className={`flex items-center justify-center gap-1 text-xs py-1 rounded border transition-colors ${
-              isAddTarget
+            className={`flex items-center justify-center gap-1 text-xs py-1 rounded border transition-colors ${isAddTarget
                 ? "border-amber-400/40 bg-amber-400/10 text-amber-400"
                 : "border-dashed border-edge/60 text-ghost hover:border-accent/50 hover:text-accent"
-            }`}
+              }`}
           >
             <Crosshair size={10} />
             {isAddTarget ? "Drag a rect on the PDF…" : "Add PDF region"}

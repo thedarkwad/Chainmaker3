@@ -45,7 +45,7 @@ import {
   useJumpDocCompanion,
   useJumpDocPurchaseSubtypeIdsSorted,
 } from "@/jumpdoc/state/hooks";
-import type { PurchasePrerequisite, VariableCost } from "@/chain/data/JumpDoc";
+import type { PurchasePrerequisite, VariableCost } from "@/jumpdoc/data/JumpDoc";
 import { PickerModal, PickerGroup } from "./PickerModal";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
@@ -303,15 +303,15 @@ const PurchaseCard = memo(function PurchaseCard({
         onToggleOrigin={(id, willBeSelected) =>
           willBeSelected
             ? modify("Add Origin to Purchase", t => {
-                if (!t.origins) t.origins = [];
-                t.origins.push(id);
-              })
+              if (!t.origins) t.origins = [];
+              t.origins.push(id);
+            })
             : modify("Remove Origin from Purchase", t => {
-                if (!t.origins) t.origins = [];
+              if (!t.origins) t.origins = [];
 
-                t.origins = t.origins.filter(o => o !== id);
-                if (t.origins.length === 0) t.originBenefit = undefined;
-              })
+              t.origins = t.origins.filter(o => o !== id);
+              if (t.origins.length === 0) t.originBenefit = undefined;
+            })
         }
         onBenefitChange={v =>
           modify("Set Origin Benefit", t => {
@@ -396,52 +396,52 @@ const PurchaseCard = memo(function PurchaseCard({
           },
           ...(availableBoosterItems.length > 0
             ? [
-                {
-                  key: "boost",
-                  isActive: purchase.boosted.length > 0 || showBoost,
-                  dormant: () => (
-                    <button
-                      type="button"
-                      className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
-                      onClick={() => setShowBoost(true)}
-                    >
-                      <Plus size={8} /> add boost
-                    </button>
-                  ),
-                  active: () => (
-                    <div className="pt-1.5 border-t border-line">
-                      <BoostedEditor
-                        boosted={purchase.boosted}
-                        capstoneBoosterItems={availableBoosterItems}
-                        onAdd={(boosterId, boosterKind) =>
-                          modify("Add Boosted Version", t => {
-                            t.boosted.push({
-                              description: "",
-                              booster: boosterId,
-                              boosterKind,
-                            });
-                          })
-                        }
-                        onRemove={boosterId =>
-                          modify("Remove Boosted Version", t => {
-                            t.boosted = t.boosted.filter(
-                              b => b.booster !== boosterId,
-                            );
-                          })
-                        }
-                        onCommitDescription={(boosterId, desc) =>
-                          modify("Set Boosted Description", t => {
-                            const entry = t.boosted.find(
-                              b => b.booster === boosterId,
-                            );
-                            if (entry) entry.description = desc;
-                          })
-                        }
-                      />
-                    </div>
-                  ),
-                },
-              ]
+              {
+                key: "boost",
+                isActive: purchase.boosted.length > 0 || showBoost,
+                dormant: () => (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
+                    onClick={() => setShowBoost(true)}
+                  >
+                    <Plus size={8} /> add boost
+                  </button>
+                ),
+                active: () => (
+                  <div className="pt-1.5 border-t border-line">
+                    <BoostedEditor
+                      boosted={purchase.boosted}
+                      capstoneBoosterItems={availableBoosterItems}
+                      onAdd={(boosterId, boosterKind) =>
+                        modify("Add Boosted Version", t => {
+                          t.boosted.push({
+                            description: "",
+                            booster: boosterId,
+                            boosterKind,
+                          });
+                        })
+                      }
+                      onRemove={boosterId =>
+                        modify("Remove Boosted Version", t => {
+                          t.boosted = t.boosted.filter(
+                            b => b.booster !== boosterId,
+                          );
+                        })
+                      }
+                      onCommitDescription={(boosterId, desc) =>
+                        modify("Set Boosted Description", t => {
+                          const entry = t.boosted.find(
+                            b => b.booster === boosterId,
+                          );
+                          if (entry) entry.description = desc;
+                        })
+                      }
+                    />
+                  </div>
+                ),
+              },
+            ]
             : []),
           {
             key: "altCosts",
@@ -831,11 +831,10 @@ function PrereqChipPill({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] max-w-full ${
-        positive
+      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] max-w-full ${positive
           ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
           : "bg-red-500/10 border-red-500/25 text-red-400"
-      }`}
+        }`}
     >
       <span className="font-bold shrink-0">{positive ? "+" : "−"}</span>
       <span className="text-muted shrink-0">{label}:</span>

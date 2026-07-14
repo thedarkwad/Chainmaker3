@@ -9,7 +9,7 @@ import {
   Value,
   BasicPurchase,
 } from "../../data/Purchase";
-import { PurchaseTemplate, VariableCost } from "../../data/JumpDoc";
+import { PurchaseTemplate, VariableCost } from "@/jumpdoc/data/JumpDoc";
 import { formatCostShort } from "@/ui/CostDropdown";
 import {
   evalVariableCostExpr,
@@ -67,14 +67,14 @@ export function createRepricePurchasesListener(
           const resolvedCost: Value<TID.Currency> = Array.isArray(template.cost)
             ? (template.cost as Value<TID.Currency>)
             : Object.entries(template.cost as VariableCost).map(
-                ([currIdStr, expr]) => ({
-                  currency: createId<TID.Currency>(+currIdStr),
-                  amount: evalVariableCostExpr(expr ?? "", {
-                    ...(p.template?.tags ?? {}),
-                    ...objMap(internalTags, l => l(build)),
-                  }),
+              ([currIdStr, expr]) => ({
+                currency: createId<TID.Currency>(+currIdStr),
+                amount: evalVariableCostExpr(expr ?? "", {
+                  ...(p.template?.tags ?? {}),
+                  ...objMap(internalTags, l => l(build)),
                 }),
-              );
+              }),
+            );
 
           const dummyTemplate = {
             ...template,

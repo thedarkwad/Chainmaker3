@@ -24,7 +24,7 @@ import "pdfjs-dist/web/pdf_viewer.css";
 import { ChevronDown, MousePointer2, Plus } from "lucide-react";
 import type { ToolDefinition } from "@/jumpdoc/state/hooks";
 import type { ToolType } from "./toolTypes";
-import type { PageRect } from "@/chain/data/JumpDoc";
+import type { PageRect } from "@/jumpdoc/data/JumpDoc";
 import {
   usePdfRenderer,
   MIN_ZOOM,
@@ -386,7 +386,7 @@ export const PdfViewer = memo(
           const text = line
             .map((item, i) => {
               if (i == 0) return item.str;
-              let hgap = line[i].left - line[i-1].right;
+              let hgap = line[i].left - line[i - 1].right;
               if (hgap < 2)
                 return item.str;
               return " " + item.str;
@@ -514,21 +514,21 @@ export const PdfViewer = memo(
       color?: string;
       icon?: React.ReactNode;
     }[] = [
-      {
-        tool: null,
-        label: "Pointer",
-        group: "pointer",
-        color: "#555",
-        icon: <MousePointer2 size={13} />,
-      },
-      ...tools.map(({ key, label, color, group }) => ({
-        tool: key,
-        label,
-        group,
-        color,
-        icon: <Plus size={11} />,
-      })),
-    ];
+        {
+          tool: null,
+          label: "Pointer",
+          group: "pointer",
+          color: "#555",
+          icon: <MousePointer2 size={13} />,
+        },
+        ...tools.map(({ key, label, color, group }) => ({
+          tool: key,
+          label,
+          group,
+          color,
+          icon: <Plus size={11} />,
+        })),
+      ];
 
     const toolGroups: { group: string; buttons: typeof toolButtons }[] = [];
     for (const btn of toolButtons) {
@@ -605,11 +605,10 @@ export const PdfViewer = memo(
                       onToolChange(tool);
                       extraOnClick?.();
                     }}
-                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors shrink-0 ${
-                      active
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors shrink-0 ${active
                         ? "text-surface"
                         : "text-muted hover:text-ink bg-transparent hover:bg-tint"
-                    }`}
+                      }`}
                     style={active && color ? { backgroundColor: color } : undefined}
                   >
                     {icon}
@@ -627,11 +626,10 @@ export const PdfViewer = memo(
                     <div className="relative">
                       <button
                         onClick={() => setOpenGroup(isOpen ? null : group)}
-                        className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors shrink-0 ${
-                          activeBtn
+                        className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors shrink-0 ${activeBtn
                             ? "text-surface"
                             : "text-muted hover:text-ink bg-transparent hover:bg-tint"
-                        }`}
+                          }`}
                         style={activeBtn?.color ? { backgroundColor: activeBtn.color } : undefined}
                       >
                         {activeBtn ? `${groupLabel} (${activeBtn.label})` : groupLabel}
@@ -736,9 +734,8 @@ export const PdfViewer = memo(
                       ref={(el) => {
                         textLayerRefs.current[pageIdx] = el;
                       }}
-                      className={`textLayer absolute inset-0 overflow-hidden select-text ${
-                        ctrlHeld ? "" : "pointer-events-none invisible"
-                      }`}
+                      className={`textLayer absolute inset-0 overflow-hidden select-text ${ctrlHeld ? "" : "pointer-events-none invisible"
+                        }`}
                       style={{ "--total-scale-factor": RENDER_SCALE } as React.CSSProperties}
                     />
 

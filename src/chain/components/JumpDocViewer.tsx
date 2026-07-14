@@ -41,7 +41,7 @@ import {
   type DocOriginCategory,
   type FullAnnotations,
   type JumpDoc,
-} from "@/chain/data/JumpDoc";
+} from "@/jumpdoc/data/JumpDoc";
 import { useWindowDocument } from "@/ui/WindowDocumentContext";
 import {
   type AnnotationInteraction,
@@ -82,7 +82,7 @@ import type {
   Origin,
   OriginCategory,
 } from "../data/Jump";
-import { preprocessJumpDoc } from "../data/JumpDoc";
+import { preprocessJumpDoc } from "@/jumpdoc/data/JumpDoc";
 
 export function resolveJumpCurrency(
   abbrev: string,
@@ -969,9 +969,8 @@ export function JumpDocViewer({
               onPointerUp={() => setShiftHeld(false)}
               onPointerLeave={() => setShiftHeld(false)}
               onPointerCancel={() => setShiftHeld(false)}
-              className={`absolute bottom-10 left-0 z-10 p-4 rounded-tr transition-colors text-surface ${
-                shiftHeld ? "bg-accent" : "bg-accent-ring"
-              }`}
+              className={`absolute bottom-10 left-0 z-10 p-4 rounded-tr transition-colors text-surface ${shiftHeld ? "bg-accent" : "bg-accent-ring"
+                }`}
               aria-label="Hold to show annotations"
             >
               <Eye size={28} />
@@ -1141,9 +1140,8 @@ export function JumpDocViewer({
                         ref={el => {
                           textLayerRefs.current[pageIdx] = el;
                         }}
-                        className={`textLayer absolute inset-0 overflow-hidden select-text ${
-                          ctrlHeld ? "" : "pointer-events-none invisible"
-                        }`}
+                        className={`textLayer absolute inset-0 overflow-hidden select-text ${ctrlHeld ? "" : "pointer-events-none invisible"
+                          }`}
                         style={
                           {
                             "--total-scale-factor": RENDER_SCALE,
@@ -1184,16 +1182,16 @@ export function JumpDocViewer({
                                 const isHovered =
                                   ann.type === "origin-option"
                                     ? hoverInfo?.pageIdx === pageIdx &&
-                                      hoverInfo.items[0]?.type ===
-                                        "origin-option" &&
-                                      hoverInfo.items[0].rect.x ===
-                                        ann.rect.x &&
-                                      hoverInfo.items[0].rect.y ===
-                                        ann.rect.y &&
-                                      hoverInfo.items[0].rect.width ===
-                                        ann.rect.width &&
-                                      hoverInfo.items[0].rect.height ===
-                                        ann.rect.height
+                                    hoverInfo.items[0]?.type ===
+                                    "origin-option" &&
+                                    hoverInfo.items[0].rect.x ===
+                                    ann.rect.x &&
+                                    hoverInfo.items[0].rect.y ===
+                                    ann.rect.y &&
+                                    hoverInfo.items[0].rect.width ===
+                                    ann.rect.width &&
+                                    hoverInfo.items[0].rect.height ===
+                                    ann.rect.height
                                     : (hoveredKeys?.has(key) ?? false);
                                 if (!isSelected && !isHovered) return null;
                                 const bx = ann.rect.x * pageInfo.width;

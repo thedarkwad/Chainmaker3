@@ -3,7 +3,7 @@ import { createListener } from "./listenerHelper";
 import { getPrereqError } from "../utils";
 import { createId, Id, TID, GID } from "../../data/types";
 import { BuildListener, JumpDocBuildData } from "../../state/ViewerActionStore";
-import { JumpDoc } from "../../data/JumpDoc";
+import { JumpDoc } from "@/jumpdoc/data/JumpDoc";
 
 const fmtNames = (names: string[]) => names.map(n => `"${n}"`).join(", ");
 

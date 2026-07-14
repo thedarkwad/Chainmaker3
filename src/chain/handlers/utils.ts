@@ -19,7 +19,7 @@ import {
   PurchaseTemplate,
   stripTemplating,
   VariableCost,
-} from "../data/JumpDoc";
+} from "@/jumpdoc/data/JumpDoc";
 import {
   CostModifier,
   ModifiedCost,
@@ -145,7 +145,7 @@ export const purchaseValueWithThreshold = <
       return value.map(val => ({
         amount:
           freebieAllowed &&
-          val.amount <= (currencies.O[val.currency]?.discountFreeThreshold ?? 0)
+            val.amount <= (currencies.O[val.currency]?.discountFreeThreshold ?? 0)
             ? Math.min(0, val.amount)
             : Math.min(val.amount, Math.floor(val.amount / 2)),
         currency: val.currency,
@@ -239,7 +239,7 @@ export function computePossibleCosts(
   let isPurchase = (template as BasicPurchaseTemplate).subtype !== undefined;
   let floatingDiscountMode = isPurchase
     ? (doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype]
-        .floatingDiscountMode ??
+      .floatingDiscountMode ??
       (doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype]
         .floatingDiscountThresholds?.length
         ? "free"
@@ -546,7 +546,7 @@ export function useJumpDocInternalTags(doc: JumpDoc | null): InternalTagsMap {
         (build: JumpDocBuildData) =>
           String(
             incrementers.reduce((n, inc) => n + inc(build, t), 0) +
-              originIncrementer(build, t),
+            originIncrementer(build, t),
           ),
       ]),
     );

@@ -12,7 +12,7 @@ import type {
   JumpSource,
 } from "@/chain/data/Jump";
 import { DEFAULT_CURRENCY_ID, JumpSourceType } from "@/chain/data/Jump";
-import type { JumpDoc } from "@/chain/data/JumpDoc";
+import type { JumpDoc } from "@/jumpdoc/data/JumpDoc";
 import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
 import {
   CostModifier,
@@ -822,7 +822,7 @@ export function useJumpBasicPurchases(
           if (
             p?.type === type &&
             c.jumps.O[jumpId]?.purchaseSubtypes.O[p.subtype]?.placement ===
-              "normal"
+            "normal"
           ) {
             list[i] = newIds[cursor++];
           }
@@ -934,10 +934,10 @@ export function useScrollToPurchasePlacement(
   purchaseId: Id<GID.Purchase> | undefined,
 ):
   | {
-      subtypeId: Id<LID.PurchaseSubtype>;
-      placement: "normal" | "route" | "section";
-      type: PurchaseType.Perk | PurchaseType.Item;
-    }
+    subtypeId: Id<LID.PurchaseSubtype>;
+    placement: "normal" | "route" | "section";
+    type: PurchaseType.Perk | PurchaseType.Item;
+  }
   | undefined {
   return useChainStore(
     useShallow(s => {
@@ -2359,8 +2359,8 @@ export function useBankDeposit(
   const adjustedDeposit = useChainStore(s =>
     depositAmount > 0
       ? Math.floor(
-          depositAmount * ((s.chain?.bankSettings?.depositRatio ?? 0) / 100),
-        )
+        depositAmount * ((s.chain?.bankSettings?.depositRatio ?? 0) / 100),
+      )
       : depositAmount,
   );
 

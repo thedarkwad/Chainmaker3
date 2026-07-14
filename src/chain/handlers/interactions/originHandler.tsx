@@ -2,7 +2,7 @@ import {
   OriginTemplate,
   JumpDoc,
   DocOriginCategory,
-} from "../../data/JumpDoc";
+} from "@/jumpdoc/data/JumpDoc";
 import {
   createId,
   Id,
@@ -23,7 +23,7 @@ import {
   resolveOriginTemplate,
   purchaseValueWithThreshold,
 } from "../utils";
-import { stripTemplating } from "../../data/JumpDoc";
+import { stripTemplating } from "@/jumpdoc/data/JumpDoc";
 import { formatCostDisplay, formatCostShort } from "@/ui/CostDropdown";
 import { objMap } from "@/utilities/miscUtilities";
 import { applyTagsWithCost } from "../../../utilities/tags";

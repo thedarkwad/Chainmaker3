@@ -14,7 +14,7 @@ import { BuildListener } from "../../state/ViewerActionStore";
 import { setTracked } from "../../state/hooks";
 import { convertSubtypeId, convertCurrencyId } from "../utils";
 import { Drawback, PurchaseType, CostModifier } from "../../data/Purchase";
-import { JumpDoc, StipendEntry } from "../../data/JumpDoc";
+import { JumpDoc, StipendEntry } from "@/jumpdoc/data/JumpDoc";
 
 const fmtNames = (names: string[]) => names.map(n => `"${n}"`).join(", ");
 
@@ -166,10 +166,10 @@ export function createStipendListener(
     },
     build => [
       relevantOriginTemplates.length &&
-        build.origins
-          .map(o => o.template?.id ?? "")
-          .sort()
-          .join(","),
+      build.origins
+        .map(o => o.template?.id ?? "")
+        .sort()
+        .join(","),
       relevantPurchaseTemplates && Object.keys(build.purchases).length,
     ],
   );

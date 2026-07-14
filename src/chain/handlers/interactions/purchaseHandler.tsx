@@ -6,7 +6,7 @@ import {
   JumpDoc,
   PurchaseTemplate,
   VariableCost,
-} from "../../data/JumpDoc";
+} from "@/jumpdoc/data/JumpDoc";
 import { PossibleCost, ChainMutators } from "../types";
 import {
   AnnotationAction,

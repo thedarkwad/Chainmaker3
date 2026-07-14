@@ -5,7 +5,7 @@ import {
   useViewerActionStore,
 } from "../../state/ViewerActionStore";
 import { ChainMutators } from "../types";
-import { stripTemplating } from "../../data/JumpDoc";
+import { stripTemplating } from "@/jumpdoc/data/JumpDoc";
 import { InteractionPreviewCard } from "../../components/InteractionPreviewCard";
 
 export function InteractionDialog({
@@ -61,7 +61,7 @@ export function InteractionDialog({
       {interactions.length > 1 && (
         <>
           <p className="px-4 pt-3 pb-2 text-sm font-semibold text-ink border-b border-edge">
-             Multiple options — choose one:
+            Multiple options — choose one:
           </p>
           <div className="flex flex-row flex-wrap justify-center gap-1 mx-2 mt-2 max-w-100">
             {interactions.map(({ name, initialize }, i) => (

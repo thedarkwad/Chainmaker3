@@ -1,4 +1,4 @@
-import { type JumpDoc } from "@/chain/data/JumpDoc";
+import { type JumpDoc } from "@/jumpdoc/data/JumpDoc";
 import { PurchaseType, RewardType } from "@/chain/data/Purchase";
 import { Models } from "./db";
 

@@ -33,7 +33,7 @@ import {
 } from "@/jumpdoc/state/hooks";
 import type { Id } from "@/chain/data/types";
 import { TID } from "@/chain/data/types";
-import type { DrawbackDurationMod, VariableCost } from "@/chain/data/JumpDoc";
+import type { DrawbackDurationMod, VariableCost } from "@/jumpdoc/data/JumpDoc";
 
 export function DurationModActiveRow({
   value,
@@ -382,7 +382,7 @@ const DrawbackCard = memo(function DrawbackCard({
                   className="flex items-center gap-1 text-xs text-ghost hover:text-accent transition-colors"
                   onClick={() => setPrereqPickerOpen(true)}
                 >
-                  <Plus size={8} /> add prereq / incompatibility 
+                  <Plus size={8} /> add prereq / incompatibility
                 </button>
                 {prereqPickerOpen && (
                   <PurchasePrerequisitePickerModal

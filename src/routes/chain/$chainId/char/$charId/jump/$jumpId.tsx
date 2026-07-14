@@ -67,7 +67,7 @@ import {
   useSupplementAccess,
 } from "@/chain/state/hooks";
 import { useChainStore } from "@/chain/state/Store";
-import type { JumpDoc } from "@/chain/data/JumpDoc";
+import type { JumpDoc } from "@/jumpdoc/data/JumpDoc";
 import { loadJumpDoc, type JumpDocSummary } from "@/api/jumpdocs";
 import { useCurrentUser } from "@/app/state/auth";
 import { JumpDocGallery } from "@/app/components/JumpDocGallery";
@@ -434,9 +434,9 @@ function JumpLayoutInner({
       synchronizeBank(charGid, jumpGid),
       ...(suppGid != null
         ? [
-            synchronizeSupplementInvestments(charGid, jumpGid, suppGid),
-            synchronizeGrossSupplementStipend(charGid, jumpGid, suppGid),
-          ]
+          synchronizeSupplementInvestments(charGid, jumpGid, suppGid),
+          synchronizeGrossSupplementStipend(charGid, jumpGid, suppGid),
+        ]
         : []),
       synchronizeBudget(charGid, jumpGid),
     ];
@@ -597,13 +597,12 @@ function JumpLayoutInner({
     <div className="flex h-full overflow-hidden">
       {sidebar}
       <div
-        className={`flex flex-col min-w-0 ${
-          jumpdocId && viewerOpen && !viewerPopped
+        className={`flex flex-col min-w-0 ${jumpdocId && viewerOpen && !viewerPopped
             ? viewerExpanded
               ? "hidden"
               : "hidden md:flex md:w-1/2 md:min-w-150 md:shrink-0"
             : "flex-1"
-        }`}
+          }`}
       >
         {import.meta.env.VITE_PLATFORM === "electron" && (
           <ElectronChainNav chainId={chainId} charId={charId} jumpId={jumpId} />
@@ -715,9 +714,8 @@ function JumpLayoutInner({
 
           {/* Inline panel — shown when viewer is open and not popped out */}
           <div
-            className={`min-w-0 border-l border-edge flex overflow-hidden ${
-              viewerOpen && !viewerPopped ? "flex-1" : "hidden"
-            }`}
+            className={`min-w-0 border-l border-edge flex overflow-hidden ${viewerOpen && !viewerPopped ? "flex-1" : "hidden"
+              }`}
           >
             <JumpDocViewer
               docId={jumpdocId}
@@ -843,15 +841,14 @@ const JumpBlockContent = memo(function JumpBlockContent({
   return (
     <>
       <div
-        className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-sm transition-colors ${
-          isActive && isAccessible
+        className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-sm transition-colors ${isActive && isAccessible
             ? "bg-accent2-tint text-accent2 outline outline-accent2"
             : isActive
               ? "bg-accent2-tint/50 text-ghost outline outline-accent2/40"
               : isAccessible
                 ? "text-ink hover:text-accent2"
                 : "text-ghost opacity-60 hover:opacity-80"
-        }`}
+          }`}
       >
         <Link
           to={jumpTo}
@@ -891,15 +888,14 @@ const JumpBlockContent = memo(function JumpBlockContent({
                 onClick={onNavigate}
                 data-jump-id={supId}
                 title={formatDuration(sup.duration)}
-                className={`w-full block px-3 py-0.5 text-xs transition-colors truncate border-l ${
-                  supActive && supAccessible
+                className={`w-full block px-3 py-0.5 text-xs transition-colors truncate border-l ${supActive && supAccessible
                     ? "text-accent2 bg-accent2-tint border-l-accent2"
                     : supActive
                       ? "text-ghost bg-accent2-tint/50 border-l-accent2/40"
                       : supAccessible
                         ? "text-muted hover:text-accent2 border-l-transparent"
                         : "text-ghost opacity-60 hover:opacity-80 border-l-transparent"
-                }`}
+                  }`}
               >
                 {sup.name || "[unnamed supplement]"}
               </Link>
