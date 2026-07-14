@@ -56,7 +56,7 @@ import type {
 import { AlternativeCostEditor } from "./AlternativeCostEditor";
 import type { Currency } from "@/chain/data/Jump";
 import type { AddBoundsTarget } from "./sectionTypes";
-import { SegmentedControl } from "@/ui/SegmentedControl";
+import { BoolSegment, SegmentedControl } from "@/ui/SegmentedControl";
 import { Checkbox } from "@/ui/Checkbox";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -212,8 +212,8 @@ function FreeFormOptionRow({
         title={isAddTarget ? "Drawing mode — drag a rect on the PDF" : "Link to PDF region"}
         onClick={() => onAddBoundsRequest?.(boundKey, idx)}
         className={`shrink-0 p-0.5 rounded transition-colors ${isAddTarget
-            ? "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/40"
-            : "text-ghost hover:text-ink hover:bg-surface"
+          ? "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/40"
+          : "text-ghost hover:text-ink hover:bg-surface"
           }`}
       >
         <Crosshair size={11} />
@@ -275,8 +275,8 @@ export function RandomToggle({
         type="button"
         onClick={handleToggle}
         className={`inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${isEnabled
-            ? "bg-accent2-tint text-accent2 border-accent2 shadow-[0_0_10px_rgba(139,92,246,0.2)]"
-            : "bg-surface text-ghost border-edge hover:border-ink hover:text-ink"
+          ? "bg-accent2-tint text-accent2 border-accent2 shadow-[0_0_10px_rgba(139,92,246,0.2)]"
+          : "bg-surface text-ghost border-edge hover:border-ink hover:text-ink"
           }`}
       >
         <Shuffle size={12} />
@@ -318,8 +318,8 @@ export function RandomToggle({
             }
             onClick={() => onAddBoundsRequest?.("origin-random", catId as number)}
             className={`p-1 rounded transition-colors ${isAddTarget
-                ? "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/40"
-                : "text-ghost hover:text-violet-400 hover:bg-violet-400/10"
+              ? "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/40"
+              : "text-ghost hover:text-violet-400 hover:bg-violet-400/10"
               }`}
           >
             <Crosshair size={12} />
@@ -453,8 +453,8 @@ function CurrencyExchangeRow({
         title={isAddTarget ? "Drawing mode — drag a rect on the PDF" : "Link to PDF region"}
         onClick={() => onAddBoundsRequest?.(boundKey, idx)}
         className={`shrink-0 p-0.5 rounded transition-colors ${isAddTarget
-            ? "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/40"
-            : "text-ghost hover:text-ink hover:bg-surface"
+          ? "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/40"
+          : "text-ghost hover:text-ink hover:bg-surface"
           }`}
       >
         <Crosshair size={11} />
@@ -869,7 +869,22 @@ function SubtypeEditor({ id, onDelete }: { id: Id<TID.PurchaseSubtype>; onDelete
         )}
       </div>
 
-      {hasMultipleCurrencies && currencies && (
+      {!sub.essential && <div className="flex flex-row gap-1 text-xs">
+        <Checkbox
+          checked={sub.allowSubpurchases}
+          onChange={(isActive) => modify("Set Subsystem", (s) => {
+            s.allowSubpurchases = isActive;
+          })}
+        >
+          <span className={sub.allowSubpurchases ? "text-ink mr-1" : "text-ghost mr-1"}>Subsystem</span>
+          <Tip> In <span className="font-bold">subsystems</span>, purchases are divided between parent purchases and subpurchases, to allow a single perk/item to have multiple configurable components.
+            <br /><br />Think jumps that allow you to design your own armor, ship, or kingdom. </Tip>
+        </Checkbox>
+
+      </div>
+      }
+
+      {/* {hasMultipleCurrencies && currencies && (
         <div>
           <Label>Default Currency</Label>
           <div className="flex flex-wrap gap-1.5">
@@ -887,8 +902,8 @@ function SubtypeEditor({ id, onDelete }: { id: Id<TID.PurchaseSubtype>; onDelete
                     })
                   }
                   className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${isActive
-                      ? "bg-accent2-tint text-accent2 border-accent2"
-                      : "bg-surface text-ink border-edge hover:border-accent2 hover:text-accent2"
+                    ? "bg-accent2-tint text-accent2 border-accent2"
+                    : "bg-surface text-ink border-edge hover:border-accent2 hover:text-accent2"
                     }`}
                 >
                   {cur.name}
@@ -898,7 +913,7 @@ function SubtypeEditor({ id, onDelete }: { id: Id<TID.PurchaseSubtype>; onDelete
             })}
           </div>
         </div>
-      )}
+      )} */}
 
       {!sub.floatingDiscountThresholds?.length ? (
         <button

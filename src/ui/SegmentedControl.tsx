@@ -20,17 +20,15 @@ export function SegmentedControl({
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
-          className={`rounded-full transition-colors ${
-            compact ? "px-2 py-px text-xs" : "px-3 py-0.5 text-sm"
-          } ${
-            !bold
+          className={`rounded-full transition-colors ${compact ? "px-2 py-px text-xs" : "px-3 py-0.5 text-sm"
+            } ${!bold
               ? value === opt.value
                 ? "bg-accent2-tint text-accent2 border border-accent2"
                 : "text-ghost hover:text-ink"
               : value === opt.value
                 ? "bg-accent/80 text-surface/80 border border-surface/50"
                 : "text-surface opacity-80 hover:opacity-100"
-          }`}
+            }`}
         >
           {opt.label}
         </button>
@@ -45,11 +43,13 @@ export function BoolSegment({
   onChange,
   trueLabel,
   falseLabel,
+  compact
 }: {
   value: boolean;
   onChange: (v: boolean) => void;
   trueLabel: string;
   falseLabel: string;
+  compact?: boolean
 }) {
   return (
     <SegmentedControl
@@ -59,6 +59,7 @@ export function BoolSegment({
         { value: "f", label: falseLabel },
         { value: "t", label: trueLabel },
       ]}
+      compact={compact}
     />
   );
 }

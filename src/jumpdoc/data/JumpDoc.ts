@@ -5,12 +5,12 @@ import { Currency, OriginCategory, PurchaseSubtype } from "@/chain/data/Jump";
 import { createId, Id, Lookup, PartialLookup, Registry, TID } from "@/chain/data/types";
 
 export type DocOriginCategory = OriginCategory & { max?: number } & (
-    | { singleLine: true; options: FreeFormOrigin[] }
-    | {
-        singleLine: false;
-        random?: { cost: SimpleValue<TID.Currency>; bounds?: PageRect[] };
-      }
-  );
+  | { singleLine: true; options: FreeFormOrigin[] }
+  | {
+    singleLine: false;
+    random?: { cost: SimpleValue<TID.Currency>; bounds?: PageRect[] };
+  }
+);
 
 export type AnnotationType = {
   "origin-category": { id: Id<TID.OriginCategory> };
@@ -182,6 +182,7 @@ export type BasicPurchaseTemplate = PurchaseTemplate<TID.Purchase> & {
   subtype: Id<TID.PurchaseSubtype>;
 
   stipend?: StipendEntry[];
+  subpurchase?: boolean;
 
   temporary: boolean;
 };
@@ -205,11 +206,11 @@ export type ScenarioRewardTemplate =
   | { type: RewardType.Item | RewardType.Perk; id: Id<TID.Purchase> }
   | { type: RewardType.Companion; id: Id<TID.Companion> }
   | {
-      type: RewardType.Stipend;
-      value: number;
-      currency: Id<TID.Currency>;
-      subtype: Id<TID.PurchaseSubtype>;
-    };
+    type: RewardType.Stipend;
+    value: number;
+    currency: Id<TID.Currency>;
+    subtype: Id<TID.PurchaseSubtype>;
+  };
 
 export type ScenarioTemplate = Omit<PurchaseTemplate<TID.Scenario>, "cost"> & {
   rewardGroups?: {
@@ -275,7 +276,7 @@ export function preprocessJumpDoc(doc: JumpDoc): JumpDoc {
     }
   }
 
-  let stripFalsy = <A extends TID, B>(a: Registry<A, B>) : Registry<A, B>=> ({fId: a.fId, O: objFilter(a.O, t => !!t) as any});
+  let stripFalsy = <A extends TID, B>(a: Registry<A, B>): Registry<A, B> => ({ fId: a.fId, O: objFilter(a.O, t => !!t) as any });
   doc.availableCompanions = stripFalsy(doc.availableCompanions);
   doc.availablePurchases = stripFalsy(doc.availablePurchases);
   doc.availableDrawbacks = stripFalsy(doc.availableDrawbacks);

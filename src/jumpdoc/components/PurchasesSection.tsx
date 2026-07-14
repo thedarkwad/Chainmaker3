@@ -142,7 +142,6 @@ export function PurchaseSubtypeSection({
           onAddBoundsRequest={onAddBoundsRequest}
           capstoneBoosterItems={capstoneBoosterItems}
           discountGroups={discountGroups}
-          defaultCurrency={sub.defaultCurrency}
         />
       ))}
     </CollapsibleSection>
@@ -164,7 +163,6 @@ const PurchaseCard = memo(function PurchaseCard({
   onAddBoundsRequest,
   capstoneBoosterItems,
   discountGroups,
-  defaultCurrency,
 }: {
   id: Id<TID.Purchase>;
   toolKey: string;
@@ -180,7 +178,6 @@ const PurchaseCard = memo(function PurchaseCard({
     kind: "purchase" | "drawback";
   }[];
   discountGroups: OriginGroup[];
-  defaultCurrency?: Id<TID.Currency>;
 }) {
   const purchase = useJumpDocPurchase(id);
   const modify = useModifyJumpDocPurchase(id);
@@ -190,6 +187,7 @@ const PurchaseCard = memo(function PurchaseCard({
   const addPrereq = useAddJumpDocPrereq("purchase", id);
   const removePrereq = useRemoveJumpDocPrereq("purchase", id);
   const currencies = useJumpDocCurrenciesRegistry();
+  const subtype = useJumpDocPurchaseSubtype(purchase?.subtype ?? (0 as any));
   const firstCurrencyId = useJumpDocFirstCurrencyId();
   const subtypeIds = useJumpDocPurchaseSubtypeIdsSorted();
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -240,7 +238,7 @@ const PurchaseCard = memo(function PurchaseCard({
               cost={fullCost}
               currencies={currencies}
               hideModifier
-              defaultCurrency={defaultCurrency}
+              defaultCurrency={subtype?.defaultCurrency}
               onChange={v =>
                 modify("Set Purchase Cost", t => {
                   t.cost = v;
@@ -354,6 +352,18 @@ const PurchaseCard = memo(function PurchaseCard({
         >
           Can Be Taken Multiple Times
         </Checkbox>
+        {subtype?.allowSubpurchases &&
+          <Checkbox
+            checked={purchase.subpurchase ?? false}
+            onChange={v =>
+              modify("Toggle Subpurchase", t => {
+                t.subpurchase = v;
+              })
+            }
+          >
+            Subpurchase
+          </Checkbox>
+        }
       </div>
 
       <RareFieldsGroup
@@ -368,7 +378,7 @@ const PurchaseCard = memo(function PurchaseCard({
                 onClick={() =>
                   modify("Enable Variable Cost", t => {
                     t.cost = {
-                      [defaultCurrency ?? firstCurrencyId]: "",
+                      [subtype?.defaultCurrency ?? firstCurrencyId]: "",
                     };
                   })
                 }
@@ -527,7 +537,7 @@ const PurchaseCard = memo(function PurchaseCard({
                 className="flex items-center gap-0.5 text-xs text-ghost hover:text-green-400 transition-colors"
                 disabled={Object.keys(currencies ?? {}).length === 0 || subtypeIds.length === 0}
                 onClick={() => {
-                  const firstCurrency = defaultCurrency ?? firstCurrencyId;
+                  const firstCurrency = subtype?.defaultCurrency ?? firstCurrencyId;
                   const firstSubtype = subtypeIds[0];
                   if (firstCurrency === undefined || firstSubtype === undefined)
                     return;
@@ -832,8 +842,8 @@ function PrereqChipPill({
   return (
     <span
       className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] max-w-full ${positive
-          ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
-          : "bg-red-500/10 border-red-500/25 text-red-400"
+        ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
+        : "bg-red-500/10 border-red-500/25 text-red-400"
         }`}
     >
       <span className="font-bold shrink-0">{positive ? "+" : "−"}</span>

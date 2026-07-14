@@ -197,7 +197,6 @@ export type BasicPurchase = JumpPurchase<TID.Purchase | TID.Companion> & {
 
   reward?: Id<TID.Scenario>;
   freebie?: Id<TID.Companion>;
-  //TODO: freebie
   /** True when this item was added as a follower companion import (as opposed to a regular perk/item). */
   follower?: true;
 };
