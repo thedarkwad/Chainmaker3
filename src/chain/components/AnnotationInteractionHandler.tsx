@@ -65,6 +65,7 @@ import {
   stripTemplating,
   VariableCost,
   StipendEntry,
+  ScenarioRewardTemplate,
 } from "../data/JumpDoc";
 import { InteractionPreviewCard } from "./InteractionPreviewCard";
 import { CompanionMultiSelect } from "./CompanionMultiSelect";
@@ -858,7 +859,7 @@ export function createOriginSynergyListener(
       const removed: string[] = [];
       const repriced: string[] = [];
       for (const origin of build.origins) {
-        if (!origin.template || origin.freebie) continue;
+        if (!origin.template || origin.freebie !== undefined) continue;
         const template = doc.origins.O[origin.template.id];
         if (!template?.synergies?.length) continue;
 
@@ -2430,6 +2431,7 @@ export function originInteraction(
 
   const error = (build: JumpDocBuildData) => {
     if (!template) return undefined;
+    if (freebie !== undefined) return undefined;
     if (
       template.synergyBenefit === "access" &&
       template.synergies?.every(sid =>
@@ -3494,7 +3496,7 @@ export function scenarioInteraction(
             (
               r,
             ): r is Extract<
-              typeof r,
+              ScenarioRewardTemplate,
               { type: RewardType.Item | RewardType.Perk }
             > => r.type === RewardType.Item || r.type === RewardType.Perk,
           )
