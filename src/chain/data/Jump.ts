@@ -99,7 +99,7 @@ export interface Origin {
     id: Id<TID.Origin>;
     originalCost?: PossibleCost;
   };
-  freebie?: Id<TID.Companion>; //TODO
+  freebie?: Id<TID.Companion> | -1;
 }
 
 export interface NarrativeBlurb {

@@ -333,7 +333,7 @@ export type ChainMutators = {
       template: OriginTemplate;
       tags: Record<string, string>;
       cost: Value<TID.Currency>;
-      freebie?: Id<TID.Companion>;
+      freebie?: Id<TID.Companion> | -1;
     },
     jumpId: Id<GID.Jump>,
     charId: Id<GID.Character>,
@@ -858,7 +858,7 @@ export function createOriginSynergyListener(
       const removed: string[] = [];
       const repriced: string[] = [];
       for (const origin of build.origins) {
-        if (!origin.template) continue;
+        if (!origin.template || origin.freebie) continue;
         const template = doc.origins.O[origin.template.id];
         if (!template?.synergies?.length) continue;
 
@@ -1203,8 +1203,8 @@ export function createFreebieCleanupListener(
       }
 
       for (const origin of build.origins) {
-        if (!origin.freebie || !origin.template) continue;
-        if ((build.companionImports[origin.freebie] ?? []).length === 0) {
+        if (!origin.freebie || origin.freebie < 0 || !origin.template) continue;
+        if ((build.companionImports[origin.freebie as any] ?? []).length === 0) {
           removed.push(origin.summary);
           mutators.removeOrigin(origin.template.id, jumpId, charId);
         }
@@ -2355,7 +2355,7 @@ export function originInteraction(
   charId: Id<GID.Character>,
   internalTags: InternalTagsMap,
   costOverride?: Value<TID.Currency>,
-  companionTid?: Id<TID.Companion>,
+  freebie?: Id<TID.Companion> | -1,
 ): AnnotationInteraction<OriginInteractionState> {
   const groups = buildOriginOptionGroups(optionIndices, doc);
   const userTags = !template
@@ -2508,7 +2508,7 @@ export function originInteraction(
               template,
               tags: state.tags,
               cost: getCost(build),
-              freebie: companionTid,
+              freebie: freebie,
             },
             jumpId,
             charId,
@@ -2683,6 +2683,7 @@ export function randomizerInteraction(
               charId,
               internalTags,
               [category.random!.cost],
+              -1
             ) as AnnotationInteraction<object>,
           ];
         },
@@ -4044,6 +4045,7 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
             o => o.template?.id === templateId,
           );
           if (!origin) continue;
+          console.log(JSON.stringify(origin));
           origin.value = convertValue(newTidCost, doc, jump.currencies);
           origin.template!.originalCost = {
             cost: newTidCost,
