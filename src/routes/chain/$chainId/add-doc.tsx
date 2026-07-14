@@ -48,8 +48,9 @@ function AddDocToChain() {
 
         if (firstPrimaryCharId != null) {
           navigate({
-            to: "/chain/$chainId/char/$charId/jump/$jumpId/",
+            to: "/chain/$chainId/char/$charId/jump/$jumpId",
             params: { chainId, charId: String(firstPrimaryCharId), jumpId: String(jumpId) },
+            search: {origin: undefined},
             replace: true,
           });
         } else {

@@ -2,7 +2,7 @@ import { Chain } from "./Chain";
 import { Character } from "./Character";
 import { AltForm, LengthUnit, WeightUnit } from "./AltForm";
 import { Currency, Jump, JumpSource, JumpSourceType, OriginCategory, PurchaseSubtype } from "./Jump";
-import { type JumpDoc } from "./JumpDoc";
+import { type JumpDoc } from "@/jumpdoc/data/JumpDoc";
 import { DefaultSubtype, PurchaseType, SimpleValue } from "./Purchase";
 import { createId, createRegistry, GID, Id, LID, Registry, TID } from "./types";
 import {

@@ -92,12 +92,12 @@ export const Route = createFileRoute(
   "/chain/$chainId/char/$charId/jump/$jumpId",
 )({
   component: JumpLayout,
-  validateSearch: (search: Record<string, unknown>) => {
+  validateSearch: (search: Record<string, unknown>): { hideViewer?: boolean } => {
     const hv =
       search.hideViewer === true ||
       search.hideViewer === "true" ||
       search.hideViewer === "1";
-    return hv ? { hideViewer: true as const } : ({} as { hideViewer?: true });
+    return { hideViewer: hv ? true : undefined };
   },
 });
 

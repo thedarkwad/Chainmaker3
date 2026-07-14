@@ -4,8 +4,8 @@ import { createId, type GID } from "@/chain/data/types";
 import { SupplementDetail } from "../supp";
 
 export const Route = createFileRoute("/chain/$chainId/config/supp/$suppId")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    isNew: search.isNew === true,
+  validateSearch: (search: Record<string, unknown>): { isNew?: boolean } => ({
+    isNew: search.isNew === true ? true : undefined,
   }),
   component: SuppDetailPage,
 });
@@ -15,5 +15,5 @@ function SuppDetailPage() {
   const { isNew } = Route.useSearch();
   const suppId = createId<GID.Supplement>(+suppIdStr);
 
-  return <SupplementDetail key={suppIdStr} suppId={suppId} isNew={isNew} />;
+  return <SupplementDetail key={suppIdStr} suppId={suppId} isNew={isNew ?? false} />;
 }

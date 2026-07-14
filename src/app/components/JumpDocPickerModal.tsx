@@ -45,7 +45,7 @@ export function JumpDocPickerModal({ doc, onClose, defaultTab = "new" }: JumpDoc
     navigate({
       to: "/chain/$chainId/add-doc",
       params: { chainId: "local" },
-      search: doc ? { doc: doc.publicUid } : {},
+      search: doc ? { doc: doc.publicUid } : {doc: ""},
     });
   }
 
