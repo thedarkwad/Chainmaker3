@@ -36,14 +36,21 @@ export type InteractionPreviewCardProps = {
   children?: ReactNode;
 };
 
-const variantClass: Record<InteractionPreviewCardProps["actions"][number]["variant"], string> = {
+const variantClass: Record<
+  InteractionPreviewCardProps["actions"][number]["variant"],
+  string
+> = {
   confirm: "bg-accent-tint border-accent text-accent hover:bg-accent/20",
   warn: "bg-accent-tint border-accent text-accent hover:bg-accent/20",
   danger: "bg-danger/10 border-danger/40 text-danger hover:bg-danger/20",
 };
 
 function getInputs(el: HTMLElement): HTMLInputElement[] {
-  return Array.from(el.querySelectorAll<HTMLInputElement>("input[type=text],input:not([type]),textarea"));
+  return Array.from(
+    el.querySelectorAll<HTMLInputElement>(
+      "input[type=text],input:not([type]),textarea",
+    ),
+  );
 }
 
 export function InteractionPreviewCard({
@@ -95,7 +102,10 @@ export function InteractionPreviewCard({
           // No field focused — confirm
           e.preventDefault();
           const first = actions.find((a) => !a.blocker);
-          if (first) { first.onConfirm(); if (!first.noAutoClose) onClose(); }
+          if (first) {
+            first.onConfirm();
+            if (!first.noAutoClose) onClose();
+          }
         }
       }
     }
@@ -104,18 +114,25 @@ export function InteractionPreviewCard({
   }, [actions, onClose]);
 
   return (
-    <div ref={containerRef} className="px-4 pb-4 pt-3 flex flex-col gap-3 text-left">
+    <div
+      ref={containerRef}
+      className="px-4 pb-4 pt-3 flex flex-col gap-3 text-left"
+    >
       <div
         className={`flex flex-row flex-wrap gap-1 items-center justify-center ${errorMessage ? "border-l-2 border-edge pl-2" : ""}`}
       >
         <div className="text-xs text-ghost tracking-widest uppercase -mb-0.5">
           {typeName} {name ? "–" : ""}
         </div>
-        {name ? <div className="text-sm font-semibold text-ink">{name}</div> : null}
-        {!errorMessage && costStr && <div className="text-sm text-muted">[{costStr}]</div>}
+        {name ? (
+          <div className="text-sm font-semibold text-ink">{name}</div>
+        ) : null}
+        {!errorMessage && costStr && (
+          <div className="text-sm text-muted">[{costStr}]</div>
+        )}
       </div>
 
-      {description && (
+      {description && description.trim.length > 0 && (
         <div className="text-xs text-muted flex flex-col gap-1.5 max-h-60 overflow-y-auto leading-relaxed bg-tint/30 p-2 border-accent-ring/15 rounded-sm border">
           {convertWhitespace(description)}
         </div>
@@ -141,19 +158,21 @@ export function InteractionPreviewCard({
           {info && <p className="text-xs text-muted">{info}</p>}
           {children}
           <div className="flex gap-2 mt-auto">
-            {actions.map(({ label, variant, onConfirm, blocker, noAutoClose }) => (
-              <button
-                disabled={!!blocker}
-                title={blocker}
-                onClick={() => {
-                  onConfirm();
-                  if (!noAutoClose) onClose();
-                }}
-                className={`flex-1 text-xs px-3 py-1.5 rounded border font-medium transition-colors ${variantClass[variant]}`}
-              >
-                {label}
-              </button>
-            ))}
+            {actions.map(
+              ({ label, variant, onConfirm, blocker, noAutoClose }) => (
+                <button
+                  disabled={!!blocker}
+                  title={blocker}
+                  onClick={() => {
+                    onConfirm();
+                    if (!noAutoClose) onClose();
+                  }}
+                  className={`flex-1 text-xs px-3 py-1.5 rounded border font-medium transition-colors ${variantClass[variant]}`}
+                >
+                  {label}
+                </button>
+              ),
+            )}
             <button
               onClick={onClose}
               className="text-xs px-3 py-1.5 rounded text-muted hover:text-ink transition-colors"
