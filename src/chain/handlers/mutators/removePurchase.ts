@@ -6,11 +6,13 @@ import { JumpPurchase, BasicPurchase } from "../../data/Purchase";
 export function removePurchase(
   id: Id<GID.Purchase>,
   build: JumpDocBuildData,
+  parent?: Id<GID.Purchase>,
 ): void {
-  const isDrawback = Object.values(build.drawbacks).some(arr =>
+  console.log("Removing", parent);
+  const isDrawback = Object.values(build.drawbacks).some((arr) =>
     arr?.includes(id),
   );
-  const isScenario = Object.values(build.scenarios).some(arr =>
+  const isScenario = Object.values(build.scenarios).some((arr) =>
     arr?.includes(id),
   );
   setTracked(
@@ -19,7 +21,7 @@ export function removePurchase(
       : isScenario
         ? "Remove scenario"
         : "Remove purchase",
-    c => {
+    (c) => {
       const p = c.purchases.O[id] as JumpPurchase | undefined;
       if (!p) return;
       const pJumpId = p.jumpId;
@@ -39,11 +41,19 @@ export function removePurchase(
           const idx = list.indexOf(id);
           if (idx !== -1) list.splice(idx, 1);
         }
+      } else if (parent !== undefined) {
+        const list = (c.purchases.O[parent] as BasicPurchase).subpurchases
+          ?.list;
+        console.log(list);
+        if (list) {
+          const idx = list.indexOf(id);
+          if (idx !== -1) list.splice(idx, 1);
+        }
+        console.log(list);
       } else {
         const bp = p as BasicPurchase;
         if (bp.subpurchases?.list)
-          for (const sub of bp.subpurchases.list)
-            delete c.purchases.O[sub];
+          for (const sub of bp.subpurchases.list) delete c.purchases.O[sub];
         if (bp.purchaseGroup != null) {
           const g = c.purchaseGroups[pCharId]?.O[bp.purchaseGroup];
           if (g) {
@@ -51,9 +61,7 @@ export function removePurchase(
             if (gi !== -1) g.components.splice(gi, 1);
           }
         }
-        const list = jump.purchases[pCharId] as
-          | Id<GID.Purchase>[]
-          | undefined;
+        const list = jump.purchases[pCharId] as Id<GID.Purchase>[] | undefined;
         if (list) {
           const idx = list.indexOf(id);
           if (idx !== -1) list.splice(idx, 1);

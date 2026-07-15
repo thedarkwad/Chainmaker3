@@ -48,7 +48,6 @@ export function repriceOrigin(
         o => o.template?.id === templateId,
       );
       if (!origin) continue;
-      console.log(JSON.stringify(origin));
       origin.value = convertValue(newTidCost, doc, jump.currencies);
       origin.template!.originalCost = {
         cost: newTidCost,

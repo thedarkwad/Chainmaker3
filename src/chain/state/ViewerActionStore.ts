@@ -1,16 +1,19 @@
 import { create } from "zustand";
-import { GID, Id, PartialIndex, TID } from "../data/types";
+import { GID, Id, PartialIndex, PartialLookup, TID } from "../data/types";
 import { ReactNode } from "react";
 import { CurrencyExchange, Origin } from "../data/Jump";
 import { JumpDoc } from "@/jumpdoc/data/JumpDoc";
-import { ChainMutators } from "../components/AnnotationInteractionHandler";
+import { ChainMutators } from "../handlers/components/AnnotationInteractionHandler";
 import { Chain } from "../data/Chain";
 
 export type JumpDocBuildData = {
   purchases: PartialIndex<TID.Purchase, GID.Purchase>;
+  parents: PartialLookup<GID.Purchase, GID.Purchase>;
   drawbacks: PartialIndex<TID.Drawback, GID.Purchase>;
   scenarios: PartialIndex<TID.Scenario, GID.Purchase>;
   companionImports: PartialIndex<TID.Companion, GID.Purchase>;
+
+  names: PartialLookup<GID.Purchase, string>;
 
   currencyExchanges: CurrencyExchange[];
   origins: Origin[];
@@ -52,7 +55,7 @@ export type AnnotationInteraction<A extends object> = {
   shortCostStr?: string | ((build: JumpDocBuildData, state: A) => string | undefined);
   warning?: string | ((build: JumpDocBuildData, state: A) => string | undefined);
 
-  actions: AnnotationAction<A>[] | ((build: JumpDocBuildData) => AnnotationAction<A>[]);
+  actions: AnnotationAction<A>[] | ((build: JumpDocBuildData, state: A) => AnnotationAction<A>[]);
   forcePreview: (buildData: JumpDocBuildData) => boolean;
 };
 

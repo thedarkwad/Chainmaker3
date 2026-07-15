@@ -122,7 +122,10 @@ export type PurchaseEditorProps<T extends AbstractPurchase> = {
   /** Called whenever the cost modifier changes in edit mode. */
   onCostModifierChange?: (mod: CostModifier) => void;
   /** When provided, shows a floating discount checkbox inside the cost dropdown. */
-  floatingDiscount?: { checked: boolean; onChange: (checked: boolean) => void } | null;
+  floatingDiscount?: {
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+  } | null;
 };
 
 export function PurchaseEditor<T extends AbstractPurchase>({
@@ -155,7 +158,10 @@ export function PurchaseEditor<T extends AbstractPurchase>({
   }, [isEditing]);
 
   // Derive jump context (not all AbstractPurchases carry jumpId)
-  const jumpId = purchase && "jumpId" in purchase ? (purchase as JumpPurchase).jumpId : undefined;
+  const jumpId =
+    purchase && "jumpId" in purchase
+      ? (purchase as JumpPurchase).jumpId
+      : undefined;
   const currencies = useCurrencies(jumpId);
   const subCost = useSubpurchaseCostStrings(id);
 
@@ -179,6 +185,14 @@ export function PurchaseEditor<T extends AbstractPurchase>({
           } as ScrollIntoViewOptions);
         });
       });
+    } else if (
+      scrollTo !== undefined &&
+      purchase &&
+      (purchase as BasicPurchase).subpurchases?.list?.includes?.(
+        +scrollTo as any,
+      )
+    ) {
+      setIsCollapsed(false);
     } else if (scrollTo !== undefined && !isEditingRef.current) {
       setIsCollapsed(true);
     }
@@ -220,7 +234,9 @@ export function PurchaseEditor<T extends AbstractPurchase>({
 
   // ── Derived widget lists ─────────────────────────────────────────────────
   const headerWidgets = widgets.filter((w) => w.position === "header");
-  const bodyWidgets = widgets.filter((w) => !w.position || w.position === "body");
+  const bodyWidgets = widgets.filter(
+    (w) => !w.position || w.position === "body",
+  );
   const footerWidgets = widgets.filter((w) => w.position === "footer");
 
   // ── Actions ──────────────────────────────────────────────────────────────
@@ -285,7 +301,9 @@ export function PurchaseEditor<T extends AbstractPurchase>({
       const hadItems = useClipboard.getState().entries.length > 0;
       useClipboard.getState().set([entry]);
       if (hadItems) {
-        toast.info(`Clipboard replaced with "${name}". Hold Ctrl to add to the clipboard instead.`);
+        toast.info(
+          `Clipboard replaced with "${name}". Hold Ctrl to add to the clipboard instead.`,
+        );
       } else {
         toast.info(`"${name}" copied to clipboard.`);
       }
@@ -296,7 +314,9 @@ export function PurchaseEditor<T extends AbstractPurchase>({
   const isValueArr = Array.isArray(draft.state.value);
   const costModifier = draft.state.cost.modifier;
   const customModifiedTo =
-    costModifier === CostModifier.Custom ? draft.state.cost.modifiedTo : undefined;
+    costModifier === CostModifier.Custom
+      ? draft.state.cost.modifiedTo
+      : undefined;
 
   const setCostModifier = (mod: CostModifier) => {
     onCostModifierChange?.(mod);
@@ -307,7 +327,12 @@ export function PurchaseEditor<T extends AbstractPurchase>({
           : (d.value as number);
         d.cost = { modifier: CostModifier.Custom, modifiedTo: init };
       } else {
-        d.cost = { modifier: mod as CostModifier.Full | CostModifier.Reduced | CostModifier.Free };
+        d.cost = {
+          modifier: mod as
+            | CostModifier.Full
+            | CostModifier.Reduced
+            | CostModifier.Free,
+        };
       }
     });
   };
@@ -315,8 +340,11 @@ export function PurchaseEditor<T extends AbstractPurchase>({
   // ── View mode ─────────────────────────────────────────────────────────────
   if (!isEditing) {
     const costDisplay =
-      subCost?.display ?? formatCostDisplay(purchase.value, purchase.cost, currencies);
-    const costShort = subCost?.short ?? formatCostShort(purchase.value, purchase.cost, currencies);
+      subCost?.display ??
+      formatCostDisplay(purchase.value, purchase.cost, currencies);
+    const costShort =
+      subCost?.short ??
+      formatCostShort(purchase.value, purchase.cost, currencies);
 
     if (isCollapsed) {
       return (
@@ -334,7 +362,9 @@ export function PurchaseEditor<T extends AbstractPurchase>({
             className={`text-ghost shrink-0 transition-opacity ${subdued ? "sm:opacity-0 sm:group-hover:opacity-100" : ""}`}
           />
           <span className="font-semibold text-sm shrink-0 truncate min-w-30 w-1/5">
-            {purchase.name || <span className="font-normal text-ghost italic">Unnamed</span>}
+            {purchase.name || (
+              <span className="font-normal text-ghost italic">Unnamed</span>
+            )}
           </span>
           {!hideCost && costShort && (
             <span className="text-xs font-semibold text-muted/70 shrink-0">
@@ -350,7 +380,9 @@ export function PurchaseEditor<T extends AbstractPurchase>({
             <span className="flex-1" />
           )}
           <span className="shrink-0 flex items-center gap-1">
-            {headerWidgets.map((w, i) => w.view && <span key={i}>{w.view}</span>)}
+            {headerWidgets.map(
+              (w, i) => w.view && <span key={i}>{w.view}</span>,
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -400,7 +432,9 @@ export function PurchaseEditor<T extends AbstractPurchase>({
         >
           <ChevronDown size={14} className="text-ghost shrink-0" />
           <span className="flex-1 min-w-min font-semibold text-base text-ink truncate">
-            {purchase.name || <span className="font-normal text-ghost italic">Unnamed</span>}
+            {purchase.name || (
+              <span className="font-normal text-ghost italic">Unnamed</span>
+            )}
           </span>
           {!hideCost && costDisplay && (
             <span className="text-sm font-semibold text-ink shrink-0">
@@ -456,13 +490,21 @@ export function PurchaseEditor<T extends AbstractPurchase>({
           </div>
         )}
 
-        {footerWidgets.some((w) => w.view && w.fullWidth) && (
-          footerWidgets.map((w, i) => w.view && w.fullWidth && <div key={`fw${i}`}>{w.view}</div>)
-        )}
-        {(footerWidgets.some((w) => w.view && !w.fullWidth) || bodyWidgets.some((w) => w.view)) && (
+        {footerWidgets.some((w) => w.view && w.fullWidth) &&
+          footerWidgets.map(
+            (w, i) =>
+              w.view && w.fullWidth && <div key={`fw${i}`}>{w.view}</div>,
+          )}
+        {(footerWidgets.some((w) => w.view && !w.fullWidth) ||
+          bodyWidgets.some((w) => w.view)) && (
           <div className="flex flex-wrap items-center">
-            {footerWidgets.map((w, i) => w.view && !w.fullWidth && <div key={`f${i}`}>{w.view}</div>)}
-            {bodyWidgets.map((w, i) => w.view && <div key={`b${i}`}>{w.view}</div>)}
+            {footerWidgets.map(
+              (w, i) =>
+                w.view && !w.fullWidth && <div key={`f${i}`}>{w.view}</div>,
+            )}
+            {bodyWidgets.map(
+              (w, i) => w.view && <div key={`b${i}`}>{w.view}</div>,
+            )}
           </div>
         )}
       </div>
@@ -535,18 +577,23 @@ export function PurchaseEditor<T extends AbstractPurchase>({
                 }}
               />
             )}
-            <span className="text-lg font-semibold uppercase">{currencyLabel}</span>
+            <span className="text-lg font-semibold uppercase">
+              {currencyLabel}
+            </span>
             {!hideCostModifier && costModifier === CostModifier.Custom && (
               <input
                 type="number"
                 step={50}
                 className="w-20 border border-accent-ring bg-accent-tint rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring"
-                defaultValue={typeof customModifiedTo === "number" ? customModifiedTo : 0}
+                defaultValue={
+                  typeof customModifiedTo === "number" ? customModifiedTo : 0
+                }
                 onChange={(e) => {
                   const n = e.target.valueAsNumber;
                   if (!isNaN(n))
                     draft.sync((d) => {
-                      if (d.cost.modifier === CostModifier.Custom) d.cost.modifiedTo = n;
+                      if (d.cost.modifier === CostModifier.Custom)
+                        d.cost.modifiedTo = n;
                     });
                 }}
               />
@@ -633,7 +680,9 @@ function SubpurchasesSection({
   const { purchase, actions } = usePurchase<BasicPurchase>(parentId);
   const currencies = useCurrencies(purchase?.jumpId);
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [newSubIds, setNewSubIds] = useState<Set<Id<GID.Purchase>>>(() => new Set());
+  const [newSubIds, setNewSubIds] = useState<Set<Id<GID.Purchase>>>(
+    () => new Set(),
+  );
 
   const stipend = purchase?.subpurchases?.stipend ?? [];
   const list = purchase?.subpurchases?.list ?? [];
@@ -644,7 +693,8 @@ function SubpurchasesSection({
 
   useEffect(() => {
     const map: Record<number, number> = {};
-    for (const sv of purchase?.subpurchases?.stipend ?? []) map[sv.currency as number] = sv.amount;
+    for (const sv of purchase?.subpurchases?.stipend ?? [])
+      map[sv.currency as number] = sv.amount;
     setLocalStipend(map);
   }, [purchase?.subpurchases?.stipend]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -702,9 +752,13 @@ function SubpurchasesSection({
         <span className="flex-1 text-center text-xs font-medium text-muted select-none">
           Component Subpurchases
         </span>
-        {stipendSummary && <span className="text-xs text-muted shrink-0">{stipendSummary}</span>}
+        {stipendSummary && (
+          <span className="text-xs text-muted shrink-0">{stipendSummary}</span>
+        )}
         {list.length > 0 && (
-          <span className="text-xs text-ghost tabular-nums shrink-0">({list.length})</span>
+          <span className="text-xs text-ghost tabular-nums shrink-0">
+            ({list.length})
+          </span>
         )}
         <button
           onClick={(e) => {
@@ -728,16 +782,23 @@ function SubpurchasesSection({
                 const currId = createId<LID.Currency>(+cid);
                 return (
                   <div key={cid} className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted">{cur.abbrev} Stipend:</span>
+                    <span className="text-xs text-muted">
+                      {cur.abbrev} Stipend:
+                    </span>
                     <input
                       type="number"
                       step={50}
                       className="w-20 border border-edge rounded px-2 py-0.5 text-xs font-semibold text-right focus:outline-none focus:border-accent-ring"
                       value={localStipend[+cid] ?? 0}
                       onChange={(e) =>
-                        setLocalStipend((prev) => ({ ...prev, [+cid]: +e.target.value }))
+                        setLocalStipend((prev) => ({
+                          ...prev,
+                          [+cid]: +e.target.value,
+                        }))
                       }
-                      onBlur={(e) => flushStipendAmount(currId, +e.target.value)}
+                      onBlur={(e) =>
+                        flushStipendAmount(currId, +e.target.value)
+                      }
                     />
                   </div>
                 );
@@ -748,7 +809,9 @@ function SubpurchasesSection({
           {/* Subpurchase list */}
           <div className="px-3">
             {list.length === 0 && (
-              <p className="text-xs text-ghost text-center py-2 italic">No subpurchases yet.</p>
+              <p className="text-xs text-ghost text-center py-2 italic">
+                No subpurchases yet.
+              </p>
             )}
             {list.length > 0 && (
               <DraggablePurchaseList
@@ -834,7 +897,10 @@ function LinkedTagPills({
   tags: string[];
   purchaseType: PurchaseType | undefined;
 }) {
-  const routeParams = useParams({ strict: false }) as { chainId?: string; charId?: string };
+  const routeParams = useParams({ strict: false }) as {
+    chainId?: string;
+    charId?: string;
+  };
   const { chainId, charId } = routeParams;
   if (tags.length === 0) return null;
   return (
@@ -893,12 +959,19 @@ export function BasicPurchaseEditor({
 }: BasicPurchaseEditorProps) {
   const { purchase, actions } = usePurchase<BasicPurchase>(id);
   const subtypes = usePurchaseSubtypes(purchase?.jumpId);
-  const routeParams = useParams({ strict: false }) as { chainId?: string; charId?: string };
+  const routeParams = useParams({ strict: false }) as {
+    chainId?: string;
+    charId?: string;
+  };
   const categories = usePurchaseCategories(purchase?.type ?? PurchaseType.Perk);
 
   // Purchase group state
-  const groupsEnabled = usePurchaseGroupsEnabled(purchase?.type ?? PurchaseType.Perk);
-  const groupActions = usePurchaseGroupActions(purchase?.charId ?? createId<GID.Character>(0));
+  const groupsEnabled = usePurchaseGroupsEnabled(
+    purchase?.type ?? PurchaseType.Perk,
+  );
+  const groupActions = usePurchaseGroupActions(
+    purchase?.charId ?? createId<GID.Character>(0),
+  );
   const currentGroupId = purchase?.purchaseGroup;
   const groupName = usePurchaseGroupName(purchase?.charId, currentGroupId);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
@@ -906,8 +979,12 @@ export function BasicPurchaseEditor({
   // Separate tracked drafts — one UIBinding key each for independent undo entries.
   const categoriesDraft = useDraft<Id<GID.PurchaseCategory>[]>([]);
   const tagsDraft = useDraft<string[]>([]);
-  const subtypeDraft = useDraft<{ subtype: Id<LID.PurchaseSubtype> }>({ subtype: createId(0) });
-  const durationDraft = useDraft<{ duration: number | undefined }>({ duration: undefined });
+  const subtypeDraft = useDraft<{ subtype: Id<LID.PurchaseSubtype> }>({
+    subtype: createId(0),
+  });
+  const durationDraft = useDraft<{ duration: number | undefined }>({
+    duration: undefined,
+  });
   const floatingDiscountDraft = useDraft<{ usesFloatingDiscount: boolean }>({
     usesFloatingDiscount: false,
   });
@@ -920,7 +997,9 @@ export function BasicPurchaseEditor({
     tagsDraft.restart([...purchase.tags]);
     subtypeDraft.restart({ subtype: purchase.subtype });
     durationDraft.restart({ duration: purchase.duration });
-    floatingDiscountDraft.restart({ usesFloatingDiscount: purchase.usesFloatingDiscount ?? false });
+    floatingDiscountDraft.restart({
+      usesFloatingDiscount: purchase.usesFloatingDiscount ?? false,
+    });
   };
 
   const handleCancel = () => {
@@ -944,14 +1023,17 @@ export function BasicPurchaseEditor({
     const currentSubtype = filteredSubtypeEntries.find(
       ([sid]) => +sid === subtypeDraft.state.subtype,
     )?.[1];
-    const subtypeHasThresholds = !!currentSubtype?.floatingDiscountThresholds?.length;
+    const subtypeHasThresholds =
+      !!currentSubtype?.floatingDiscountThresholds?.length;
     return {
       categories: categoriesDraft.state,
       tags: tagsDraft.state,
       subtype: subtypeDraft.state.subtype,
       duration: durationDraft.state.duration,
       usesFloatingDiscount:
-        subtypeHasThresholds && floatingDiscountDraft.state.usesFloatingDiscount ? true : undefined,
+        subtypeHasThresholds && floatingDiscountDraft.state.usesFloatingDiscount
+          ? true
+          : undefined,
     };
   };
 
@@ -965,8 +1047,8 @@ export function BasicPurchaseEditor({
 
   // View: committed purchase data
   const committedSubtypeName = purchase
-    ? (filteredSubtypeEntries.find(([sid]) => +sid === purchase.subtype)?.[1].name ??
-      filteredSubtypeEntries[0]?.[1].name)
+    ? (filteredSubtypeEntries.find(([sid]) => +sid === purchase.subtype)?.[1]
+        .name ?? filteredSubtypeEntries[0]?.[1].name)
     : undefined;
 
   const subtypeViewLabel = committedSubtypeName ? (
@@ -977,7 +1059,8 @@ export function BasicPurchaseEditor({
 
   // Edit: subtype draft
   const subtypeEditNode =
-    filteredSubtypeEntries.length === 0 ? null : filteredSubtypeEntries.length === 1 ? (
+    filteredSubtypeEntries.length ===
+    0 ? null : filteredSubtypeEntries.length === 1 ? (
       <span className="text-xs text-muted px-2 py-0.5 bg-tint rounded border border-edge shrink-0 select-none">
         {filteredSubtypeEntries[0][1].name}
       </span>
@@ -987,7 +1070,9 @@ export function BasicPurchaseEditor({
         className="bg-surface/50 border-accent focus-within:border-surface text-ink/70"
         onChange={async (e) => {
           const newValue = e.target.value;
-          const newSubtype = filteredSubtypeEntries.find(([sid]) => sid === newValue)?.[1];
+          const newSubtype = filteredSubtypeEntries.find(
+            ([sid]) => sid === newValue,
+          )?.[1];
           const hasSubpurchases = !!purchase?.subpurchases?.list?.length;
 
           if (!newSubtype?.allowSubpurchases && hasSubpurchases) {
@@ -999,7 +1084,10 @@ export function BasicPurchaseEditor({
               confirmButtonText: "Switch and delete",
               cancelButtonText: "Cancel",
               buttonsStyling: false,
-              customClass: { confirmButton: "swal-btn-danger", cancelButton: "swal-btn" },
+              customClass: {
+                confirmButton: "swal-btn-danger",
+                cancelButton: "swal-btn",
+              },
             });
             if (!result.isConfirmed) return;
             actions.clearSubpurchases();
@@ -1024,7 +1112,9 @@ export function BasicPurchaseEditor({
     );
 
   // ── Category helpers ─────────────────────────────────────────────────────
-  const categoryEntries = categories ? (Object.entries(categories.O) as [string, string][]) : [];
+  const categoryEntries = categories
+    ? (Object.entries(categories.O) as [string, string][])
+    : [];
 
   const toggleCategory = (catId: Id<GID.PurchaseCategory>) =>
     categoriesDraft.set("Toggle category", (d) => {
@@ -1101,7 +1191,9 @@ export function BasicPurchaseEditor({
   );
 
   const committedTags = purchase?.tags ?? [];
-  const tagsWidgetView = <LinkedTagPills tags={committedTags} purchaseType={purchase?.type} />;
+  const tagsWidgetView = (
+    <LinkedTagPills tags={committedTags} purchaseType={purchase?.type} />
+  );
 
   // ── Subpurchases ─────────────────────────────────────────────────────────
   // Read from the committed subtype (draft subtype changes don't affect this
@@ -1155,11 +1247,16 @@ export function BasicPurchaseEditor({
       </div>
     </div>
   );
-  const durPerkView = purchase?.duration === 1 ? <DurBadge>Expires at end of jump</DurBadge> : null;
+  const durPerkView =
+    purchase?.duration === 1 ? (
+      <DurBadge>Expires at end of jump</DurBadge>
+    ) : null;
 
   // ── Group widget ─────────────────────────────────────────────────────────
   const showGroupWidget =
-    groupsEnabled && (purchase?.type === PurchaseType.Perk || purchase?.type === PurchaseType.Item);
+    groupsEnabled &&
+    (purchase?.type === PurchaseType.Perk ||
+      purchase?.type === PurchaseType.Item);
 
   // Pill shown in collapsed + expanded view rows (header position so it's always visible).
   const groupPill =
@@ -1200,7 +1297,8 @@ export function BasicPurchaseEditor({
   const draftSubtype = filteredSubtypeEntries.find(
     ([sid]) => +sid === subtypeDraft.state.subtype,
   )?.[1];
-  const subtypeHasThresholds = !!draftSubtype?.floatingDiscountThresholds?.length;
+  const subtypeHasThresholds =
+    !!draftSubtype?.floatingDiscountThresholds?.length;
 
   const floatingDiscountProp = subtypeHasThresholds
     ? {
@@ -1217,9 +1315,18 @@ export function BasicPurchaseEditor({
   const widgets: WidgetDef[] = [
     { view: groupPill, edit: null, position: "header" },
     { view: subtypeViewLabel, edit: subtypeEditNode, position: "header" },
-    { view: categoriesWidgetView, edit: categoriesWidgetEdit, position: "body" },
+    {
+      view: categoriesWidgetView,
+      edit: categoriesWidgetEdit,
+      position: "body",
+    },
     { view: tagsWidgetView, edit: tagsWidgetEdit, position: "body" },
-    { view: subpurchasesViewWidget, edit: subpurchasesEditWidget, position: "footer", fullWidth: true },
+    {
+      view: subpurchasesViewWidget,
+      edit: subpurchasesEditWidget,
+      position: "footer",
+      fullWidth: true,
+    },
     { view: durPerkView, edit: durPerkEdit, position: "footer" },
     { view: null, edit: groupWidgetEdit, position: "footer" },
   ];
@@ -1248,7 +1355,8 @@ export function BasicPurchaseEditor({
           currentGroupId={currentGroupId}
           onAddToGroup={(gId) => groupActions.addToGroup(id, gId)}
           onRemoveFromGroup={() => {
-            if (currentGroupId != null) groupActions.removeFromGroup(id, currentGroupId);
+            if (currentGroupId != null)
+              groupActions.removeFromGroup(id, currentGroupId);
           }}
           onCreateGroup={(name, desc) =>
             groupActions.createGroup(
@@ -1273,7 +1381,9 @@ function PerkItemRewardChip({
 }: {
   reward: Extract<ScenarioReward, { type: RewardType.Perk | RewardType.Item }>;
 }) {
-  const name = useJumpDocStore((s) => s.doc?.availablePurchases.O[reward.id]?.name);
+  const name = useJumpDocStore(
+    (s) => s.doc?.availablePurchases.O[reward.id]?.name,
+  );
   const typeLabel = reward.type === RewardType.Perk ? "Perk" : "Item";
   return (
     <span className="text-xs px-2 py-0.5 rounded-full bg-accent-tint2 text-accent2 border border-accent2-ring">
@@ -1308,7 +1418,8 @@ export function ScenarioEditor({
 
   const rewardsDraft = useDraft<ScenarioReward[]>([]);
 
-  const handleEnterEdit = () => rewardsDraft.restart([...(purchase?.rewards ?? [])]);
+  const handleEnterEdit = () =>
+    rewardsDraft.restart([...(purchase?.rewards ?? [])]);
   const handleCancel = () => rewardsDraft.cancel();
   const handleSubmit = () => {
     rewardsDraft.close();
@@ -1319,14 +1430,19 @@ export function ScenarioEditor({
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   const currencyEntries = currencies
-    ? (Object.entries(currencies.O) as [string, { name: string; abbrev: string }][])
+    ? (Object.entries(currencies.O) as [
+        string,
+        { name: string; abbrev: string },
+      ][])
     : [];
   const subtypeEntries = subtypes
     ? (Object.entries(subtypes.O) as [string, PurchaseSubtype][])
     : [];
 
-  const firstCurrId = () => createId<LID.Currency>(+(currencyEntries[0]?.[0] ?? 0));
-  const firstStId = () => createId<LID.PurchaseSubtype>(+(subtypeEntries[0]?.[0] ?? 0));
+  const firstCurrId = () =>
+    createId<LID.Currency>(+(currencyEntries[0]?.[0] ?? 0));
+  const firstStId = () =>
+    createId<LID.PurchaseSubtype>(+(subtypeEntries[0]?.[0] ?? 0));
 
   const formatReward = (r: ScenarioReward): string => {
     switch (r.type) {
@@ -1364,7 +1480,9 @@ export function ScenarioEditor({
       d.splice(idx, 1);
     });
 
-  const addReward = (type: RewardType.Currency | RewardType.Stipend | RewardType.Note) => {
+  const addReward = (
+    type: RewardType.Currency | RewardType.Stipend | RewardType.Note,
+  ) => {
     const r: ScenarioReward =
       type === RewardType.Currency
         ? { type, value: 0, currency: firstCurrId() }
@@ -1381,7 +1499,9 @@ export function ScenarioEditor({
   const rewardsViewWidget =
     committedRewards.length > 0 ? (
       <div className="px-3 py-2 flex flex-wrap items-center gap-1.5">
-        <span className="text-xs font-medium text-muted shrink-0">Rewards:</span>
+        <span className="text-xs font-medium text-muted shrink-0">
+          Rewards:
+        </span>
         {committedRewards.map((r, i) =>
           r.type === RewardType.Perk || r.type === RewardType.Item ? (
             <PerkItemRewardChip key={i} reward={r} />
@@ -1412,13 +1532,18 @@ export function ScenarioEditor({
                 step={50}
                 className="w-20 border border-edge rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring"
                 value={r.value}
-                onChange={(e) => syncReward(idx, { ...r, value: +e.target.value })}
+                onChange={(e) =>
+                  syncReward(idx, { ...r, value: +e.target.value })
+                }
               />
               {currencyEntries.length > 1 ? (
                 <SelectField
                   value={r.currency}
                   onChange={(e) =>
-                    setReward(idx, { ...r, currency: createId<LID.Currency>(+e.target.value) })
+                    setReward(idx, {
+                      ...r,
+                      currency: createId<LID.Currency>(+e.target.value),
+                    })
                   }
                 >
                   {currencyEntries.map(([cid, cur]) => (
@@ -1428,7 +1553,9 @@ export function ScenarioEditor({
                   ))}
                 </SelectField>
               ) : (
-                <span className="text-xs text-muted">{currencyEntries[0]?.[1].abbrev}</span>
+                <span className="text-xs text-muted">
+                  {currencyEntries[0]?.[1].abbrev}
+                </span>
               )}
             </>
           )}
@@ -1441,13 +1568,18 @@ export function ScenarioEditor({
                 step={50}
                 className="w-20 border border-edge rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring"
                 value={r.value}
-                onChange={(e) => syncReward(idx, { ...r, value: +e.target.value })}
+                onChange={(e) =>
+                  syncReward(idx, { ...r, value: +e.target.value })
+                }
               />
               {currencyEntries.length > 1 ? (
                 <SelectField
                   value={r.currency}
                   onChange={(e) =>
-                    setReward(idx, { ...r, currency: createId<LID.Currency>(+e.target.value) })
+                    setReward(idx, {
+                      ...r,
+                      currency: createId<LID.Currency>(+e.target.value),
+                    })
                   }
                 >
                   {currencyEntries.map(([cid, cur]) => (
@@ -1457,7 +1589,9 @@ export function ScenarioEditor({
                   ))}
                 </SelectField>
               ) : (
-                <span className="text-xs text-muted">{currencyEntries[0]?.[1].abbrev}</span>
+                <span className="text-xs text-muted">
+                  {currencyEntries[0]?.[1].abbrev}
+                </span>
               )}
               for
               {subtypeEntries.length > 0 && (
@@ -1487,7 +1621,9 @@ export function ScenarioEditor({
               <input
                 className="flex-1 min-w-32 border border-edge rounded px-2 py-0.5 text-sm focus:outline-none focus:border-accent-ring"
                 value={r.note}
-                onChange={(e) => syncReward(idx, { ...r, note: e.target.value })}
+                onChange={(e) =>
+                  syncReward(idx, { ...r, note: e.target.value })
+                }
               />
             </>
           )}
@@ -1592,7 +1728,8 @@ export function SupplementScenarioEditor({
 
   const rewardsDraft = useDraft<SupplementScenarioReward[]>([]);
 
-  const handleEnterEdit = () => rewardsDraft.restart([...(purchase?.rewards ?? [])]);
+  const handleEnterEdit = () =>
+    rewardsDraft.restart([...(purchase?.rewards ?? [])]);
   const handleCancel = () => rewardsDraft.cancel();
   const handleSubmit = () => {
     rewardsDraft.close();
@@ -1624,7 +1761,9 @@ export function SupplementScenarioEditor({
 
   const addReward = (type: RewardType.Currency | RewardType.Note) => {
     const r: SupplementScenarioReward =
-      type === RewardType.Currency ? { type, value: 0 } : { type: RewardType.Note, note: "" };
+      type === RewardType.Currency
+        ? { type, value: 0 }
+        : { type: RewardType.Note, note: "" };
     rewardsDraft.set("Add reward", (d) => {
       d.push(r);
     });
@@ -1635,7 +1774,9 @@ export function SupplementScenarioEditor({
   const rewardsViewWidget =
     committedRewards.length > 0 ? (
       <div className="px-3 py-2 flex flex-wrap items-center gap-1.5">
-        <span className="text-xs font-medium text-muted shrink-0">Rewards:</span>
+        <span className="text-xs font-medium text-muted shrink-0">
+          Rewards:
+        </span>
         {committedRewards.map((r, i) =>
           r.type === RewardType.Perk || r.type === RewardType.Item ? (
             <PerkItemRewardChip key={i} reward={r} />
@@ -1666,7 +1807,9 @@ export function SupplementScenarioEditor({
                 step={50}
                 className="w-20 border border-edge rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring"
                 value={r.value}
-                onChange={(e) => syncReward(idx, { ...r, value: +e.target.value })}
+                onChange={(e) =>
+                  syncReward(idx, { ...r, value: +e.target.value })
+                }
               />
               <span className="text-xs text-muted">{currency}</span>
             </>
@@ -1678,7 +1821,9 @@ export function SupplementScenarioEditor({
               <input
                 className="flex-1 min-w-32 border border-edge rounded px-2 py-0.5 text-sm focus:outline-none focus:border-accent-ring"
                 value={r.note}
-                onChange={(e) => syncReward(idx, { ...r, note: e.target.value })}
+                onChange={(e) =>
+                  syncReward(idx, { ...r, note: e.target.value })
+                }
               />
             </>
           )}
@@ -1779,7 +1924,12 @@ export function DrawbackEditor({
     subtype: Id<LID.PurchaseSubtype> | null | undefined;
     itemStipend: number | undefined;
     companionStipend: number | undefined;
-  }>({ duration: undefined, subtype: null, itemStipend: undefined, companionStipend: undefined });
+  }>({
+    duration: undefined,
+    subtype: null,
+    itemStipend: undefined,
+    companionStipend: undefined,
+  });
   // Local state for the "N jumps" number — kept in sync with the draft.
   const [nJumps, setNJumps] = useState<number>(2);
 
@@ -1882,13 +2032,16 @@ export function DrawbackEditor({
   // temporary (1) are both common defaults; neither needs a badge.
   const committedDur = purchase?.duration;
   const durDrawbackView =
-    committedDur != null && committedDur > 1 ? <DurBadge>{committedDur} jumps</DurBadge> : null;
+    committedDur != null && committedDur > 1 ? (
+      <DurBadge>{committedDur} jumps</DurBadge>
+    ) : null;
 
   // Subtype widget (PurchaseType.Drawback only)
   const isJumpDrawback = purchase?.type === PurchaseType.Drawback;
   const isChainDrawback = purchase?.type === PurchaseType.ChainDrawback;
   const committedSubtype = isJumpDrawback
-    ? ((purchase as { subtype?: Id<LID.PurchaseSubtype> | null }).subtype ?? null)
+    ? ((purchase as { subtype?: Id<LID.PurchaseSubtype> | null }).subtype ??
+      null)
     : null;
   const subtypeEntries = Object.entries(subtypes?.O ?? {}).filter(
     (entry): entry is [string, PurchaseSubtype] => entry[1] != null,
@@ -1955,22 +2108,32 @@ export function DrawbackEditor({
   ) : null;
 
   // Stipend widget (PurchaseType.ChainDrawback only)
-  const pChain = purchase as { itemStipend?: number; companionStipend?: number } | undefined;
+  const pChain = purchase as
+    | { itemStipend?: number; companionStipend?: number }
+    | undefined;
   const committedItemStipend = isChainDrawback ? (pChain?.itemStipend ?? 0) : 0;
-  const committedCompanionStipend = isChainDrawback ? (pChain?.companionStipend ?? 0) : 0;
+  const committedCompanionStipend = isChainDrawback
+    ? (pChain?.companionStipend ?? 0)
+    : 0;
 
   const stipendView =
-    isChainDrawback && (committedItemStipend > 0 || committedCompanionStipend > 0) ? (
+    isChainDrawback &&
+    (committedItemStipend > 0 || committedCompanionStipend > 0) ? (
       <div className="px-3 py-1.5 flex items-center gap-4 flex-wrap text-xs text-muted">
         {committedItemStipend > 0 && (
           <span>
-            Item Stipend: <span className="font-semibold text-ink">{committedItemStipend}</span>
+            Item Stipend:{" "}
+            <span className="font-semibold text-ink">
+              {committedItemStipend}
+            </span>
           </span>
         )}
         {committedCompanionStipend > 0 && (
           <span>
             Companion Stipend:{" "}
-            <span className="font-semibold text-ink">{committedCompanionStipend}</span>
+            <span className="font-semibold text-ink">
+              {committedCompanionStipend}
+            </span>
           </span>
         )}
       </div>
@@ -2075,7 +2238,9 @@ export function SupplementPurchaseEditor({
   const { purchase } = usePurchase<SupplementPurchase>(id);
   const suppId = purchase?.supplement;
   const categories = useSupplementPurchaseCategories(suppId);
-  const durationDraft = useDraft<{ duration: number | undefined }>({ duration: undefined });
+  const durationDraft = useDraft<{ duration: number | undefined }>({
+    duration: undefined,
+  });
   const categoriesDraft = useDraft<Id<GID.PurchaseCategory>[]>([]);
   const tagsDraft = useDraft<string[]>([]);
   const [nJumps, setNJumps] = useState<number>(2);
@@ -2137,7 +2302,11 @@ export function SupplementPurchaseEditor({
             type="number"
             min={1}
             className={`w-8 text-xs bg-transparent text-center outline-none ${mode !== "perm" ? "text-accent" : "text-muted"}`}
-            value={mode !== "perm" ? (durationDraft.state.duration ?? nJumps) : nJumps}
+            value={
+              mode !== "perm"
+                ? (durationDraft.state.duration ?? nJumps)
+                : nJumps
+            }
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => {
               const v = Math.max(1, +e.target.value || 1);
@@ -2162,7 +2331,9 @@ export function SupplementPurchaseEditor({
     );
 
   // ── Categories widget ─────────────────────────────────────────────────────
-  const categoryEntries = categories ? (Object.entries(categories.O) as [string, string][]) : [];
+  const categoryEntries = categories
+    ? (Object.entries(categories.O) as [string, string][])
+    : [];
   const toggleCategory = (catId: Id<GID.PurchaseCategory>) =>
     categoriesDraft.set("Toggle category", (d) => {
       const idx = d.indexOf(catId);
@@ -2229,10 +2400,16 @@ export function SupplementPurchaseEditor({
     </div>
   );
   const committedTags = purchase?.tags ?? [];
-  const tagsWidgetView = <LinkedTagPills tags={committedTags} purchaseType={purchase?.type} />;
+  const tagsWidgetView = (
+    <LinkedTagPills tags={committedTags} purchaseType={purchase?.type} />
+  );
 
   const widgets: WidgetDef[] = [
-    { view: categoriesWidgetView, edit: categoriesWidgetEdit, position: "body" },
+    {
+      view: categoriesWidgetView,
+      edit: categoriesWidgetEdit,
+      position: "body",
+    },
     { view: tagsWidgetView, edit: tagsWidgetEdit, position: "body" },
     { view: durView, edit: durEdit, position: "footer" },
   ];

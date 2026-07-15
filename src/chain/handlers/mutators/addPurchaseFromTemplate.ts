@@ -1,15 +1,13 @@
-import {
-  GID,
-  Id,
-  LID,
-  registryAdd,
-  TID,
-} from "../../data/types";
+import { GID, Id, LID, registryAdd, TID } from "../../data/types";
 import { setTracked } from "../../state/hooks";
-import { BasicPurchaseTemplate, DrawbackTemplate, JumpDoc } from "@/jumpdoc/data/JumpDoc";
+import {
+  BasicPurchaseTemplate,
+  DrawbackTemplate,
+  JumpDoc,
+} from "@/jumpdoc/data/JumpDoc";
 import { applyTagsWithCost } from "../../../utilities/tags";
 import { convertModifiedCost, convertValue } from "../utils";
-import { PurchaseType, Value } from "../../data/Purchase";
+import { BasicPurchase, PurchaseType, Value } from "../../data/Purchase";
 import { PossibleCost } from "../types";
 
 export function addPurchaseFromTemplate(
@@ -21,6 +19,7 @@ export function addPurchaseFromTemplate(
     reward,
     freebie,
     customDuration,
+    parent,
   }: {
     template: (BasicPurchaseTemplate | DrawbackTemplate) & {
       cost: Value<TID.Currency>;
@@ -31,43 +30,43 @@ export function addPurchaseFromTemplate(
     reward?: Id<TID.Scenario>;
     freebie?: Id<TID.Companion>;
     customDuration?: number;
+    parent?: Id<GID.Purchase>;
   },
   jumpId: Id<GID.Jump>,
   charId: Id<GID.Character>,
   doc: JumpDoc,
 ): Id<GID.Purchase> | undefined {
   let newId: Id<GID.Purchase> | undefined;
-  setTracked("Add purchase", c => {
+  setTracked("Add purchase", (c) => {
     const jump = c.jumps.O[jumpId];
     if (!jump) return;
     c.budgetFlag += 1;
+    const resolvedName = applyTagsWithCost(
+      template.name,
+      tags,
+      template.cost,
+      cost.cost,
+      doc.currencies,
+    );
+    const resolvedDescription = applyTagsWithCost(
+      template.description ?? "",
+      tags,
+      template.cost,
+      cost.cost,
+      doc.currencies,
+    );
     if (type == "purchase") {
       let subtype = +Object.keys(jump.purchaseSubtypes.O).filter(
-        id =>
+        (id) =>
           jump.purchaseSubtypes.O[+id as any].templateId ==
           (template as BasicPurchaseTemplate).subtype,
       )[0] as Id<LID.PurchaseSubtype>;
       if (subtype === undefined) return;
-      const resolvedName = applyTagsWithCost(
-        template.name,
-        tags,
-        template.cost,
-        cost.cost,
-        doc.currencies,
-      );
-      const resolvedDescription = applyTagsWithCost(
-        template.description ?? "",
-        tags,
-        template.cost,
-        cost.cost,
-        doc.currencies,
-      );
       newId = registryAdd(c.purchases, {
         charId,
         jumpId,
         name: resolvedName,
         description: resolvedDescription,
-        type: jump.purchaseSubtypes.O[subtype].type,
         cost: convertModifiedCost(
           template.cost,
           cost,
@@ -75,15 +74,8 @@ export function addPurchaseFromTemplate(
           jump.currencies,
           cost.floatingDiscountOption ?? false,
         ),
-        reward,
-        ...(freebie !== undefined ? { freebie } : {}),
         value: convertValue(template.cost, doc, jump.currencies),
-        categories: [],
-        tags: [],
-        subtype,
-        duration: (template as BasicPurchaseTemplate).temporary
-          ? 1
-          : undefined,
+        duration: (template as BasicPurchaseTemplate).temporary ? 1 : undefined,
         template: {
           id: template.id as any,
           jumpdoc: "",
@@ -93,24 +85,30 @@ export function addPurchaseFromTemplate(
           originalDescription: resolvedDescription,
         },
         usesFloatingDiscount: cost.floatingDiscountOption ?? false,
+        ...(parent === undefined
+          ? {
+              type: jump.purchaseSubtypes.O[subtype].type,
+              reward,
+              ...(freebie !== undefined ? { freebie } : {}),
+              categories: [],
+              tags: [],
+              subtype,
+            }
+          : {
+              type: PurchaseType.Subpurchase,
+              parent: parent!,
+            }),
       });
-      if (!jump.purchases[charId]) jump.purchases[charId] = [];
-      jump.purchases[charId]!.push(newId);
+      if (parent == undefined) {
+        if (!jump.purchases[charId]) jump.purchases[charId] = [];
+        jump.purchases[charId]!.push(newId);
+      } else {
+        let parentPurchase = c.purchases.O[parent] as BasicPurchase;
+        if (!parentPurchase.subpurchases)
+          parentPurchase.subpurchases = { list: [], stipend: [] };
+        parentPurchase.subpurchases.list.push(newId);
+      }
     } else {
-      const resolvedName = applyTagsWithCost(
-        template.name,
-        tags,
-        template.cost,
-        cost.cost,
-        doc.currencies,
-      );
-      const resolvedDescription = applyTagsWithCost(
-        template.description ?? "",
-        tags,
-        template.cost,
-        cost.cost,
-        doc.currencies,
-      );
       newId = registryAdd(c.purchases, {
         charId,
         jumpId,

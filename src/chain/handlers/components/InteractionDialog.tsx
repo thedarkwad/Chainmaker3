@@ -28,17 +28,19 @@ export function InteractionDialog({
     setInteractionState(interactions[activeIndex]?.initialize(build) ?? {});
   }, [activeIndex]);
 
-  const enqueueInteractions = useViewerActionStore(s => s.enqueueInteractions);
+  const enqueueInteractions = useViewerActionStore(
+    (s) => s.enqueueInteractions,
+  );
 
   let interaction = interactions[activeIndex];
   let errorMessage = interaction.error(build);
   let actions = (
     typeof interaction.actions == "function"
-      ? interaction.actions(build)
+      ? interaction.actions(build, interactionState)
       : interaction.actions
   )
-    .filter(a => a.condition(build))
-    .map(a => ({
+    .filter((a) => a.condition(build))
+    .map((a) => ({
       label:
         typeof a.name == "function" ? a.name(build, interactionState) : a.name,
       variant: a.variant ?? "confirm",
@@ -49,7 +51,7 @@ export function InteractionDialog({
       onConfirm: () =>
         a
           .execute(build, mutators, interactionState)
-          .forEach(followup =>
+          .forEach((followup) =>
             "interaction" in followup
               ? enqueueInteractions(followup.interaction, followup.character)
               : enqueueInteractions([followup]),
@@ -121,8 +123,8 @@ export function InteractionDialog({
         >
           <interaction.preview
             buildData={build}
-            setState={partial => {
-              setInteractionState(s => ({ ...s, ...partial }));
+            setState={(partial) => {
+              setInteractionState((s) => ({ ...s, ...partial }));
             }}
             state={interactionState}
           />

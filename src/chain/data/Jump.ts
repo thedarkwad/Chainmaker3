@@ -10,7 +10,7 @@ import {
   Registry,
   TID,
 } from "./types";
-import { PossibleCost } from "../components/AnnotationInteractionHandler";
+import { PossibleCost } from "../handlers/components/AnnotationInteractionHandler";
 
 /** The default (primary) currency ID — always key 0 in a jump's currency registry. */
 export const DEFAULT_CURRENCY_ID = createId<LID.Currency>(0);

@@ -10,7 +10,7 @@
  */
 
 import "pdfjs-dist/web/pdf_viewer.css";
-import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useSwipe } from "@/ui/useSwipe";
 import {
   ArrowLeft,
@@ -34,7 +34,6 @@ import { loadJumpDoc } from "@/api/jumpdocs";
 import { useCurrentUser } from "@/app/state/auth";
 import { useJumpDocStore } from "@/jumpdoc/state/JumpDocStore";
 import {
-  stripTemplating,
   type Annotation,
   type AnnotationType,
   type BasicPurchaseTemplate,
@@ -57,7 +56,7 @@ import {
   scenarioInteraction,
   useJumpDocInternalTags,
   type InternalTagsMap,
-} from "./AnnotationInteractionHandler";
+} from "../handlers/components/AnnotationInteractionHandler";
 import {
   useAddCurrencyExchangeFromDoc,
   useRemoveCurrencyExchangeFromDoc,
@@ -65,7 +64,6 @@ import {
   useJumpOriginCategories,
   useJumpOrigins,
   usePurchaseSubtypes,
-  setTracked,
 } from "@/chain/state/hooks";
 import {
   createId,
@@ -80,7 +78,6 @@ import type {
   Currency,
   CurrencyExchange,
   Origin,
-  OriginCategory,
 } from "../data/Jump";
 import { preprocessJumpDoc } from "@/jumpdoc/data/JumpDoc";
 
@@ -106,7 +103,7 @@ export function resolveJumpCurrency(
 function templateNameToRegex(name: string): RegExp {
   const pattern = name
     .split(/\$\$?\{[^}]+\}/)
-    .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
     .join(".+");
   return new RegExp(`^${pattern}$`, "i");
 }
@@ -402,7 +399,9 @@ function buildAnnotationInteractions(
   if (ann.type === "origin-randomizer") {
     const cat = doc.originCategories.O[ann.id] as DocOriginCategory | undefined;
     if (!cat || cat.singleLine) return [];
-    return [randomizerInteraction(ann.id, doc, jumpId, charId, internalTags) as any];
+    return [
+      randomizerInteraction(ann.id, doc, jumpId, charId, internalTags) as any,
+    ];
   }
   if (ann.type === "currency-exchange") {
     return [currencyExchangeInteraction(ann, doc, jumpId, charId) as any];
@@ -540,8 +539,10 @@ export function JumpDocViewer({
     items: AnyAnnotation[];
   } | null>(null);
 
-  const enqueueInteractions = useViewerActionStore(s => s.enqueueInteractions);
-  const buildData = useViewerActionStore(s => s.buildData);
+  const enqueueInteractions = useViewerActionStore(
+    (s) => s.enqueueInteractions,
+  );
+  const buildData = useViewerActionStore((s) => s.buildData);
   const { origins, setOrigins } = useJumpOrigins(jumpId!, charId!);
   const originCategoriesReg = useJumpOriginCategories(jumpId!);
   const purchaseSubtypesReg = usePurchaseSubtypes(jumpId);
@@ -657,7 +658,7 @@ export function JumpDocViewer({
       const lid = createId<LID.OriginCategory>(+lidStr);
       const catTid =
         originCategoriesReg?.O[lid]?.template?.id ??
-        catAssignments.find(a => a.lid === lid)?.tid;
+        catAssignments.find((a) => a.lid === lid)?.tid;
       if (catTid === undefined) continue;
       const candidates = categoryCandidates.get(catTid);
       if (!candidates) continue;
@@ -666,7 +667,7 @@ export function JumpDocViewer({
       for (let index = 0; index < originArr.length; index++) {
         const origin = originArr[index]!;
         if (origin.template?.id !== undefined) continue;
-        const matched = candidates.find(c => c.regex.test(origin.summary));
+        const matched = candidates.find((c) => c.regex.test(origin.summary));
         if (matched) assignments.push({ lid, index, tid: matched.tid });
       }
     }
@@ -702,13 +703,13 @@ export function JumpDocViewer({
       return;
 
     setOrigins(
-      draft => {
+      (draft) => {
         for (const { lid, index, tid } of assignments) {
           const origin = draft[lid]?.[index];
           if (origin) origin.template = { jumpdoc: docId, id: tid };
         }
       },
-      c => {
+      (c) => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         for (const { lid, tid } of catAssignments) {
@@ -768,7 +769,7 @@ export function JumpDocViewer({
     const nx = (e.clientX - bounds.left) / bounds.width;
     const ny = (e.clientY - bounds.top) / bounds.height;
     return (annotations[pageIdx] ?? []).filter(
-      ann =>
+      (ann) =>
         nx >= ann.rect.x &&
         nx <= ann.rect.x + ann.rect.width &&
         ny >= ann.rect.y &&
@@ -780,7 +781,7 @@ export function JumpDocViewer({
   let currencyExchangeUsage =
     jumpDoc?.availableCurrencyExchanges?.map((ex, i) =>
       (currencyExchanges ?? [])
-        .filter(lex => lex.templateIndex == i)
+        .filter((lex) => lex.templateIndex == i)
         .reduce((n, lex) => n + Math.floor(lex.oamount / ex.oamount), 0),
     ) ?? [];
 
@@ -847,7 +848,7 @@ export function JumpDocViewer({
 
           <div className="flex items-center shrink-0">
             <button
-              onClick={() => changeZoom(z => z - ZOOM_STEP)}
+              onClick={() => changeZoom((z) => z - ZOOM_STEP)}
               disabled={zoom <= MIN_ZOOM}
               className="px-1.5 py-1 rounded text-xs text-muted hover:text-ink hover:bg-tint disabled:opacity-40"
             >
@@ -857,7 +858,7 @@ export function JumpDocViewer({
               {Math.round(zoom * 100)}%
             </span>
             <button
-              onClick={() => changeZoom(z => z + ZOOM_STEP)}
+              onClick={() => changeZoom((z) => z + ZOOM_STEP)}
               disabled={zoom >= MAX_ZOOM}
               className="px-1.5 py-1 rounded text-xs text-muted hover:text-ink hover:bg-tint disabled:opacity-40"
             >
@@ -883,13 +884,13 @@ export function JumpDocViewer({
             </div>
           )}
 
-          {jumpDoc?.availableCurrencyExchanges?.some(ex => ex.sidebar) && (
+          {jumpDoc?.availableCurrencyExchanges?.some((ex) => ex.sidebar) && (
             <div
               className={`flex flex-col bg-accent-ring w-max text-xs gap-2 p-2 rounded-b absolute top-0 right-5 z-10 text-surface ${!currencySidebarOpen && "opacity-70"}`}
             >
               <button
                 className="flex items-center justify-end font-medium shrink-0"
-                onClick={() => setCurrencySidebarOpen(s => !s)}
+                onClick={() => setCurrencySidebarOpen((s) => !s)}
               >
                 Exchange Currencies
                 {currencySidebarOpen ? (
@@ -969,8 +970,9 @@ export function JumpDocViewer({
               onPointerUp={() => setShiftHeld(false)}
               onPointerLeave={() => setShiftHeld(false)}
               onPointerCancel={() => setShiftHeld(false)}
-              className={`absolute bottom-10 left-0 z-10 p-4 rounded-tr transition-colors text-surface ${shiftHeld ? "bg-accent" : "bg-accent-ring"
-                }`}
+              className={`absolute bottom-10 left-0 z-10 p-4 rounded-tr transition-colors text-surface ${
+                shiftHeld ? "bg-accent" : "bg-accent-ring"
+              }`}
               aria-label="Hold to show annotations"
             >
               <Eye size={28} />
@@ -1010,7 +1012,7 @@ export function JumpDocViewer({
                   // Outer wrapper sized at display dimensions (CSS-scaled).
                   <div
                     key={pageIdx}
-                    ref={el => {
+                    ref={(el) => {
                       pageWrapperRefs.current[pageIdx] = el;
                       if (el) ioRef.current?.observe(el);
                     }}
@@ -1025,7 +1027,7 @@ export function JumpDocViewer({
                           ? "pointer"
                           : "default",
                     }}
-                    onMouseMove={e => {
+                    onMouseMove={(e) => {
                       if (
                         (e.nativeEvent as PointerEvent).pointerType === "touch"
                       )
@@ -1043,18 +1045,20 @@ export function JumpDocViewer({
                       }
                     }}
                     onMouseLeave={() => setHoverInfo(null)}
-                    onClick={e => {
+                    onClick={(e) => {
                       if (jumpId === undefined || charId === undefined) return;
                       const hits = getAnnotationsAt(pageIdx, e);
                       if (hits.length === 0) return;
                       const doc = jumpDoc!;
                       const originHits = hits.filter(
-                        a => a.type === "origin" || a.type === "origin-option",
+                        (a) =>
+                          a.type === "origin" || a.type === "origin-option",
                       );
                       const otherHits = hits.filter(
-                        a => a.type !== "origin" && a.type !== "origin-option",
+                        (a) =>
+                          a.type !== "origin" && a.type !== "origin-option",
                       );
-                      const interactions = otherHits.flatMap(ann =>
+                      const interactions = otherHits.flatMap((ann) =>
                         buildAnnotationInteractions(
                           ann,
                           doc,
@@ -1080,8 +1084,8 @@ export function JumpDocViewer({
                           (optionIndices[cat.id] as number[]).push(cat.index);
                         }
                         const originTemplates = originHits
-                          .filter(a => a.type === "origin")
-                          .map(a => doc.origins.O[a.id as Id<TID.Origin>]);
+                          .filter((a) => a.type === "origin")
+                          .map((a) => doc.origins.O[a.id as Id<TID.Origin>]);
                         if (originTemplates.length > 0) {
                           for (const t of originTemplates)
                             interactions.push(
@@ -1091,7 +1095,7 @@ export function JumpDocViewer({
                                 doc,
                                 jumpId,
                                 charId,
-                                internalTags
+                                internalTags,
                               ) as any,
                             );
                         } else {
@@ -1102,7 +1106,7 @@ export function JumpDocViewer({
                               doc,
                               jumpId,
                               charId,
-                              internalTags
+                              internalTags,
                             ) as any,
                           );
                         }
@@ -1127,7 +1131,7 @@ export function JumpDocViewer({
                       }}
                     >
                       <canvas
-                        ref={el => {
+                        ref={(el) => {
                           canvasRefs.current[pageIdx] = el;
                         }}
                         width={pageInfo.width}
@@ -1137,11 +1141,12 @@ export function JumpDocViewer({
 
                       {/* Text layer — transparent text spans for selection/copy */}
                       <div
-                        ref={el => {
+                        ref={(el) => {
                           textLayerRefs.current[pageIdx] = el;
                         }}
-                        className={`textLayer absolute inset-0 overflow-hidden select-text ${ctrlHeld ? "" : "pointer-events-none invisible"
-                          }`}
+                        className={`textLayer absolute inset-0 overflow-hidden select-text ${
+                          ctrlHeld ? "" : "pointer-events-none invisible"
+                        }`}
                         style={
                           {
                             "--total-scale-factor": RENDER_SCALE,
@@ -1157,7 +1162,7 @@ export function JumpDocViewer({
                             ? new Set([annotationKey(firstHovered)])
                             : null;
                           const hasSelected = pageAnnotations.some(
-                            ann =>
+                            (ann) =>
                               ann.type != "origin-option" &&
                               ann.type != "origin-randomizer" &&
                               selectedAnnotations.has(annotationKey(ann)),
@@ -1182,16 +1187,16 @@ export function JumpDocViewer({
                                 const isHovered =
                                   ann.type === "origin-option"
                                     ? hoverInfo?.pageIdx === pageIdx &&
-                                    hoverInfo.items[0]?.type ===
-                                    "origin-option" &&
-                                    hoverInfo.items[0].rect.x ===
-                                    ann.rect.x &&
-                                    hoverInfo.items[0].rect.y ===
-                                    ann.rect.y &&
-                                    hoverInfo.items[0].rect.width ===
-                                    ann.rect.width &&
-                                    hoverInfo.items[0].rect.height ===
-                                    ann.rect.height
+                                      hoverInfo.items[0]?.type ===
+                                        "origin-option" &&
+                                      hoverInfo.items[0].rect.x ===
+                                        ann.rect.x &&
+                                      hoverInfo.items[0].rect.y ===
+                                        ann.rect.y &&
+                                      hoverInfo.items[0].rect.width ===
+                                        ann.rect.width &&
+                                      hoverInfo.items[0].rect.height ===
+                                        ann.rect.height
                                     : (hoveredKeys?.has(key) ?? false);
                                 if (!isSelected && !isHovered) return null;
                                 const bx = ann.rect.x * pageInfo.width;

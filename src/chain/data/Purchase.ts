@@ -1,4 +1,4 @@
-import { PossibleCost } from "../components/AnnotationInteractionHandler";
+import { PossibleCost } from "../handlers/components/AnnotationInteractionHandler";
 import { createId, GID, Id, LID, Lookup, PartialLookup, TID } from "./types";
 
 export const enum PurchaseType {
@@ -162,6 +162,7 @@ export type JumpPurchase<T extends TID | unknown = unknown> =
       originalDescription?: string;
       originalName?: string;
     };
+    usesFloatingDiscount?: boolean;
     boosts?: { purchaseId: Id<GID.Purchase>; description: string }[];
     value: Value;
   };
@@ -186,7 +187,6 @@ export type BasicPurchase = JumpPurchase<TID.Purchase | TID.Companion> & {
   tags: string[];
 
   subtype: Id<LID.PurchaseSubtype>;
-  usesFloatingDiscount?: boolean;
 
   purchaseGroup?: Id<GID.PurchaseGroup>;
 

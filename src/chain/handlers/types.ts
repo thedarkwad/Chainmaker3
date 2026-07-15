@@ -30,10 +30,10 @@ export type PossibleCost = ModifiedCost<TID.Currency> & {
 export type MutatorNavTarget =
   | { sub: "purchases"; scrollTo?: Id<GID.Purchase> }
   | {
-    sub: "drawbacks";
-    scrollTo?: Id<GID.Purchase>;
-    extraSearch?: Record<string, string>;
-  }
+      sub: "drawbacks";
+      scrollTo?: Id<GID.Purchase>;
+      extraSearch?: Record<string, string>;
+    }
   | { sub: "companions"; scrollTo?: Id<GID.Purchase> }
   | { sub: ""; extraSearch?: Record<string, string> };
 
@@ -47,6 +47,9 @@ export type ChainMutators = {
       type: "purchase" | "drawback";
       tags: Record<string, string>;
       cost: PossibleCost;
+
+      parent?: Id<GID.Purchase>;
+
       reward?: Id<TID.Scenario>;
       freebie?: Id<TID.Companion>;
       customDuration?: number;
@@ -83,7 +86,11 @@ export type ChainMutators = {
     build: JumpDocBuildData,
     doc: JumpDoc,
   ) => void;
-  removePurchase: (id: Id<GID.Purchase>, build: JumpDocBuildData) => void;
+  removePurchase: (
+    id: Id<GID.Purchase>,
+    build: JumpDocBuildData,
+    parent?: Id<GID.Purchase>,
+  ) => void;
   addScenarioFromTemplate: (
     data: {
       template: ScenarioTemplate;

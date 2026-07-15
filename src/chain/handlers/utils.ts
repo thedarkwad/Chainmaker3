@@ -27,7 +27,7 @@ import {
   Value,
 } from "../data/Purchase";
 import { Currency, DEFAULT_CURRENCY_ID } from "../data/Jump";
-import { extractTags } from "../../utilities/tags";
+import { applyTags, extractTags } from "../../utilities/tags";
 import {
   convertWhitespace,
   objFilter,
@@ -68,7 +68,7 @@ export function describeChoiceOptions(options: string[]): string {
   return (
     options
       .slice(0, -1)
-      .map(o => `"${o}"`)
+      .map((o) => `"${o}"`)
       .join(", ") + `, or "${options[options.length - 1]}"`
   );
 }
@@ -135,17 +135,17 @@ export const purchaseValueWithThreshold = <
       return value;
     case CostModifier.Free:
       if (freebieAllowed)
-        return value.map(val => ({
+        return value.map((val) => ({
           amount: Math.min(val.amount, 0),
           currency: val.currency,
         }));
       // falls through
       else;
     case CostModifier.Reduced:
-      return value.map(val => ({
+      return value.map((val) => ({
         amount:
           freebieAllowed &&
-            val.amount <= (currencies.O[val.currency]?.discountFreeThreshold ?? 0)
+          val.amount <= (currencies.O[val.currency]?.discountFreeThreshold ?? 0)
             ? Math.min(0, val.amount)
             : Math.min(val.amount, Math.floor(val.amount / 2)),
         currency: val.currency,
@@ -188,7 +188,7 @@ export function getPrereqError(
       break;
     case "origin":
       if (doc.origins.O[prereq.id] === undefined) return;
-      has = build.origins.some(o => o.template?.id == prereq.id);
+      has = build.origins.some((o) => o.template?.id == prereq.id);
       name = doc.origins.O[prereq.id]?.name;
   }
   if (!has && prereq.positive) return `Restricted to holders of "${name}".`;
@@ -219,7 +219,7 @@ export function altCostPrereqsMet(
       case "companion":
         return (build.companionImports[prereq.id] ?? []).length === 0;
       case "origin":
-        return !build.origins.some(o => o.template?.id === prereq.id);
+        return !build.origins.some((o) => o.template?.id === prereq.id);
     }
   };
   return altCost.AND
@@ -239,7 +239,7 @@ export function computePossibleCosts(
   let isPurchase = (template as BasicPurchaseTemplate).subtype !== undefined;
   let floatingDiscountMode = isPurchase
     ? (doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype]
-      .floatingDiscountMode ??
+        .floatingDiscountMode ??
       (doc.purchaseSubtypes.O[(template as BasicPurchaseTemplate).subtype]
         .floatingDiscountThresholds?.length
         ? "free"
@@ -259,13 +259,13 @@ export function computePossibleCosts(
 
   let floatingDiscount = (c: PossibleCost) =>
     purchaseValue(c.cost, c).every(
-      c => c.amount <= (maxFloatingDiscountThreshold[c.currency] ?? 0),
+      (c) => c.amount <= (maxFloatingDiscountThreshold[c.currency] ?? 0),
     );
 
-  let applyOrigin: (c: PossibleCost) => PossibleCost = c => {
+  let applyOrigin: (c: PossibleCost) => PossibleCost = (c) => {
     if (
       !build.origins.some(
-        o => o.template && (template.origins ?? []).includes(o.template.id),
+        (o) => o.template && (template.origins ?? []).includes(o.template.id),
       )
     )
       return c;
@@ -287,7 +287,7 @@ export function computePossibleCosts(
         if (
           isFirstCopy &&
           c.cost.every(
-            c =>
+            (c) =>
               c.amount <=
               (doc.currencies.O[c.currency].discountFreeThreshold ?? 0),
           )
@@ -360,14 +360,7 @@ export function evalVariableCostExpr(
   tags: Record<string, string>,
 ): number {
   if (!expr.trim()) return 0;
-  // Note: we require applyTags here but to avoid circular import, we can do inline string replacement 
-  // or use regex. In the original, it called: applyTags(`\${${expr}}`, tags)
-  // Let's implement a simple tags evaluation for variable cost expression here.
-  // The expression is usually a variable name like ${perk_cost} or just references.
-  // Actually, we can use a basic regex substitution:
-  const resolved = expr.replace(/\$\{([^}]+)\}/g, (_, key) => tags[key] ?? "");
-  const cleanExpr = resolved.replace(/\b([a-zA-Z_]\w*)\b/g, (name) => tags[name] ?? name);
-  const n = Number(cleanExpr);
+  const n = Number(applyTags(`\${${expr}}`, tags));
   return isNaN(n) ? 0 : n;
 }
 
@@ -492,17 +485,17 @@ export function useJumpDocInternalTags(doc: JumpDoc | null): InternalTagsMap {
       ...Object.values(doc.availablePurchases.O),
       ...Object.values(doc.availableScenarios.O),
       ...Object.values(doc.origins.O),
-    ].flatMap(p => p?.internalTags ?? []);
+    ].flatMap((p) => p?.internalTags ?? []);
 
     const incrementer = <A extends TID, B extends GID>(
       r: Registry<A, { internalTags?: string[] }>,
       lookup: (build: JumpDocBuildData) => PartialIndex<A, B>,
     ) => {
       const relevantEntries = Object.fromEntries(
-        tags.map(t => [
+        tags.map((t) => [
           t,
           Object.keys(r.O)
-            .filter(id => (r.O[id as any]?.internalTags ?? []).includes(t))
+            .filter((id) => (r.O[id as any]?.internalTags ?? []).includes(t))
             .map(Number) as Id<A>[],
         ]),
       );
@@ -516,18 +509,18 @@ export function useJumpDocInternalTags(doc: JumpDoc | null): InternalTagsMap {
       };
     };
     const incrementers = [
-      incrementer(doc.availablePurchases, build => build.purchases),
-      incrementer(doc.availableDrawbacks, build => build.drawbacks),
-      incrementer(doc.availableCompanions, build => build.companionImports),
-      incrementer(doc.availableScenarios, build => build.scenarios),
+      incrementer(doc.availablePurchases, (build) => build.purchases),
+      incrementer(doc.availableDrawbacks, (build) => build.drawbacks),
+      incrementer(doc.availableCompanions, (build) => build.companionImports),
+      incrementer(doc.availableScenarios, (build) => build.scenarios),
     ];
 
     const originTagIds = Object.fromEntries(
-      tags.map(t => [
+      tags.map((t) => [
         t,
         new Set(
           Object.keys(doc.origins.O)
-            .filter(id =>
+            .filter((id) =>
               (doc.origins.O[id as any]?.internalTags ?? []).includes(t),
             )
             .map(Number) as Id<TID.Origin>[],
@@ -536,17 +529,17 @@ export function useJumpDocInternalTags(doc: JumpDoc | null): InternalTagsMap {
     );
     const originIncrementer = (build: JumpDocBuildData, t: string) =>
       build.origins.filter(
-        o =>
+        (o) =>
           o.template?.id !== undefined && originTagIds[t]?.has(o.template.id),
       ).length;
 
     return Object.fromEntries(
-      tags.map(t => [
+      tags.map((t) => [
         t,
         (build: JumpDocBuildData) =>
           String(
             incrementers.reduce((n, inc) => n + inc(build, t), 0) +
-            originIncrementer(build, t),
+              originIncrementer(build, t),
           ),
       ]),
     );
@@ -578,43 +571,14 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
   const removeCharacterFn = useRemoveCharacter();
 
   return {
-    addPurchaseFromTemplate: useCallback(
-      (data, jumpId, charId, doc) =>
-        addPurchaseFromTemplate(data, jumpId, charId, doc),
-      [],
-    ),
-    addOriginFromTemplate: useCallback(
-      (data, jumpId, charId, doc) =>
-        addOriginFromTemplate(data, jumpId, charId, doc),
-      [],
-    ),
-    addScenarioFromTemplate: useCallback(
-      (data, jumpId, charId, doc) =>
-        addScenarioFromTemplate(data, jumpId, charId, doc),
-      [],
-    ),
-    setNameDescription: useCallback(
-      (id, name, description) => setNameDescription(id, name, description),
-      [],
-    ),
-    repricePurchase: useCallback(
-      (id, cost, doc) => repricePurchase(id, cost, doc),
-      [],
-    ),
-    repriceOrigin: useCallback(
-      (templateId, jumpId, charId, build, doc) =>
-        repriceOrigin(templateId, jumpId, charId, build, doc),
-      [],
-    ),
-    removePurchase: useCallback(
-      (id, build) => removePurchase(id, build),
-      [],
-    ),
-    addCompanionImport: useCallback(
-      (data, jumpId, charId, doc) =>
-        addCompanionImport(data, jumpId, charId, doc),
-      [],
-    ),
+    addPurchaseFromTemplate: useCallback(addPurchaseFromTemplate, []),
+    addOriginFromTemplate: useCallback(addOriginFromTemplate, []),
+    addScenarioFromTemplate: useCallback(addScenarioFromTemplate, []),
+    setNameDescription: useCallback(setNameDescription, []),
+    repricePurchase: useCallback(repricePurchase, []),
+    repriceOrigin: useCallback(repriceOrigin, []),
+    removePurchase: useCallback(removePurchase, []),
+    addCompanionImport: useCallback(addCompanionImport, []),
     createCompanion: useCallback(
       ({ template, name, gender, species }) =>
         createCompanion({
@@ -628,36 +592,16 @@ export function useChainMutators(): Omit<ChainMutators, "navigate"> {
         }),
       [createCompanion],
     ),
-    addFollower: useCallback(
-      (data, jumpId, charId, doc) =>
-        addFollower(data, jumpId, charId, doc),
-      [],
-    ),
+    addFollower: useCallback(addFollower, []),
     removeCharacters: useCallback(
-      ids => {
+      (ids) => {
         for (const id of ids) removeCharacterFn(id);
       },
       [removeCharacterFn],
     ),
-    removeOrigin: useCallback(
-      (templateId, jumpId, charId) =>
-        removeOrigin(templateId, jumpId, charId),
-      [],
-    ),
-    addCurrencyExchangeFromDoc: useCallback(
-      (opts, jumpId, charId, doc) =>
-        addCurrencyExchangeFromDoc(opts, jumpId, charId, doc),
-      [],
-    ),
-    removeCurrencyExchangeFromDoc: useCallback(
-      (opts, jumpId, charId) =>
-        removeCurrencyExchangeFromDoc(opts, jumpId, charId),
-      [],
-    ),
-    setFreeFormOrigin: useCallback(
-      (data, jumpId, charId, doc) =>
-        setFreeFormOrigin(data, jumpId, charId, doc),
-      [],
-    ),
+    removeOrigin: useCallback(removeOrigin, []),
+    addCurrencyExchangeFromDoc: useCallback(addCurrencyExchangeFromDoc, []),
+    removeCurrencyExchangeFromDoc: useCallback(removeCurrencyExchangeFromDoc, []),
+    setFreeFormOrigin: useCallback(setFreeFormOrigin, []),
   };
 }
