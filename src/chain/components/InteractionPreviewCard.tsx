@@ -132,7 +132,7 @@ export function InteractionPreviewCard({
         )}
       </div>
 
-      {description && description.trim.length > 0 && (
+      {description && description.trim().length > 0 && (
         <div className="text-xs text-muted flex flex-col gap-1.5 max-h-60 overflow-y-auto leading-relaxed bg-tint/30 p-2 border-accent-ring/15 rounded-sm border">
           {convertWhitespace(description)}
         </div>
