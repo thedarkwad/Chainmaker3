@@ -143,7 +143,7 @@ function computeBuildData(
     const subpurchases = Object.values(jump.purchases[charId] ?? []).flatMap(
       (gid) => {
         let purchase = chain.purchases.O[gid] as BasicPurchase;
-        if (!purchase.subpurchases?.list) return [];
+        if (!purchase?.subpurchases?.list) return [];
         return purchase.subpurchases.list.filter(
           (sgid) =>
             (chain.purchases.O[sgid] as JumpPurchase<TID>).template !==
