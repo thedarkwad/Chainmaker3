@@ -73,7 +73,7 @@ export function TagFieldsSection({
       ))}
       <div />
       {choiceContext && (
-        <div className="text-xs text-muted/90 flex flex-col gap-1.5 max-w-sm">
+        <div className="text-xs text-muted/90 flex flex-col gap-1.5 max-w-sm max-h-50 overflow-y-auto">
           {convertWhitespace(choiceContext)}
         </div>
       )}
