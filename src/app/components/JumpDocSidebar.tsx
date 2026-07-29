@@ -1,7 +1,9 @@
 import { FileText, Pencil, X, Download, ExternalLink } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type JumpDocSummary, getJumpDocPdfUrl } from "@/api/jumpdocs";
+
+const UPLOADS_DOMAIN = "uploads.chainmaker.site";
 
 export const ATTR_FIELDS: {
   key: keyof JumpDocSummary["attributes"];
@@ -52,16 +54,28 @@ export function JumpDocSidebar({
   const [downloading, setDownloading] = useState<"pdf" | "zip" | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const isElectron = import.meta.env.VITE_PLATFORM === "electron";
+  const [pdfUrl, setPdfUrl] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    let act = async () => {
+      setPdfUrl(
+        (await getJumpDocPdfUrl({ data: { publicUid: doc.publicUid } })).pdfUrl,
+      );
+    };
+    act();
+  }, [doc.publicUid]);
+
+  let proxyURL = URL.parse(pdfUrl ?? "") ?? undefined;
+  if (proxyURL) proxyURL.hostname = UPLOADS_DOMAIN;
 
   async function handleDownloadPdf() {
     setMenuOpen(false);
     setDownloading("pdf");
     try {
-      const { pdfUrl, name } = await getJumpDocPdfUrl({ data: { publicUid: doc.publicUid } });
       if (!pdfUrl) return;
       const res = await fetch(pdfUrl);
       const blob = await res.blob();
-      triggerDownload(blob, `${name}.pdf`);
+      triggerDownload(blob, `${doc.name}.pdf`);
     } finally {
       setDownloading(null);
     }
@@ -86,12 +100,14 @@ export function JumpDocSidebar({
           <h2 className="text-sm font-semibold text-ink leading-snug">
             {doc.name}
             {doc.version && (
-              <span className="ml-1.5 text-xs font-normal text-ghost">v{doc.version}</span>
+              <span className="ml-1.5 text-xs font-normal text-ghost">
+                v{doc.version}
+              </span>
             )}
           </h2>
           {doc.author.length > 0 && (
             <div className="flex flex-wrap gap-x-1 gap-y-0.5">
-              {doc.author.map((a) =>
+              {doc.author.map(a =>
                 onSearchChange ? (
                   <button
                     key={a}
@@ -121,7 +137,9 @@ export function JumpDocSidebar({
       {/* NSFW warning */}
       {doc.nsfw && (
         <div className="flex items-center gap-1.5 rounded border border-red-500/40 bg-red-500/10 px-2.5 py-1.5">
-          <span className="text-xs font-bold text-red-400 uppercase tracking-wide">NSFW</span>
+          <span className="text-xs font-bold text-red-400 uppercase tracking-wide">
+            NSFW
+          </span>
           <span className="text-[10px] text-red-400/80">Adult content</span>
         </div>
       )}
@@ -129,7 +147,11 @@ export function JumpDocSidebar({
       {/* Cover image */}
       <div className="w-full aspect-square overflow-hidden rounded bg-tint">
         {doc.imageUrl ? (
-          <img src={doc.imageUrl} alt={doc.name} className="w-full h-full object-cover" />
+          <img
+            src={doc.imageUrl}
+            alt={doc.name}
+            className="w-full h-full object-cover"
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <FileText size={36} className="text-ghost" />
@@ -143,9 +165,11 @@ export function JumpDocSidebar({
         if (!values?.length) return null;
         return (
           <div key={key} className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-ghost">{label}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ghost">
+              {label}
+            </p>
             <div className="flex flex-wrap gap-1">
-              {values.map((v) =>
+              {values.map(v =>
                 onSearchChange ? (
                   <button
                     key={v}
@@ -195,7 +219,7 @@ export function JumpDocSidebar({
               <button
                 type="button"
                 disabled={downloading !== null}
-                onClick={() => setMenuOpen((o) => !o)}
+                onClick={() => setMenuOpen(o => !o)}
                 className="flex w-full bg-surface items-center justify-center gap-1.5 rounded border border-edge px-3 py-2 text-xs font-medium text-muted transition-colors hover:border-accent/50 hover:text-ink disabled:opacity-50"
               >
                 <Download size={11} />
@@ -220,7 +244,9 @@ export function JumpDocSidebar({
                     className="flex flex-col w-full justify-center items-baseline gap-2 px-3 py-2 text-xs text-muted transition-colors hover:bg-tint hover:text-ink"
                   >
                     Interactive .jumpdoc
-                    <div className="text-xs text-ghost">For use with desktop ChainMaker app.</div>
+                    <div className="text-xs text-ghost">
+                      For use with desktop ChainMaker app.
+                    </div>
                   </button>
                 </div>
               )}
@@ -237,15 +263,14 @@ export function JumpDocSidebar({
             </Link>
           )}
 
-          <Link
-            to="/pdf/$docId"
+          <a
+            href={proxyURL?.toString()}
             target="_blank"
-            params={{ docId: doc.publicUid }}
             className="pointer flex w-full bg-surface items-center justify-center gap-1.5 rounded border border-edge px-3 py-2 text-xs font-medium text-muted transition-colors hover:border-accent/50 hover:text-ink"
           >
             <ExternalLink size={11} />
             Open PDF
-          </Link>
+          </a>
         </div>
       )}
     </div>
