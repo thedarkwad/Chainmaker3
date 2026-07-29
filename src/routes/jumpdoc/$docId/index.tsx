@@ -27,7 +27,10 @@ import {
   useModifyJumpDocFreeFormOptions,
   useAddJumpDocFreeFormOption,
 } from "@/jumpdoc/state/hooks";
-import { PdfViewer, type PdfViewerHandle } from "@/jumpdoc/components/PdfViewer";
+import {
+  PdfViewer,
+  type PdfViewerHandle,
+} from "@/jumpdoc/components/PdfViewer";
 import { useJumpDocMeta } from "@/jumpdoc/state/JumpDocMetaStore";
 import { JumpDocEditor } from "@/jumpdoc/components/JumpDocEditor";
 import { OriginCategorySection } from "@/jumpdoc/components/OriginsSection";
@@ -51,15 +54,17 @@ export type ParsedEntry = {
   amount: number;
 };
 
-const parseText: (text: string, currencies: Registry<TID.Currency, Currency>) => ParsedEntry = (
-  text,
-  currencies,
-) => {
+const parseText: (
+  text: string,
+  currencies: Registry<TID.Currency, Currency>,
+) => ParsedEntry = (text, currencies) => {
   // Escape abbrevs for regex
   const abbrevs = Object.entries(currencies.O).map(
     ([i, v]) => [+i, v.abbrev] as [Id<TID.Currency>, string],
   );
-  const escaped = abbrevs.map(([, v]) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const escaped = abbrevs.map(([, v]) =>
+    v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+  );
   const abbrevGroup = escaped.length ? `(${escaped.join("|")})` : null;
   const pattern = abbrevGroup
     ? new RegExp(`(\\d+)(?:\\s*${abbrevGroup})?|\\[free\\]|\\(free\\)`, "i")
@@ -67,7 +72,7 @@ const parseText: (text: string, currencies: Registry<TID.Currency, Currency>) =>
 
   let match = pattern.exec(text);
 
-  function unwrapBrackets(matchObj: typeof match) {
+  let unwrapBrackets = (matchObj: typeof match) => {
     if (!matchObj) return "";
 
     const text = matchObj.input;
@@ -101,7 +106,13 @@ const parseText: (text: string, currencies: Registry<TID.Currency, Currency>) =>
 
     // Fallback: if no wrapping brackets were found, return original string
     return text;
-  }
+  };
+
+  let hyphensToDashes = (s: string) => s.replace(/\s+-\s*|\s*-\s+/g, " – ");
+  let findDashSeparator = (s: string) => {
+    let matches = [...s.matchAll(/[-–—]\s/g)];
+    return matches.length > 0 ? matches[matches.length - 1].index : -1;
+  };
 
   if (!match || match.index > 90 || match.index <= 2) {
     let colonSplit = text.indexOf(":"),
@@ -111,20 +122,17 @@ const parseText: (text: string, currencies: Registry<TID.Currency, Currency>) =>
         ? Math.max(colonSplit, newLineSplit)
         : Math.min(colonSplit, newLineSplit);
 
-    if (split < 0 || split > 90) split = text.slice(0, 90).lastIndexOf("- ");
+    if (split < 0 || split > 90) split = findDashSeparator(text.slice(0, 90));
     if (split < 0)
       return {
         title: "",
-        desc: text.replace(/ +-|-[ ]+/g, " – ").trim(),
+        desc: hyphensToDashes(text).trim(),
         currency: createId<TID.Currency>(0),
         amount: 0,
       };
 
     let title = text.slice(0, split).trim();
-    let desc = text
-      .slice(split + 1)
-      .replace(/ +-|-[ ]+/g, " – ")
-      .trim();
+    let desc = hyphensToDashes(text.slice(split + 1)).trim();
     let currency = createId<TID.Currency>(0);
 
     // Return early if text looks like list item
@@ -177,10 +185,9 @@ const parseText: (text: string, currencies: Registry<TID.Currency, Currency>) =>
     .trim();
 
   // d) strip leading non-alphanumeric from desc
-  desc = desc
+  desc = hyphensToDashes(desc)
     .trim()
-    .replace(/^[^a-zA-Z0-9]+/g, "")
-    .replace(/ +-|-[ ]+/g, " – ");
+    .replace(/^[^a-zA-Z0-9]+/g, "");
 
   // e) find abbrev index if present
   let currency = createId<TID.Currency>(0);
@@ -220,7 +227,9 @@ function JumpDocPage() {
   } | null>(null);
   const [isTouch, setIsTouch] = useState(false);
   useEffect(() => {
-    setIsTouch(window.matchMedia("(pointer: coarse) and (max-width: 1023px)").matches);
+    setIsTouch(
+      window.matchMedia("(pointer: coarse) and (max-width: 1023px)").matches,
+    );
   }, []);
 
   const pdfRef = useRef<PdfViewerHandle>(null);
@@ -229,12 +238,16 @@ function JumpDocPage() {
   const doc = useJumpDoc();
   const { pdfUrl, ownerUid } = useJumpDocMeta();
   const { docId } = Route.useParams();
-  const isTrustedEditor = !!dbUser && ownerUid !== "" && dbUser.firebaseUid !== ownerUid && (dbUser.permissions ?? []).includes("trusted");
+  const isTrustedEditor =
+    !!dbUser &&
+    ownerUid !== "" &&
+    dbUser.firebaseUid !== ownerUid &&
+    (dbUser.permissions ?? []).includes("trusted");
   const templates = useAllBoundedTemplates();
   const toolDefs = useJumpDocToolDefinitions();
   const toolColors = useMemo(() => {
     const colors: Record<string, string> = Object.fromEntries(
-      toolDefs.map((t) => [t.key, t.color]),
+      toolDefs.map(t => [t.key, t.color]),
     );
     // Freeform options share green with origins; origin-random gets violet.
     if (doc) {
@@ -282,8 +295,10 @@ function JumpDocPage() {
         else if (type.startsWith("freeform-")) {
           const catId = Number(type.slice(9)) as any;
           addBoundToFreeFormOption(catId, id, rects);
-        } else if (type.startsWith("origin-")) addBoundToOrigin(id as any, rects);
-        else if (type.startsWith("purchase-")) addBoundToPurchase(id as any, rects);
+        } else if (type.startsWith("origin-"))
+          addBoundToOrigin(id as any, rects);
+        else if (type.startsWith("purchase-"))
+          addBoundToPurchase(id as any, rects);
         else if (type === "companion") addBoundToCompanion(id as any, rects);
         else if (type === "currency-exchange") addBoundToExchange(id, rects);
         else if (type === "drawback") addBoundToDrawback(id as any, rects);
@@ -303,34 +318,36 @@ function JumpDocPage() {
         newId = addOrigin(rects, catId, parsed);
         setActiveScrollKey(`origin-${newId}`);
         setActiveSectionKey(activeTool);
-        setActiveSectionNonce((n) => n + 1);
+        setActiveSectionNonce(n => n + 1);
       } else if (activeTool.startsWith("freeform-")) {
         const catId = Number(activeTool.slice(9)) as Id<TID.OriginCategory>;
         newId = addFreeFormOption(rects, catId);
         setActiveScrollKey(`basics`);
         setActiveSectionKey(activeTool);
-        setActiveSectionNonce((n) => n + 1);
+        setActiveSectionNonce(n => n + 1);
       } else if (activeTool.startsWith("purchase-")) {
-        const subtypeId = Number(activeTool.slice(9)) as Id<TID.PurchaseSubtype>;
+        const subtypeId = Number(
+          activeTool.slice(9),
+        ) as Id<TID.PurchaseSubtype>;
         newId = addPurchase(subtypeId, rects, parsed);
         setActiveScrollKey(`purchase-${newId}`);
         setActiveSectionKey(activeTool);
-        setActiveSectionNonce((n) => n + 1);
+        setActiveSectionNonce(n => n + 1);
       } else if (activeTool === "companion") {
         newId = addCompanion(rects, parsed);
         setActiveScrollKey(`companion-${newId}`);
         setActiveSectionKey("companion");
-        setActiveSectionNonce((n) => n + 1);
+        setActiveSectionNonce(n => n + 1);
       } else if (activeTool === "drawback") {
         newId = addDrawback(rects, parsed);
         setActiveScrollKey(`drawback-${newId}`);
         setActiveSectionKey("drawback");
-        setActiveSectionNonce((n) => n + 1);
+        setActiveSectionNonce(n => n + 1);
       } else if (activeTool === "scenario") {
         newId = addScenario(rects, text.trim());
         setActiveScrollKey(`scenario-${newId}`);
         setActiveSectionKey("scenario");
-        setActiveSectionNonce((n) => n + 1);
+        setActiveSectionNonce(n => n + 1);
       } else {
         return;
       }
@@ -384,8 +401,8 @@ function JumpDocPage() {
         : type;
     setActiveScrollKey(`${baseType}-${id}`);
     setActiveSectionKey(type);
-    setActiveSectionNonce((n) => n + 1);
-    const tmpl = templatesRef.current.find((t) => t.type === type && t.id === id);
+    setActiveSectionNonce(n => n + 1);
+    const tmpl = templatesRef.current.find(t => t.type === type && t.id === id);
     if (tmpl && tmpl.bounds.length > 0) {
       pdfRef.current?.scrollToBound(tmpl.bounds[0]);
     }
@@ -416,7 +433,9 @@ function JumpDocPage() {
 
   if (!doc) {
     return (
-      <div className="flex items-center justify-center h-full text-muted text-sm">Loading…</div>
+      <div className="flex items-center justify-center h-full text-muted text-sm">
+        Loading…
+      </div>
     );
   }
 
@@ -427,8 +446,8 @@ function JumpDocPage() {
       {isTouch && !mobileBannerDismissed && (
         <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-amber-950/60 border-b border-amber-800/50 text-amber-200 text-xs">
           <span className="flex-1">
-            The Jumpdoc editor is designed for desktop. It should function on mobile screens, but
-            may be unpleasant to work with.
+            The Jumpdoc editor is designed for desktop. It should function on
+            mobile screens, but may be unpleasant to work with.
           </span>
           <button
             type="button"
