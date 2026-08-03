@@ -233,11 +233,9 @@ export function PurchaseEditor<T extends AbstractPurchase>({
   if (!purchase) return null;
 
   // ── Derived widget lists ─────────────────────────────────────────────────
-  const headerWidgets = widgets.filter((w) => w.position === "header");
-  const bodyWidgets = widgets.filter(
-    (w) => !w.position || w.position === "body",
-  );
-  const footerWidgets = widgets.filter((w) => w.position === "footer");
+  const headerWidgets = widgets.filter(w => w.position === "header");
+  const bodyWidgets = widgets.filter(w => !w.position || w.position === "body");
+  const footerWidgets = widgets.filter(w => w.position === "footer");
 
   // ── Actions ──────────────────────────────────────────────────────────────
   const enterEdit = () => {
@@ -261,7 +259,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
     const s = draft.state;
     const extra = buildExtraPatch?.();
     draft.close();
-    actions.modify("Edit purchase", (d) => {
+    actions.modify("Edit purchase", d => {
       d.name = s.name;
       d.description = s.description;
       d.value = s.value;
@@ -288,7 +286,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
     const entry = { id, key: clipboardKey, snapshot };
     if (e.ctrlKey || e.shiftKey) {
       const current = useClipboard.getState().entries;
-      if (current.some((en) => en.id === id)) {
+      if (current.some(en => en.id === id)) {
         toast.info(`"${name}" is already in the clipboard.`);
         return;
       }
@@ -320,10 +318,10 @@ export function PurchaseEditor<T extends AbstractPurchase>({
 
   const setCostModifier = (mod: CostModifier) => {
     onCostModifierChange?.(mod);
-    draft.set("Set cost modifier", (d) => {
+    draft.set("Set cost modifier", d => {
       if (mod === CostModifier.Custom) {
         const init = Array.isArray(d.value)
-          ? (d.value as Value).map((sv) => ({ ...sv }))
+          ? (d.value as Value).map(sv => ({ ...sv }))
           : (d.value as number);
         d.cost = { modifier: CostModifier.Custom, modifiedTo: init };
       } else {
@@ -384,7 +382,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
               (w, i) => w.view && <span key={i}>{w.view}</span>,
             )}
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 enterEdit();
               }}
@@ -394,7 +392,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
             </button>
             {clipboardKey && (
               <button
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
                   handleCopy(e);
                 }}
@@ -406,7 +404,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
             )}
             {onRemove && (
               <button
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
                   onRemove();
                 }}
@@ -451,7 +449,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
               ),
           )}
           <button
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               enterEdit();
             }}
@@ -461,7 +459,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
           </button>
           {clipboardKey && (
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 handleCopy(e);
               }}
@@ -473,7 +471,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
           )}
           {onRemove && (
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onRemove();
               }}
@@ -490,13 +488,13 @@ export function PurchaseEditor<T extends AbstractPurchase>({
           </div>
         )}
 
-        {footerWidgets.some((w) => w.view && w.fullWidth) &&
+        {footerWidgets.some(w => w.view && w.fullWidth) &&
           footerWidgets.map(
             (w, i) =>
               w.view && w.fullWidth && <div key={`fw${i}`}>{w.view}</div>,
           )}
-        {(footerWidgets.some((w) => w.view && !w.fullWidth) ||
-          bodyWidgets.some((w) => w.view)) && (
+        {(footerWidgets.some(w => w.view && !w.fullWidth) ||
+          bodyWidgets.some(w => w.view)) && (
           <div className="flex flex-wrap items-center">
             {footerWidgets.map(
               (w, i) =>
@@ -516,7 +514,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
     <div
       ref={containerRef}
       className="border-2 border-accent-ring rounded-lg bg-linear-to-b from-accent-tint to-tint shadow-md flex flex-col divide-y divide-line my-1 relative"
-      onKeyDown={(e) => {
+      onKeyDown={e => {
         e.stopPropagation();
         if (e.key === "Escape") {
           e.preventDefault();
@@ -536,8 +534,8 @@ export function PurchaseEditor<T extends AbstractPurchase>({
           className="flex-1 min-w-32 font-semibold text-base bg-transparent border-b border-transparent hover:border-trim focus:border-accent-ring outline-none px-0.5 py-0.5"
           placeholder="Name"
           defaultValue={draft.state.name}
-          onChange={(e) =>
-            draft.sync((d) => {
+          onChange={e =>
+            draft.sync(d => {
               d.name = e.target.value;
             })
           }
@@ -550,7 +548,7 @@ export function PurchaseEditor<T extends AbstractPurchase>({
             cost={draft.state.cost}
             currencies={currencies}
             onChange={(newValue, newCost) =>
-              draft.set("Set cost", (d) => {
+              draft.set("Set cost", d => {
                 d.value = newValue;
                 d.cost = newCost;
               })
@@ -568,10 +566,10 @@ export function PurchaseEditor<T extends AbstractPurchase>({
                 step={50}
                 className="w-20 border border-edge rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring bg-surface"
                 defaultValue={draft.state.value as number}
-                onChange={(e) => {
+                onChange={e => {
                   const n = e.target.valueAsNumber;
                   if (!isNaN(n))
-                    draft.sync((d) => {
+                    draft.sync(d => {
                       d.value = n;
                     });
                 }}
@@ -588,10 +586,10 @@ export function PurchaseEditor<T extends AbstractPurchase>({
                 defaultValue={
                   typeof customModifiedTo === "number" ? customModifiedTo : 0
                 }
-                onChange={(e) => {
+                onChange={e => {
                   const n = e.target.valueAsNumber;
                   if (!isNaN(n))
-                    draft.sync((d) => {
+                    draft.sync(d => {
                       if (d.cost.modifier === CostModifier.Custom)
                         d.cost.modifiedTo = n;
                     });
@@ -648,8 +646,8 @@ export function PurchaseEditor<T extends AbstractPurchase>({
           className="w-full text-sm min-h-16 focus:outline-none placeholder-ghost"
           placeholder="Description"
           defaultValue={draft.state.description}
-          onChange={(e) =>
-            draft.sync((d) => {
+          onChange={e =>
+            draft.sync(d => {
               d.description = e.target.value;
             })
           }
@@ -704,16 +702,16 @@ function SubpurchasesSection({
 
   // Header summary: "100 CP + 50 DP" — shown when there are non-zero stipend values
   const stipendSummary =
-    currencies && stipend.some((sv) => sv.amount !== 0)
+    currencies && stipend.some(sv => sv.amount !== 0)
       ? formatValueStr(
-          stipend.filter((sv) => sv.amount !== 0),
+          stipend.filter(sv => sv.amount !== 0),
           currencies,
         )
       : null;
 
   const handleAdd = () => {
     const id = actions.addSubpurchase();
-    setNewSubIds((prev) => new Set(prev).add(id));
+    setNewSubIds(prev => new Set(prev).add(id));
     setIsOpen(true);
   };
 
@@ -722,7 +720,7 @@ function SubpurchasesSection({
     : [];
 
   // Compact mode: no subpurchases and no stipend set yet — show a minimal link.
-  const isEmpty = list.length === 0 && !stipend.some((sv) => sv.amount !== 0);
+  const isEmpty = list.length === 0 && !stipend.some(sv => sv.amount !== 0);
   if (editMode && isEmpty) {
     return (
       <div className="flex justify-end px-3 py-1.5">
@@ -742,7 +740,7 @@ function SubpurchasesSection({
       {/* Header row */}
       <div
         className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-tint transition-colors"
-        onClick={() => setIsOpen((o) => !o)}
+        onClick={() => setIsOpen(o => !o)}
       >
         {isOpen ? (
           <ChevronDown size={14} className="text-ghost shrink-0" />
@@ -761,7 +759,7 @@ function SubpurchasesSection({
           </span>
         )}
         <button
-          onClick={(e) => {
+          onClick={e => {
             e.stopPropagation();
             handleAdd();
           }}
@@ -790,15 +788,13 @@ function SubpurchasesSection({
                       step={50}
                       className="w-20 border border-edge rounded px-2 py-0.5 text-xs font-semibold text-right focus:outline-none focus:border-accent-ring"
                       value={localStipend[+cid] ?? 0}
-                      onChange={(e) =>
-                        setLocalStipend((prev) => ({
+                      onChange={e =>
+                        setLocalStipend(prev => ({
                           ...prev,
                           [+cid]: +e.target.value,
                         }))
                       }
-                      onBlur={(e) =>
-                        flushStipendAmount(currId, +e.target.value)
-                      }
+                      onBlur={e => flushStipendAmount(currId, +e.target.value)}
                     />
                   </div>
                 );
@@ -817,12 +813,12 @@ function SubpurchasesSection({
               <DraggablePurchaseList
                 ids={list}
                 onReorder={actions.reorderSubpurchases}
-                renderItem={(subId) => (
+                renderItem={subId => (
                   <PurchaseEditor<Subpurchase>
                     id={subId}
                     isNew={newSubIds.has(subId)}
                     onSubmit={() =>
-                      setNewSubIds((prev) => {
+                      setNewSubIds(prev => {
                         const s = new Set(prev);
                         s.delete(subId);
                         return s;
@@ -905,7 +901,7 @@ function LinkedTagPills({
   if (tags.length === 0) return null;
   return (
     <div className="pl-1.5 pr-3 py-2 flex flex-wrap gap-1.5">
-      {tags.map((tag) =>
+      {tags.map(tag =>
         chainId && charId ? (
           <Link
             key={tag}
@@ -1068,7 +1064,7 @@ export function BasicPurchaseEditor({
       <SelectField
         value={subtypeDraft.state.subtype}
         className="bg-surface/50 border-accent focus-within:border-surface text-ink/70"
-        onChange={async (e) => {
+        onChange={async e => {
           const newValue = e.target.value;
           const newSubtype = filteredSubtypeEntries.find(
             ([sid]) => sid === newValue,
@@ -1093,11 +1089,11 @@ export function BasicPurchaseEditor({
             actions.clearSubpurchases();
           }
 
-          subtypeDraft.set("Change subtype", (d) => {
+          subtypeDraft.set("Change subtype", d => {
             d.subtype = createId<LID.PurchaseSubtype>(+newValue);
           });
           if (!newSubtype?.floatingDiscountThresholds?.length) {
-            floatingDiscountDraft.set("Clear floating discount", (d) => {
+            floatingDiscountDraft.set("Clear floating discount", d => {
               d.usesFloatingDiscount = false;
             });
           }
@@ -1117,7 +1113,7 @@ export function BasicPurchaseEditor({
     : [];
 
   const toggleCategory = (catId: Id<GID.PurchaseCategory>) =>
-    categoriesDraft.set("Toggle category", (d) => {
+    categoriesDraft.set("Toggle category", d => {
       const idx = d.indexOf(catId);
       if (idx === -1) d.push(catId);
       else d.splice(idx, 1);
@@ -1159,7 +1155,7 @@ export function BasicPurchaseEditor({
           Uncategorized
         </span>
       )}
-      {committedCategories.map((catId) => {
+      {committedCategories.map(catId => {
         const name = categories?.O[catId];
         return name ? (
           <span
@@ -1179,9 +1175,9 @@ export function BasicPurchaseEditor({
       <TagField
         label="Tags:"
         values={tagsDraft.state}
-        onAdd={(val) => tagsDraft.set("Add tag", (d) => void d.push(val))}
-        onRemove={(val) =>
-          tagsDraft.set("Remove tag", (d) => {
+        onAdd={val => tagsDraft.set("Add tag", d => void d.push(val))}
+        onRemove={val =>
+          tagsDraft.set("Remove tag", d => {
             d.splice(d.indexOf(val), 1);
           })
         }
@@ -1209,17 +1205,17 @@ export function BasicPurchaseEditor({
   // In view mode: hide the widget entirely when there's nothing to show.
   const hasSubpurchaseContent =
     (purchase?.subpurchases?.list?.length ?? 0) > 0 ||
-    (purchase?.subpurchases?.stipend?.some((sv) => sv.amount !== 0) ?? false);
+    (purchase?.subpurchases?.stipend?.some(sv => sv.amount !== 0) ?? false);
 
-  const subpurchasesViewWidget =
-    allowSubpurchases && hasSubpurchaseContent ? (
-      <SubpurchasesSection parentId={id} defaultOpen />
-    ) : null;
+  const subpurchasesViewWidget = hasSubpurchaseContent ? (
+    <SubpurchasesSection parentId={id} defaultOpen />
+  ) : null;
 
   // In edit mode: always show if allowed, and default to open.
-  const subpurchasesEditWidget = allowSubpurchases ? (
-    <SubpurchasesSection parentId={id} defaultOpen editMode />
-  ) : null;
+  const subpurchasesEditWidget =
+    allowSubpurchases || hasSubpurchaseContent ? (
+      <SubpurchasesSection parentId={id} defaultOpen editMode />
+    ) : null;
 
   // ── Duration widget (Perk / Item) ────────────────────────────────────────
   const durPerkEdit = (
@@ -1230,7 +1226,7 @@ export function BasicPurchaseEditor({
           label="Permanent"
           active={!durationDraft.state.duration}
           onClick={() =>
-            durationDraft.set("Set duration", (d) => {
+            durationDraft.set("Set duration", d => {
               delete d.duration;
             })
           }
@@ -1239,7 +1235,7 @@ export function BasicPurchaseEditor({
           label="Temporary"
           active={durationDraft.state.duration === 1}
           onClick={() =>
-            durationDraft.set("Set duration", (d) => {
+            durationDraft.set("Set duration", d => {
               d.duration = 1;
             })
           }
@@ -1262,7 +1258,7 @@ export function BasicPurchaseEditor({
   const groupPill =
     showGroupWidget && currentGroupId != null ? (
       <button
-        onClick={(e) => {
+        onClick={e => {
           e.stopPropagation();
           setGroupModalOpen(true);
         }}
@@ -1304,7 +1300,7 @@ export function BasicPurchaseEditor({
     ? {
         checked: floatingDiscountDraft.state.usesFloatingDiscount,
         onChange: (checked: boolean) =>
-          floatingDiscountDraft.set("Toggle floating discount", (d) => {
+          floatingDiscountDraft.set("Toggle floating discount", d => {
             d.usesFloatingDiscount = checked;
           }),
       }
@@ -1353,7 +1349,7 @@ export function BasicPurchaseEditor({
           purchaseId={id}
           type={purchase.type as PurchaseType.Perk | PurchaseType.Item}
           currentGroupId={currentGroupId}
-          onAddToGroup={(gId) => groupActions.addToGroup(id, gId)}
+          onAddToGroup={gId => groupActions.addToGroup(id, gId)}
           onRemoveFromGroup={() => {
             if (currentGroupId != null)
               groupActions.removeFromGroup(id, currentGroupId);
@@ -1382,7 +1378,7 @@ function PerkItemRewardChip({
   reward: Extract<ScenarioReward, { type: RewardType.Perk | RewardType.Item }>;
 }) {
   const name = useJumpDocStore(
-    (s) => s.doc?.availablePurchases.O[reward.id]?.name,
+    s => s.doc?.availablePurchases.O[reward.id]?.name,
   );
   const typeLabel = reward.type === RewardType.Perk ? "Perk" : "Item";
   return (
@@ -1466,17 +1462,17 @@ export function ScenarioEditor({
 
   // sync: for value/text inputs (native browser undo covers per-keystroke changes)
   const syncReward = (idx: number, updated: ScenarioReward) =>
-    rewardsDraft.sync((d) => {
+    rewardsDraft.sync(d => {
       d[idx] = updated;
     });
   // set: for select/dropdown changes (creates undoable entry within the draft session)
   const setReward = (idx: number, updated: ScenarioReward) =>
-    rewardsDraft.set("Update reward", (d) => {
+    rewardsDraft.set("Update reward", d => {
       d[idx] = updated;
     });
 
   const removeReward = (idx: number) =>
-    rewardsDraft.set("Remove reward", (d) => {
+    rewardsDraft.set("Remove reward", d => {
       d.splice(idx, 1);
     });
 
@@ -1489,7 +1485,7 @@ export function ScenarioEditor({
         : type === RewardType.Stipend
           ? { type, value: 0, currency: firstCurrId(), subtype: firstStId() }
           : { type: RewardType.Note, note: "" };
-    rewardsDraft.set("Add reward", (d) => {
+    rewardsDraft.set("Add reward", d => {
       d.push(r);
     });
   };
@@ -1532,14 +1528,14 @@ export function ScenarioEditor({
                 step={50}
                 className="w-20 border border-edge rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring"
                 value={r.value}
-                onChange={(e) =>
+                onChange={e =>
                   syncReward(idx, { ...r, value: +e.target.value })
                 }
               />
               {currencyEntries.length > 1 ? (
                 <SelectField
                   value={r.currency}
-                  onChange={(e) =>
+                  onChange={e =>
                     setReward(idx, {
                       ...r,
                       currency: createId<LID.Currency>(+e.target.value),
@@ -1568,14 +1564,14 @@ export function ScenarioEditor({
                 step={50}
                 className="w-20 border border-edge rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring"
                 value={r.value}
-                onChange={(e) =>
+                onChange={e =>
                   syncReward(idx, { ...r, value: +e.target.value })
                 }
               />
               {currencyEntries.length > 1 ? (
                 <SelectField
                   value={r.currency}
-                  onChange={(e) =>
+                  onChange={e =>
                     setReward(idx, {
                       ...r,
                       currency: createId<LID.Currency>(+e.target.value),
@@ -1597,7 +1593,7 @@ export function ScenarioEditor({
               {subtypeEntries.length > 0 && (
                 <SelectField
                   value={r.subtype}
-                  onChange={(e) =>
+                  onChange={e =>
                     setReward(idx, {
                       ...r,
                       subtype: createId<LID.PurchaseSubtype>(+e.target.value),
@@ -1621,9 +1617,7 @@ export function ScenarioEditor({
               <input
                 className="flex-1 min-w-32 border border-edge rounded px-2 py-0.5 text-sm focus:outline-none focus:border-accent-ring"
                 value={r.note}
-                onChange={(e) =>
-                  syncReward(idx, { ...r, note: e.target.value })
-                }
+                onChange={e => syncReward(idx, { ...r, note: e.target.value })}
               />
             </>
           )}
@@ -1750,12 +1744,12 @@ export function SupplementScenarioEditor({
   };
 
   const syncReward = (idx: number, updated: SupplementScenarioReward) =>
-    rewardsDraft.sync((d) => {
+    rewardsDraft.sync(d => {
       d[idx] = updated;
     });
 
   const removeReward = (idx: number) =>
-    rewardsDraft.set("Remove reward", (d) => {
+    rewardsDraft.set("Remove reward", d => {
       d.splice(idx, 1);
     });
 
@@ -1764,7 +1758,7 @@ export function SupplementScenarioEditor({
       type === RewardType.Currency
         ? { type, value: 0 }
         : { type: RewardType.Note, note: "" };
-    rewardsDraft.set("Add reward", (d) => {
+    rewardsDraft.set("Add reward", d => {
       d.push(r);
     });
   };
@@ -1807,7 +1801,7 @@ export function SupplementScenarioEditor({
                 step={50}
                 className="w-20 border border-edge rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring"
                 value={r.value}
-                onChange={(e) =>
+                onChange={e =>
                   syncReward(idx, { ...r, value: +e.target.value })
                 }
               />
@@ -1821,9 +1815,7 @@ export function SupplementScenarioEditor({
               <input
                 className="flex-1 min-w-32 border border-edge rounded px-2 py-0.5 text-sm focus:outline-none focus:border-accent-ring"
                 value={r.note}
-                onChange={(e) =>
-                  syncReward(idx, { ...r, note: e.target.value })
-                }
+                onChange={e => syncReward(idx, { ...r, note: e.target.value })}
               />
             </>
           )}
@@ -1979,7 +1971,7 @@ export function DrawbackEditor({
           label="Permanent until revoked"
           active={mode === "perm"}
           onClick={() =>
-            durationDraft.set("Set duration", (d) => {
+            durationDraft.set("Set duration", d => {
               delete d.duration;
             })
           }
@@ -1988,7 +1980,7 @@ export function DrawbackEditor({
           label="Temporary"
           active={mode === "temp"}
           onClick={() =>
-            durationDraft.set("Set duration", (d) => {
+            durationDraft.set("Set duration", d => {
               d.duration = 1;
             })
           }
@@ -2002,7 +1994,7 @@ export function DrawbackEditor({
           }`}
           onClick={() => {
             if (mode !== "n") {
-              durationDraft.set("Set duration", (d) => {
+              durationDraft.set("Set duration", d => {
                 d.duration = nJumps;
               });
             }
@@ -2013,11 +2005,11 @@ export function DrawbackEditor({
             min={2}
             className={`w-8 text-xs bg-transparent text-center outline-none ${mode === "n" ? "text-surface" : "text-muted"}`}
             value={nJumps}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
+            onClick={e => e.stopPropagation()}
+            onChange={e => {
               const v = Math.max(2, +e.target.value || 2);
               setNJumps(v);
-              durationDraft.set("Set duration", (d) => {
+              durationDraft.set("Set duration", d => {
                 d.duration = v;
               });
             }}
@@ -2067,15 +2059,15 @@ export function DrawbackEditor({
           { value: "allowance", label: "Allowance" },
           { value: "stipend", label: "Stipend" },
         ]}
-        onChange={(v) => {
+        onChange={v => {
           if (v === "allowance") {
-            durationDraft.set("Set drawback type", (d) => {
+            durationDraft.set("Set drawback type", d => {
               d.subtype = null;
             });
           } else {
             const firstId = subtypeEntries[0]?.[0];
             if (firstId != null)
-              durationDraft.set("Set drawback type", (d) => {
+              durationDraft.set("Set drawback type", d => {
                 d.subtype = createId<LID.PurchaseSubtype>(+firstId);
               });
           }
@@ -2090,7 +2082,7 @@ export function DrawbackEditor({
             <button
               key={idStr}
               onClick={() =>
-                durationDraft.set("Set drawback subtype", (d) => {
+                durationDraft.set("Set drawback subtype", d => {
                   d.subtype = sid;
                 })
               }
@@ -2149,10 +2141,10 @@ export function DrawbackEditor({
           step={50}
           className="w-20 border border-edge rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring"
           defaultValue={durationDraft.state.itemStipend ?? 0}
-          onChange={(e) => {
+          onChange={e => {
             const n = e.target.valueAsNumber;
             if (!isNaN(n))
-              durationDraft.sync((d) => {
+              durationDraft.sync(d => {
                 d.itemStipend = n || undefined;
               });
           }}
@@ -2166,10 +2158,10 @@ export function DrawbackEditor({
           step={50}
           className="w-20 border border-edge rounded px-2 py-0.5 text-sm font-semibold text-right focus:outline-none focus:border-accent-ring"
           defaultValue={durationDraft.state.companionStipend ?? 0}
-          onChange={(e) => {
+          onChange={e => {
             const n = e.target.valueAsNumber;
             if (!isNaN(n))
-              durationDraft.sync((d) => {
+              durationDraft.sync(d => {
                 d.companionStipend = n || undefined;
               });
           }}
@@ -2280,7 +2272,7 @@ export function SupplementPurchaseEditor({
           label="Permanent"
           active={mode === "perm"}
           onClick={() =>
-            durationDraft.set("Set duration", (d) => {
+            durationDraft.set("Set duration", d => {
               delete d.duration;
             })
           }
@@ -2293,7 +2285,7 @@ export function SupplementPurchaseEditor({
           }`}
           onClick={() => {
             if (mode === "perm")
-              durationDraft.set("Set duration", (d) => {
+              durationDraft.set("Set duration", d => {
                 d.duration = nJumps;
               });
           }}
@@ -2307,11 +2299,11 @@ export function SupplementPurchaseEditor({
                 ? (durationDraft.state.duration ?? nJumps)
                 : nJumps
             }
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
+            onClick={e => e.stopPropagation()}
+            onChange={e => {
               const v = Math.max(1, +e.target.value || 1);
               setNJumps(v);
-              durationDraft.set("Set duration", (d) => {
+              durationDraft.set("Set duration", d => {
                 d.duration = v;
               });
             }}
@@ -2335,7 +2327,7 @@ export function SupplementPurchaseEditor({
     ? (Object.entries(categories.O) as [string, string][])
     : [];
   const toggleCategory = (catId: Id<GID.PurchaseCategory>) =>
-    categoriesDraft.set("Toggle category", (d) => {
+    categoriesDraft.set("Toggle category", d => {
       const idx = d.indexOf(catId);
       if (idx === -1) d.push(catId);
       else d.splice(idx, 1);
@@ -2369,7 +2361,7 @@ export function SupplementPurchaseEditor({
   const categoriesWidgetView =
     committedCategories.length > 0 ? (
       <div className="pl-3 py-2 flex flex-wrap gap-1.5">
-        {committedCategories.map((catId) => {
+        {committedCategories.map(catId => {
           const name = categories?.O[catId];
           return name ? (
             <span
@@ -2389,9 +2381,9 @@ export function SupplementPurchaseEditor({
       <TagField
         label="Tags:"
         values={tagsDraft.state}
-        onAdd={(val) => tagsDraft.set("Add tag", (d) => void d.push(val))}
-        onRemove={(val) =>
-          tagsDraft.set("Remove tag", (d) => {
+        onAdd={val => tagsDraft.set("Add tag", d => void d.push(val))}
+        onRemove={val =>
+          tagsDraft.set("Remove tag", d => {
             d.splice(d.indexOf(val), 1);
           })
         }
