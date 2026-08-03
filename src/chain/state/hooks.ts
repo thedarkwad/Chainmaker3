@@ -83,7 +83,7 @@ function removeFromArray<T>(list: T[], item: T): void {
  * Used when creating new purchases, drawbacks, scenarios, etc.
  */
 function initializeCurrencyAmounts(jump: Jump): Value {
-  return Object.keys(jump.currencies.O).map((cid) => ({
+  return Object.keys(jump.currencies.O).map(cid => ({
     currency: createId<LID.Currency>(+cid),
     amount: 0,
   }));
@@ -110,11 +110,11 @@ export function useUpdateStack() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Returns the top-level Chain object. */
-export const useChain = () => useChainStore((s) => s.chain);
+export const useChain = () => useChainStore(s => s.chain);
 
 /** Returns the jump-number lookup from calculatedData (0-indexed sequential jump numbers). */
 export const useJumpNumbers = () =>
-  useChainStore((s) => s.calculatedData.jumpNumber);
+  useChainStore(s => s.calculatedData.jumpNumber);
 
 /**
  * Returns the ordered list of Character objects for the chain.
@@ -126,7 +126,7 @@ export function useCharacterList(): Character[] {
     useShallow((s): Character[] => {
       if (!s.chain) return [];
       return s.chain.characterList
-        .map((id) => s.chain!.characters.O[id])
+        .map(id => s.chain!.characters.O[id])
         .filter((c): c is Character => c != null);
     }),
   );
@@ -135,7 +135,7 @@ export function useCharacterList(): Character[] {
 /**
 /** Returns the chain's jumpList (ordered jump IDs). */
 export const useJumpList = () =>
-  useChainStore(useShallow((s) => s.chain?.jumpList ?? []));
+  useChainStore(useShallow(s => s.chain?.jumpList ?? []));
 
 /** Returns the primary character's string ID and the first jump's string ID — used for nav links. */
 export function useFirstNavIds(): {
@@ -146,8 +146,8 @@ export function useFirstNavIds(): {
   return useMemo(() => {
     if (!chain) return { charId: null, jumpId: null };
     const primary = chain.characterList
-      .map((id) => chain.characters.O[id])
-      .find((c) => c?.primary);
+      .map(id => chain.characters.O[id])
+      .find(c => c?.primary);
     const charId = primary ? String(primary.id) : null;
     const jumpId = chain.jumpList[0] != null ? String(chain.jumpList[0]) : null;
     return { charId, jumpId };
@@ -161,12 +161,12 @@ export function useFirstNavIds(): {
  * chain.purchases.O, leaving chain.jumps.O structurally intact.
  */
 export function useJumpTree(): { jump: Jump; supplements: Jump[] }[] {
-  const jumpList = useChainStore(useShallow((s) => s.chain?.jumpList ?? []));
-  const jumpsO = useChainStore((s) => s.chain?.jumps.O);
+  const jumpList = useChainStore(useShallow(s => s.chain?.jumpList ?? []));
+  const jumpsO = useChainStore(s => s.chain?.jumps.O);
   return useMemo(() => {
     if (!jumpsO) return [];
     const allJumps = jumpList
-      .map((id) => jumpsO[id])
+      .map(id => jumpsO[id])
       .filter((j): j is Jump => j != null);
     // Build supplement groups in one pass (O(n)) to avoid O(n²) inner filter.
     const suppsByParent = new Map<Id<GID.Jump>, Jump[]>();
@@ -178,8 +178,8 @@ export function useJumpTree(): { jump: Jump; supplements: Jump[] }[] {
       }
     }
     return allJumps
-      .filter((j) => j.parentJump === undefined)
-      .map((j) => ({ jump: j, supplements: suppsByParent.get(j.id) ?? [] }));
+      .filter(j => j.parentJump === undefined)
+      .map(j => ({ jump: j, supplements: suppsByParent.get(j.id) ?? [] }));
   }, [jumpList, jumpsO]);
 }
 
@@ -188,23 +188,21 @@ const EMPTY_SET = new Set<number>();
 export function useJumpAccess(
   charId: Id<GID.Character>,
 ): Set<number> | undefined {
-  return useChainStore(
-    (s) => s.calculatedData.jumpAccess?.[charId] ?? EMPTY_SET,
-  );
+  return useChainStore(s => s.calculatedData.jumpAccess?.[charId] ?? EMPTY_SET);
 }
 
 /** Returns pre-computed passport stats for a character (age, jump count, purchase tallies, etc.). */
 export function useCharacterPassportStats(
   charId: Id<GID.Character>,
 ): CharacterPassportStats | undefined {
-  return useChainStore((s) => s.calculatedData.passportStats?.[charId]);
+  return useChainStore(s => s.calculatedData.passportStats?.[charId]);
 }
 
 /** Returns supplement access sets for a character: suppId → Set of accessible jump IDs. */
 export function useSupplementAccess(
   charId: Id<GID.Character>,
 ): Lookup<GID.Supplement, Set<number>> | undefined {
-  return useChainStore((s) => s.calculatedData.supplementAccess?.[charId]);
+  return useChainStore(s => s.calculatedData.supplementAccess?.[charId]);
 }
 
 /** Returns the computed budget for a character at a specific jump. */
@@ -212,19 +210,19 @@ export function useBudget(
   charId: Id<GID.Character>,
   jumpId: Id<GID.Jump>,
 ): Budget | undefined {
-  return useChainStore((s) => s.calculatedData.budget?.[charId]?.[jumpId]);
+  return useChainStore(s => s.calculatedData.budget?.[charId]?.[jumpId]);
 }
 
 /** Returns a single character by ID plus a stable tracked-action modifier. */
 export function useCharacter(id: Id<GID.Character> | undefined) {
-  const char = useChainStore((s) =>
+  const char = useChainStore(s =>
     id != null ? s.chain?.characters.O[id] : undefined,
   );
 
   const modify = useCallback(
     (name: string, updater: (c: Character) => void) => {
       if (id == null) return;
-      setTracked(name, (chain) => {
+      setTracked(name, chain => {
         const c = chain.characters.O[id];
         if (c) updater(c);
       });
@@ -238,7 +236,7 @@ export function useCharacter(id: Id<GID.Character> | undefined) {
 /** Returns a stable callback that reorders the chain's characterList. */
 export function useReorderCharacters() {
   return useCallback((newOrder: Id<GID.Character>[]) => {
-    setTracked("Reorder characters", (c) => {
+    setTracked("Reorder characters", c => {
       c.characterList = newOrder;
     });
   }, []);
@@ -248,7 +246,7 @@ export function useReorderCharacters() {
  *  `blocks` is the new ordering as flat arrays: [[topId, sup1Id, sup2Id], [topId2], ...] */
 export function useReorderJumps() {
   return useCallback((blocks: Id<GID.Jump>[][]) => {
-    setTracked("Reorder jumps", (c) => {
+    setTracked("Reorder jumps", c => {
       c.jumpList = blocks.flat();
     });
     adjustJumpOrganization();
@@ -265,7 +263,7 @@ function insertIntoJumpList(
   insertAfter: Id<GID.Jump> | undefined,
 ): void {
   if (insertAfter !== undefined) {
-    const idx = jumpList.findIndex((id) => id === insertAfter);
+    const idx = jumpList.findIndex(id => id === insertAfter);
     if (idx !== -1) {
       jumpList.splice(idx + 1, 0, newId);
       return;
@@ -281,7 +279,7 @@ export function useAddJump() {
   return useCallback(
     (name: string, url: string, insertAfter?: Id<GID.Jump>): Id<GID.Jump> => {
       const newId = useChainStore.getState().chain!.jumps.fId;
-      setTracked("Add jump", (c) => {
+      setTracked("Add jump", c => {
         const source: JumpSource = url
           ? { type: JumpSourceType.URL, URL: url }
           : { type: JumpSourceType.Unknown };
@@ -310,7 +308,7 @@ export function useAddJumpFromDoc() {
       insertAfter?: Id<GID.Jump>,
     ): Id<GID.Jump> => {
       const newId = useChainStore.getState().chain!.jumps.fId;
-      setTracked("Add jump from JumpDoc", (c) => {
+      setTracked("Add jump from JumpDoc", c => {
         const newJump: Jump = jumpFromDoc(
           doc,
           docPublicUid,
@@ -335,7 +333,7 @@ export function useAddJumpFromDoc() {
  *  parentJump === jumpId) become top-level jumps instead of being deleted. */
 export function useDeleteJump() {
   return useCallback((jumpId: Id<GID.Jump>) => {
-    setTracked("Delete jump", (c) => {
+    setTracked("Delete jump", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
 
@@ -391,7 +389,7 @@ export function useDeleteJump() {
       }
 
       // Remove from jumpList and registry
-      c.jumpList = c.jumpList.filter((id) => id !== jumpId);
+      c.jumpList = c.jumpList.filter(id => id !== jumpId);
       delete c.jumps.O[jumpId];
       c.budgetFlag += 1;
     });
@@ -404,7 +402,7 @@ export function useDeleteJump() {
 export const useCurrencies = (
   jumpId: Id<GID.Jump> | undefined,
 ): Registry<LID.Currency, Currency> | undefined =>
-  useChainStore((s) =>
+  useChainStore(s =>
     jumpId != null ? s.chain?.jumps.O[jumpId]?.currencies : undefined,
   );
 
@@ -414,13 +412,11 @@ export function useCurrencyExchanges(
   charId: Id<GID.Character>,
 ) {
   const exchanges = useChainStore(
-    useShallow(
-      (s) => s.chain?.jumps.O[jumpId]?.currencyExchanges[charId] ?? [],
-    ),
+    useShallow(s => s.chain?.jumps.O[jumpId]?.currencyExchanges[charId] ?? []),
   );
 
   const addExchange = useCallback(() => {
-    setTracked("Add currency exchange", (c) => {
+    setTracked("Add currency exchange", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
       const currIds = Object.keys(jump.currencies.O).map(Number);
@@ -439,7 +435,7 @@ export function useCurrencyExchanges(
 
   const removeExchange = useCallback(
     (idx: number) => {
-      setTracked("Remove currency exchange", (c) => {
+      setTracked("Remove currency exchange", c => {
         const list = c.jumps.O[jumpId]?.currencyExchanges[charId];
         if (list) list.splice(idx, 1);
         c.budgetFlag += 1;
@@ -450,7 +446,7 @@ export function useCurrencyExchanges(
 
   const updateExchange = useCallback(
     (idx: number, updater: (ex: CurrencyExchange) => void) => {
-      setTracked("Update currency exchange", (c) => {
+      setTracked("Update currency exchange", c => {
         const list = c.jumps.O[jumpId]?.currencyExchanges[charId];
         if (list?.[idx]) updater(list[idx] as CurrencyExchange);
         c.budgetFlag += 1;
@@ -474,11 +470,11 @@ export function useAddCurrencyExchangeFromDoc(
       oamount: number;
       tamount: number;
     }) => {
-      setTracked("Add currency exchange", (c) => {
+      setTracked("Add currency exchange", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         const existingExchange = jump.currencyExchanges[charId]?.find?.(
-          (ex) => ex.templateIndex == opts.templateIndex,
+          ex => ex.templateIndex == opts.templateIndex,
         );
         if (existingExchange) {
           existingExchange.oamount += opts.oamount;
@@ -508,12 +504,10 @@ export function useRemoveCurrencyExchangeFromDoc(
 ) {
   return useCallback(
     (opts: { templateIndex: number; oamount: number; tamount: number }) => {
-      setTracked("Remove currency exchange", (c) => {
+      setTracked("Remove currency exchange", c => {
         const list = c.jumps.O[jumpId]?.currencyExchanges[charId];
         if (!list) return;
-        const idx = list.findIndex(
-          (e) => e.templateIndex === opts.templateIndex,
-        );
+        const idx = list.findIndex(e => e.templateIndex === opts.templateIndex);
         if (idx !== -1) {
           list[idx].oamount -= opts.oamount;
           list[idx].tamount -= opts.tamount;
@@ -530,7 +524,7 @@ export function useRemoveCurrencyExchangeFromDoc(
 export const usePurchaseSubtypes = (
   jumpId: Id<GID.Jump> | undefined,
 ): Registry<LID.PurchaseSubtype, PurchaseSubtype> | undefined =>
-  useChainStore((s) =>
+  useChainStore(s =>
     jumpId != null ? s.chain?.jumps.O[jumpId]?.purchaseSubtypes : undefined,
   );
 
@@ -538,13 +532,13 @@ export const usePurchaseSubtypes = (
 export const usePurchaseCategories = (
   type: PurchaseType.Perk | PurchaseType.Item,
 ): Registry<GID.PurchaseCategory, string> | undefined =>
-  useChainStore((s) => s.chain?.purchaseCategories[type]);
+  useChainStore(s => s.chain?.purchaseCategories[type]);
 
 /** Purchase categories defined on a supplement (for SupplementPerk / SupplementItem). */
 export const useSupplementPurchaseCategories = (
   suppId: Id<GID.Supplement> | undefined,
 ): Registry<GID.PurchaseCategory, string> | undefined =>
-  useChainStore((s) =>
+  useChainStore(s =>
     suppId != null
       ? s.chain?.supplements.O[suppId]?.purchaseCategories
       : undefined,
@@ -552,7 +546,7 @@ export const useSupplementPurchaseCategories = (
 
 /** Returns just the name of a purchase by id, or undefined if not found. */
 export function usePurchaseName(id: Id<GID.Purchase>): string | undefined {
-  return useChainStore((s) => s.chain?.purchases.O[id]?.name);
+  return useChainStore(s => s.chain?.purchases.O[id]?.name);
 }
 
 /** Selects a single purchase by id and returns it with a set of tracked actions
@@ -561,13 +555,13 @@ export function usePurchase<T extends AbstractPurchase | Drawback>(
   id: Id<GID.Purchase>,
 ) {
   const purchase = useChainStore(
-    (s) => s.chain?.purchases.O[id] as T | undefined,
+    s => s.chain?.purchases.O[id] as T | undefined,
   );
 
   /** Mutate any fields on the purchase. */
   const modify = useCallback(
     (name: string, updater: (d: T) => void) => {
-      setTracked(name, (chain) => {
+      setTracked(name, chain => {
         const target = chain.purchases.O[id];
         if (target) updater(target as T);
         chain.budgetFlag += 1;
@@ -582,7 +576,7 @@ export function usePurchase<T extends AbstractPurchase | Drawback>(
    */
   const addSubpurchase = useCallback((): Id<GID.Purchase> => {
     const newId = useChainStore.getState().chain!.purchases.fId;
-    setTracked("Add subpurchase", (c) => {
+    setTracked("Add subpurchase", c => {
       const parent = c.purchases.O[id] as BasicPurchase;
       if (!parent) return;
       const sub: Subpurchase = {
@@ -607,7 +601,7 @@ export function usePurchase<T extends AbstractPurchase | Drawback>(
   /** Remove a subpurchase by id from both the registry and the parent's list. */
   const removeSubpurchase = useCallback(
     (subId: Id<GID.Purchase>) => {
-      setTracked("Remove subpurchase", (c) => {
+      setTracked("Remove subpurchase", c => {
         delete c.purchases.O[subId];
         const parent = c.purchases.O[id] as BasicPurchase;
         if (parent?.subpurchases)
@@ -620,7 +614,7 @@ export function usePurchase<T extends AbstractPurchase | Drawback>(
 
   const reorderSubpurchases = useCallback(
     (newIds: Id<GID.Purchase>[]) => {
-      setTracked("Reorder subpurchases", (c) => {
+      setTracked("Reorder subpurchases", c => {
         const parent = c.purchases.O[id] as BasicPurchase;
         if (parent?.subpurchases) parent.subpurchases.list = newIds;
       });
@@ -630,7 +624,7 @@ export function usePurchase<T extends AbstractPurchase | Drawback>(
 
   /** Delete all subpurchases for this purchase (e.g. when switching to a non-compound subtype). */
   const clearSubpurchases = useCallback(() => {
-    setTracked("Clear subpurchases", (c) => {
+    setTracked("Clear subpurchases", c => {
       const parent = c.purchases.O[id] as BasicPurchase | undefined;
       if (!parent?.subpurchases?.list) return;
       for (const subId of parent.subpurchases.list) delete c.purchases.O[subId];
@@ -641,12 +635,12 @@ export function usePurchase<T extends AbstractPurchase | Drawback>(
 
   const setSubpurchaseStipend = useCallback(
     (currId: Id<LID.Currency>, amount: number) => {
-      setTracked("Set subpurchase stipend", (c) => {
+      setTracked("Set subpurchase stipend", c => {
         const parent = c.purchases.O[id] as BasicPurchase;
         if (!parent.subpurchases)
           parent.subpurchases = { stipend: [], list: [] };
         const idx = parent.subpurchases.stipend.findIndex(
-          (sv) => sv.currency === currId,
+          sv => sv.currency === currId,
         );
         if (amount === 0) {
           if (idx !== -1) parent.subpurchases.stipend.splice(idx, 1);
@@ -686,7 +680,7 @@ export function useSubpurchaseCostStrings(
   purchaseId: Id<GID.Purchase>,
 ): { short: string; display: string } | null {
   return useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.chain) return null;
       const purchase = s.chain.purchases.O[purchaseId] as
         | BasicPurchase
@@ -697,7 +691,7 @@ export function useSubpurchaseCostStrings(
 
       const { list, stipend } = purchase.subpurchases;
       const subs = list
-        .map((id) => s.chain!.purchases.O[id] as Subpurchase | undefined)
+        .map(id => s.chain!.purchases.O[id] as Subpurchase | undefined)
         .filter((p): p is Subpurchase => p != null);
 
       return {
@@ -731,10 +725,10 @@ export function useJumpBasicPurchases(
   charId: Id<GID.Character>,
 ) {
   const perkIds = useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       const jump = s.chain?.jumps.O[jumpId];
       const list = jump?.purchases[charId] ?? [];
-      return list.filter((id) => {
+      return list.filter(id => {
         const p = s.chain?.purchases.O[id] as BasicPurchase | undefined;
         return (
           p?.type === PurchaseType.Perk &&
@@ -745,10 +739,10 @@ export function useJumpBasicPurchases(
   );
 
   const itemIds = useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       const jump = s.chain?.jumps.O[jumpId];
       const list = jump?.purchases[charId] ?? [];
-      return list.filter((id) => {
+      return list.filter(id => {
         const p = s.chain?.purchases.O[id] as BasicPurchase | undefined;
         return (
           p?.type === PurchaseType.Item &&
@@ -761,7 +755,7 @@ export function useJumpBasicPurchases(
   const addPurchase = useCallback(
     (type: PurchaseType.Perk | PurchaseType.Item): Id<GID.Purchase> => {
       const newId = useChainStore.getState().chain!.purchases.fId;
-      setTracked(type === PurchaseType.Perk ? "Add perk" : "Add item", (c) => {
+      setTracked(type === PurchaseType.Perk ? "Add perk" : "Add item", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         // Initialise value with 0 for every currency in this jump.
@@ -791,7 +785,7 @@ export function useJumpBasicPurchases(
 
   const removePurchase = useCallback(
     (id: Id<GID.Purchase>) => {
-      setTracked("Remove purchase", (c) => {
+      setTracked("Remove purchase", c => {
         // Delete any subpurchases first
         const bp = c.purchases.O[id] as BasicPurchase | undefined;
         if (bp?.subpurchases?.list) {
@@ -819,7 +813,7 @@ export function useJumpBasicPurchases(
       newIds: Id<GID.Purchase>[],
       type: PurchaseType.Perk | PurchaseType.Item,
     ) => {
-      setTracked("Reorder purchases", (c) => {
+      setTracked("Reorder purchases", c => {
         const list = c.jumps.O[jumpId]?.purchases[charId];
         if (!list) return;
         let cursor = 0;
@@ -853,10 +847,10 @@ export function useJumpSubtypePurchases(
   subtypeId: Id<LID.PurchaseSubtype>,
 ) {
   const purchaseIds = useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       const list = s.chain?.jumps.O[jumpId]?.purchases[charId] ?? [];
       return list.filter(
-        (id) =>
+        id =>
           (s.chain?.purchases.O[id] as BasicPurchase | undefined)?.subtype ===
           subtypeId,
       );
@@ -865,7 +859,7 @@ export function useJumpSubtypePurchases(
 
   const addPurchase = useCallback((): Id<GID.Purchase> => {
     const newId = useChainStore.getState().chain!.purchases.fId;
-    setTracked("Add purchase", (c) => {
+    setTracked("Add purchase", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
       const subtype = jump.purchaseSubtypes.O[subtypeId];
@@ -894,7 +888,7 @@ export function useJumpSubtypePurchases(
 
   const removePurchase = useCallback(
     (id: Id<GID.Purchase>) => {
-      setTracked("Remove purchase", (c) => {
+      setTracked("Remove purchase", c => {
         // Delete any subpurchases first
         const bp = c.purchases.O[id] as BasicPurchase | undefined;
         if (bp?.subpurchases?.list) {
@@ -911,7 +905,7 @@ export function useJumpSubtypePurchases(
 
   const reorderPurchases = useCallback(
     (newIds: Id<GID.Purchase>[]) => {
-      setTracked("Reorder purchases", (c) => {
+      setTracked("Reorder purchases", c => {
         const list = c.jumps.O[jumpId]?.purchases[charId];
         if (!list) return;
         let cursor = 0;
@@ -946,7 +940,7 @@ export function useScrollToPurchasePlacement(
     }
   | undefined {
   return useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!purchaseId) return undefined;
       const purchase = s.chain?.purchases.O[purchaseId];
       if (
@@ -973,7 +967,7 @@ export function useJumpSectionSubtypeIds(
   jumpId: Id<GID.Jump>,
 ): Id<LID.PurchaseSubtype>[] {
   return useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       const subtypes = s.chain?.jumps.O[jumpId]?.purchaseSubtypes;
       if (!subtypes) return [];
       return (
@@ -991,9 +985,7 @@ export function useChainDrawbackIds(
   jumpId: Id<GID.Jump>,
 ): Id<GID.Purchase>[] {
   return useChainStore(
-    useShallow(
-      (s) => s.calculatedData.chainDrawbacks?.[charId]?.[jumpId] ?? [],
-    ),
+    useShallow(s => s.calculatedData.chainDrawbacks?.[charId]?.[jumpId] ?? []),
   );
 }
 
@@ -1004,7 +996,7 @@ function makeStipendHook(
   return function useStipend(jumpId: Id<GID.Jump>) {
     const stipend = useChainStore(
       useShallow(
-        (s) =>
+        s =>
           s.chain?.jumps.O[jumpId]?.[field] ?? {
             amount: 0,
             currency: DEFAULT_CURRENCY_ID,
@@ -1014,7 +1006,7 @@ function makeStipendHook(
 
     const updateCurrency = useCallback(
       (curr: Id<LID.Currency>) => {
-        setTracked(`Change ${label} currency`, (c) => {
+        setTracked(`Change ${label} currency`, c => {
           c.jumps.O[jumpId]![field] = {
             amount: c.jumps.O[jumpId]![field]?.amount ?? 0,
             currency: curr,
@@ -1027,7 +1019,7 @@ function makeStipendHook(
 
     const updateAmount = useCallback(
       (amount: number) => {
-        setTracked(`Change ${label} amount`, (c) => {
+        setTracked(`Change ${label} amount`, c => {
           c.jumps.O[jumpId]![field] = {
             amount,
             currency:
@@ -1059,7 +1051,7 @@ export function useRetainedDrawbackIds(
 ): Id<GID.Purchase>[] {
   return useChainStore(
     useShallow(
-      (s) => s.calculatedData.retainedDrawbacks?.[charId]?.[jumpId] ?? [],
+      s => s.calculatedData.retainedDrawbacks?.[charId]?.[jumpId] ?? [],
     ),
   );
 }
@@ -1070,12 +1062,12 @@ export function useJumpDrawbacks(
   charId: Id<GID.Character>,
 ) {
   const drawbackIds = useChainStore(
-    useShallow((s) => s.chain?.jumps.O[jumpId]?.drawbacks[charId] ?? []),
+    useShallow(s => s.chain?.jumps.O[jumpId]?.drawbacks[charId] ?? []),
   );
 
   const addDrawback = useCallback((): Id<GID.Purchase> => {
     const newId = useChainStore.getState().chain!.purchases.fId;
-    setTracked("Add drawback", (c) => {
+    setTracked("Add drawback", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
       const initValue: Value = initializeCurrencyAmounts(jump);
@@ -1103,7 +1095,7 @@ export function useJumpDrawbacks(
 
   const removeDrawback = useCallback(
     (id: Id<GID.Purchase>) => {
-      setTracked("Remove drawback", (c) => {
+      setTracked("Remove drawback", c => {
         delete c.purchases.O[id];
         const list = c.jumps.O[jumpId]?.drawbacks[charId];
         if (list) removeFromArray(list, id);
@@ -1115,7 +1107,7 @@ export function useJumpDrawbacks(
 
   const reorderDrawbacks = useCallback(
     (newIds: Id<GID.Purchase>[]) => {
-      setTracked("Reorder drawbacks", (c) => {
+      setTracked("Reorder drawbacks", c => {
         c.jumps.O[jumpId]!.drawbacks[charId] = newIds;
       });
     },
@@ -1134,12 +1126,12 @@ export function useJumpScenarios(
   charId: Id<GID.Character>,
 ) {
   const scenarioIds = useChainStore(
-    useShallow((s) => s.chain?.jumps.O[jumpId]?.scenarios[charId] ?? []),
+    useShallow(s => s.chain?.jumps.O[jumpId]?.scenarios[charId] ?? []),
   );
 
   const addScenario = useCallback((): Id<GID.Purchase> => {
     const newId = useChainStore.getState().chain!.purchases.fId;
-    setTracked("Add scenario", (c) => {
+    setTracked("Add scenario", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
       const initValue: Value = initializeCurrencyAmounts(jump);
@@ -1164,7 +1156,7 @@ export function useJumpScenarios(
 
   const removeScenario = useCallback(
     (id: Id<GID.Purchase>) => {
-      setTracked("Remove scenario", (c) => {
+      setTracked("Remove scenario", c => {
         delete c.purchases.O[id];
         const list = c.jumps.O[jumpId]?.scenarios[charId];
         if (list) removeFromArray(list, id);
@@ -1176,7 +1168,7 @@ export function useJumpScenarios(
 
   const reorderScenarios = useCallback(
     (newIds: Id<GID.Purchase>[]) => {
-      setTracked("Reorder scenarios", (c) => {
+      setTracked("Reorder scenarios", c => {
         c.jumps.O[jumpId]!.scenarios[charId] = newIds;
       });
     },
@@ -1196,14 +1188,14 @@ export function useJumpScenarios(
 /** Returns the drawback CP limit for a jump (undefined if no limit is set). */
 export function useJumpDrawbackLimit(jumpId: Id<GID.Jump>): number | undefined {
   return useChainStore(
-    (s) => s.chain?.jumps.O[jumpId]?.drawbackLimit ?? undefined,
+    s => s.chain?.jumps.O[jumpId]?.drawbackLimit ?? undefined,
   );
 }
 
 /** Returns the abbreviation of the default currency for a jump (e.g. "CP"). */
 export function useJumpDefaultCurrencyAbbrev(jumpId: Id<GID.Jump>): string {
   return useChainStore(
-    (s) =>
+    s =>
       s.chain?.jumps.O[jumpId]?.currencies.O[DEFAULT_CURRENCY_ID]?.abbrev ??
       "CP",
   );
@@ -1219,7 +1211,7 @@ export function useJumpSettings(
   charId?: Id<GID.Character>,
 ) {
   return useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       const j = s.chain?.jumps.O[jumpId];
       const chainAltForms = s.chain?.chainSettings.altForms ?? true;
       const narratives = s.chain?.chainSettings.narratives ?? "enabled";
@@ -1244,12 +1236,12 @@ export function useJumpSettings(
 /** Returns the notes string for a character in a jump, plus a modify action. */
 export function useJumpNotes(jumpId: Id<GID.Jump>, charId: Id<GID.Character>) {
   const notes = useChainStore(
-    (s) => s.chain?.jumps.O[jumpId]?.notes[charId] ?? "",
+    s => s.chain?.jumps.O[jumpId]?.notes[charId] ?? "",
   );
 
   const setNotes = useCallback(
     (value: string) => {
-      setTracked("Edit notes", (c) => {
+      setTracked("Edit notes", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         if (value === "") {
@@ -1271,7 +1263,7 @@ export function useJumpNarrative(
   charId: Id<GID.Character>,
 ) {
   const narrative = useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       const n = s.chain?.jumps.O[jumpId]?.narratives[charId];
       return n ?? null;
     }),
@@ -1279,7 +1271,7 @@ export function useJumpNarrative(
 
   const setNarrative = useCallback(
     (updater: (draft: NarrativeBlurb) => void) => {
-      setTracked("Edit narrative", (c) => {
+      setTracked("Edit narrative", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         if (!jump.narratives[charId]) {
@@ -1302,12 +1294,12 @@ export function useJumpNarrative(
 export const useJumpOriginCategories = (
   jumpId: Id<GID.Jump>,
 ): Registry<LID.OriginCategory, OriginCategory> | undefined =>
-  useChainStore((s) => s.chain?.jumps.O[jumpId]?.originCategories);
+  useChainStore(s => s.chain?.jumps.O[jumpId]?.originCategories);
 
 export const useJumpCurrencies = (
   jumpId: Id<GID.Jump>,
 ): Registry<LID.Currency, Currency> | undefined =>
-  useChainStore((s) => s.chain?.jumps.O[jumpId]?.currencies);
+  useChainStore(s => s.chain?.jumps.O[jumpId]?.currencies);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Batched toast notifications
@@ -1358,7 +1350,7 @@ function flushNotifications(): void {
     return (
       unique
         .slice(0, -1)
-        .map((n) => `"${n}"`)
+        .map(n => `"${n}"`)
         .join(", ") + `, and "${unique[unique.length - 1]}"`
     );
   };
@@ -1407,7 +1399,7 @@ export function useJumpOrigins(
   charId: Id<GID.Character>,
 ) {
   const origins = useChainStore(
-    (s) =>
+    s =>
       (s.chain?.jumps.O[jumpId]?.origins[charId] ?? null) as PartialLookup<
         LID.OriginCategory,
         Origin[]
@@ -1421,7 +1413,7 @@ export function useJumpOrigins(
       ) => void,
       extraMutation?: (c: Chain) => void,
     ) => {
-      setTracked("Edit origins", (c) => {
+      setTracked("Edit origins", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         if (!jump.origins[charId]) {
@@ -1450,14 +1442,14 @@ export function useJumpAltForms(
   charId: Id<GID.Character>,
 ) {
   const altFormIds = useChainStore(
-    useShallow((s) => s.chain?.jumps.O[jumpId]?.altForms[charId] ?? []),
+    useShallow(s => s.chain?.jumps.O[jumpId]?.altForms[charId] ?? []),
   );
 
   const addAltForm = useCallback((): Id<GID.AltForm> => {
     const newId = createId<GID.AltForm>(
       useChainStore.getState().chain!.altforms.fId as number,
     );
-    setTracked("Add alt-form", (c) => {
+    setTracked("Add alt-form", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
       const altForm: AltForm = {
@@ -1486,7 +1478,7 @@ export function useJumpAltForms(
 
   const removeAltForm = useCallback(
     (id: Id<GID.AltForm>) => {
-      setTracked("Remove alt-form", (c) => {
+      setTracked("Remove alt-form", c => {
         delete c.altforms.O[id];
         const list = c.jumps.O[jumpId]?.altForms[charId];
         if (list) removeFromArray(list, id);
@@ -1497,7 +1489,7 @@ export function useJumpAltForms(
 
   const reorderAltForms = useCallback(
     (newIds: Id<GID.AltForm>[]) => {
-      setTracked("Reorder alt-forms", (c) => {
+      setTracked("Reorder alt-forms", c => {
         const jump = c.jumps.O[jumpId];
         if (jump) jump.altForms[charId] = newIds;
       });
@@ -1528,11 +1520,11 @@ export function useAllAltFormImgIds(): string[] {
 
 /** Returns a single AltForm by id, plus a modify action. */
 export function useAltForm(id: Id<GID.AltForm>) {
-  const altForm = useChainStore((s) => s.chain?.altforms.O[id]);
+  const altForm = useChainStore(s => s.chain?.altforms.O[id]);
 
   const modify = useCallback(
     (name: string, updater: (d: AltForm) => void) => {
-      setTracked(name, (c) => {
+      setTracked(name, c => {
         const target = c.altforms.O[id];
         if (target) updater(target);
       });
@@ -1550,7 +1542,7 @@ export function useAltForm(id: Id<GID.AltForm>) {
 /** Jump-level config fields plus a generic `modifyJump` mutation. */
 export function useJumpConfig(jumpId: Id<GID.Jump>) {
   const data = useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       const j = s.chain?.jumps.O[jumpId];
       if (!j) return null;
       return {
@@ -1568,7 +1560,7 @@ export function useJumpConfig(jumpId: Id<GID.Jump>) {
 
   const modifyJump = useCallback(
     (actionName: string, updater: (j: Jump) => void, bumpBudget?: boolean) => {
-      setTracked(actionName, (c) => {
+      setTracked(actionName, c => {
         const j = c.jumps.O[jumpId];
         if (j) updater(j);
         if (bumpBudget) c.budgetFlag += 1;
@@ -1581,7 +1573,7 @@ export function useJumpConfig(jumpId: Id<GID.Jump>) {
    *  purchases and subtypes so no orphaned TID references remain. */
   const unlinkJumpDoc = useCallback(
     (pdfUrl: string | null | undefined) => {
-      setTracked("Unlink JumpDoc", (c) => {
+      setTracked("Unlink JumpDoc", c => {
         const j = c.jumps.O[jumpId];
         if (!j) return;
 
@@ -1624,13 +1616,13 @@ export function useJumpConfig(jumpId: Id<GID.Jump>) {
 export function useSetJumpParent(jumpId: Id<GID.Jump>) {
   const setParent = useCallback(
     (parentId: Id<GID.Jump>) => {
-      setTracked("Set parent jump", (c) => {
+      setTracked("Set parent jump", c => {
         const j = c.jumps.O[jumpId];
         if (!j) return;
 
         // Collect jumpId + its current children before re-parenting.
         const toMove = c.jumpList.filter(
-          (id) =>
+          id =>
             (id as number) === (jumpId as number) ||
             (c.jumps.O[id]?.parentJump as number) === (jumpId as number),
         );
@@ -1645,10 +1637,10 @@ export function useSetJumpParent(jumpId: Id<GID.Jump>) {
         }
 
         // Move the block to the end of parentId's block in jumpList.
-        const toMoveSet = new Set(toMove.map((id) => id as number));
-        c.jumpList = c.jumpList.filter((id) => !toMoveSet.has(id as number));
+        const toMoveSet = new Set(toMove.map(id => id as number));
+        c.jumpList = c.jumpList.filter(id => !toMoveSet.has(id as number));
         const parentIdx = c.jumpList.findIndex(
-          (id) => (id as number) === (parentId as number),
+          id => (id as number) === (parentId as number),
         );
         let insertAt = parentIdx !== -1 ? parentIdx + 1 : c.jumpList.length;
         while (
@@ -1665,7 +1657,7 @@ export function useSetJumpParent(jumpId: Id<GID.Jump>) {
   );
 
   const unsetParent = useCallback(() => {
-    setTracked("Set as main jump", (c) => {
+    setTracked("Set as main jump", c => {
       const j = c.jumps.O[jumpId];
       if (j) delete j.parentJump;
     });
@@ -1677,7 +1669,7 @@ export function useSetJumpParent(jumpId: Id<GID.Jump>) {
 
 /** Returns the JumpDoc publicUid if this jump's source is a JumpDoc, otherwise undefined. */
 export function useJumpDocId(jumpId: Id<GID.Jump>): string | undefined {
-  return useChainStore((s) => {
+  return useChainStore(s => {
     const j = s.chain?.jumps.O[jumpId];
     return j?.source.type === JumpSourceType.Jumpdoc
       ? j.source.docId
@@ -1698,7 +1690,7 @@ export function useResyncJumpFromDoc(jumpId: Id<GID.Jump>) {
     const doc = useJumpDocStore.getState().doc;
     if (!doc) return;
 
-    setTracked("Resync with JumpDoc", (chain) => {
+    setTracked("Resync with JumpDoc", chain => {
       const jump = chain.jumps.O[jumpId];
       if (!jump) return;
 
@@ -1762,7 +1754,7 @@ export function useResyncJumpFromDoc(jumpId: Id<GID.Jump>) {
         }
 
         const newStipend = (docSt.stipend as SimpleValue<TID.Currency>[]).map(
-          (s) => ({
+          s => ({
             amount: s.amount,
             currency: createId<LID.Currency>(s.currency as number),
           }),
@@ -1771,6 +1763,7 @@ export function useResyncJumpFromDoc(jumpId: Id<GID.Jump>) {
         if (foundLid !== undefined) {
           const st = jump.purchaseSubtypes.O[foundLid]!;
           st.name = docSt.name;
+          st.allowSubpurchases = docSt.allowSubpurchases;
           st.stipend = newStipend;
           st.templateId = tid;
         } else {
@@ -1798,10 +1791,10 @@ export function useResyncJumpFromDoc(jumpId: Id<GID.Jump>) {
 /** All jumps in chain order — used for the supplement parent selector. */
 export function useAllJumps(): Jump[] {
   return useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.chain) return [] as Jump[];
       return s.chain.jumpList
-        .map((id) => s.chain!.jumps.O[id])
+        .map(id => s.chain!.jumps.O[id])
         .filter((j): j is Jump => j != null);
     }),
   );
@@ -1809,18 +1802,16 @@ export function useAllJumps(): Jump[] {
 
 /** Returns true if the jump has a parentJump (i.e. it is a supplement jump). */
 export function useJumpIsSuplement(jumpId: Id<GID.Jump>): boolean {
-  return useChainStore(
-    (s) => s.chain?.jumps.O[jumpId]?.parentJump !== undefined,
-  );
+  return useChainStore(s => s.chain?.jumps.O[jumpId]?.parentJump !== undefined);
 }
 
 /** IDs of jumps whose parentJump is `jumpId` (i.e. supplement children). */
 export function useJumpChildren(jumpId: Id<GID.Jump>): Id<GID.Jump>[] {
   return useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.chain) return [] as Id<GID.Jump>[];
       return s.chain.jumpList.filter(
-        (id) => s.chain!.jumps.O[id]?.parentJump === jumpId,
+        id => s.chain!.jumps.O[id]?.parentJump === jumpId,
       );
     }),
   );
@@ -1828,10 +1819,10 @@ export function useJumpChildren(jumpId: Id<GID.Jump>): Id<GID.Jump>[] {
 
 /** Currencies registry for a jump plus add / modify / remove actions. */
 export function useJumpCurrencyConfig(jumpId: Id<GID.Jump>) {
-  const currencies = useChainStore((s) => s.chain?.jumps.O[jumpId]?.currencies);
+  const currencies = useChainStore(s => s.chain?.jumps.O[jumpId]?.currencies);
 
   const addCurrency = useCallback(() => {
-    setTracked("Add currency", (c) => {
+    setTracked("Add currency", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
       const newId = jump.currencies.fId;
@@ -1851,7 +1842,7 @@ export function useJumpCurrencyConfig(jumpId: Id<GID.Jump>) {
       actionName: string,
       updater: (c: Currency) => void,
     ) => {
-      setTracked(actionName, (c) => {
+      setTracked(actionName, c => {
         const cur = c.jumps.O[jumpId]?.currencies.O[id];
         if (cur) updater(cur);
         c.budgetFlag += 1;
@@ -1862,7 +1853,7 @@ export function useJumpCurrencyConfig(jumpId: Id<GID.Jump>) {
 
   const removeCurrency = useCallback(
     (id: Id<LID.Currency>) => {
-      setTracked("Remove currency", (c) => {
+      setTracked("Remove currency", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
 
@@ -1943,11 +1934,11 @@ export function useJumpCurrencyConfig(jumpId: Id<GID.Jump>) {
 /** PurchaseSubtype registry for a jump plus add / modify / remove actions. */
 export function useJumpSubtypeConfig(jumpId: Id<GID.Jump>) {
   const subtypes = useChainStore(
-    (s) => s.chain?.jumps.O[jumpId]?.purchaseSubtypes,
+    s => s.chain?.jumps.O[jumpId]?.purchaseSubtypes,
   );
 
   const addSubtype = useCallback(() => {
-    setTracked("Add purchase subtype", (c) => {
+    setTracked("Add purchase subtype", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
       const newId = jump.purchaseSubtypes.fId;
@@ -1971,7 +1962,7 @@ export function useJumpSubtypeConfig(jumpId: Id<GID.Jump>) {
       actionName: string,
       updater: (st: PurchaseSubtype) => void,
     ) => {
-      setTracked(actionName, (c) => {
+      setTracked(actionName, c => {
         const st = c.jumps.O[jumpId]?.purchaseSubtypes.O[id];
         if (st) updater(st);
         c.budgetFlag += 1;
@@ -1982,7 +1973,7 @@ export function useJumpSubtypeConfig(jumpId: Id<GID.Jump>) {
 
   const removeSubtype = useCallback(
     (id: Id<LID.PurchaseSubtype>) => {
-      setTracked("Remove purchase subtype", (c) => {
+      setTracked("Remove purchase subtype", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
 
@@ -2045,7 +2036,7 @@ export function useJumpSubtypeConfig(jumpId: Id<GID.Jump>) {
 
   const disableSubpurchases = useCallback(
     (id: Id<LID.PurchaseSubtype>) => {
-      setTracked("Disable subpurchases", (c) => {
+      setTracked("Disable subpurchases", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         const st = jump.purchaseSubtypes.O[id];
@@ -2080,11 +2071,11 @@ export function useJumpSubtypeConfig(jumpId: Id<GID.Jump>) {
 /** OriginCategory registry for a jump plus add / modify / remove actions. */
 export function useJumpOriginCategoryConfig(jumpId: Id<GID.Jump>) {
   const originCategories = useChainStore(
-    (s) => s.chain?.jumps.O[jumpId]?.originCategories,
+    s => s.chain?.jumps.O[jumpId]?.originCategories,
   );
 
   const addOriginCategory = useCallback(() => {
-    setTracked("Add origin category", (c) => {
+    setTracked("Add origin category", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
       const newId = jump.originCategories.fId;
@@ -2105,7 +2096,7 @@ export function useJumpOriginCategoryConfig(jumpId: Id<GID.Jump>) {
       actionName: string,
       updater: (oc: OriginCategory) => void,
     ) => {
-      setTracked(actionName, (c) => {
+      setTracked(actionName, c => {
         const oc = c.jumps.O[jumpId]?.originCategories.O[id];
         if (oc) updater(oc);
       });
@@ -2115,7 +2106,7 @@ export function useJumpOriginCategoryConfig(jumpId: Id<GID.Jump>) {
 
   const removeOriginCategory = useCallback(
     (id: Id<LID.OriginCategory>) => {
-      setTracked("Remove origin category", (c) => {
+      setTracked("Remove origin category", c => {
         const jump = c.jumps.O[jumpId];
         if (jump) delete jump.originCategories.O[id];
       });
@@ -2135,13 +2126,13 @@ export function useJumpOriginCategoryConfig(jumpId: Id<GID.Jump>) {
 
 /** Returns the name of a jump. Empty string when the jump doesn't exist. */
 export const useJumpName = (jumpId: Id<GID.Jump> | undefined): string =>
-  useChainStore((s) =>
+  useChainStore(s =>
     jumpId != null ? (s.chain?.jumps.O[jumpId]?.name ?? "") : "",
   );
 
 /** Returns the chain's supplement registry (or undefined when no chain is loaded). */
 export const useChainSupplements = () =>
-  useChainStore((s) => s.chain?.supplements);
+  useChainStore(s => s.chain?.supplements);
 
 /** Returns a stable flat array of all regular Perk IDs for a character,
  *  in chronological jump order across the entire chain.
@@ -2150,7 +2141,7 @@ export function useCharacterRegularPerkIds(
   charId: Id<GID.Character>,
 ): Id<GID.Purchase>[] {
   return useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.chain) return [] as Id<GID.Purchase>[];
       const result: Id<GID.Purchase>[] = [];
       for (const jumpId of s.chain.jumpList) {
@@ -2174,7 +2165,7 @@ export function useCharacterRegularItemIds(
   charId: Id<GID.Character>,
 ): Id<GID.Purchase>[] {
   return useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.chain) return [] as Id<GID.Purchase>[];
       const result: Id<GID.Purchase>[] = [];
       for (const jumpId of s.chain.jumpList) {
@@ -2198,14 +2189,14 @@ export function useCharacterRegularItemIds(
 const EMPTY_NOTE_IDS: number[] = [];
 
 export function useChainNoteIds(): number[] {
-  return useChainStore((s) => s.chain?.notesList ?? EMPTY_NOTE_IDS);
+  return useChainStore(s => s.chain?.notesList ?? EMPTY_NOTE_IDS);
 }
 
 export function useChainNote(id: number) {
-  const note = useChainStore((s) => s.chain?.notes[id]);
+  const note = useChainStore(s => s.chain?.notes[id]);
   const setTitle = useCallback(
     (title: string) => {
-      setTracked("Edit note title", (c) => {
+      setTracked("Edit note title", c => {
         if (c.notes[id]) c.notes[id]!.title = title;
       });
     },
@@ -2213,7 +2204,7 @@ export function useChainNote(id: number) {
   );
   const setBody = useCallback(
     (body: string) => {
-      setTracked("Edit note", (c) => {
+      setTracked("Edit note", c => {
         if (c.notes[id]) c.notes[id]!.body = body;
       });
     },
@@ -2228,7 +2219,7 @@ export function useAddChainNote() {
     if (!state) return;
     const newId =
       state.notesList.length === 0 ? 0 : Math.max(...state.notesList) + 1;
-    setTracked("Add note", (c) => {
+    setTracked("Add note", c => {
       c.notes[newId] = { id: newId, title: "", body: "" };
       c.notesList.push(newId);
     });
@@ -2237,16 +2228,16 @@ export function useAddChainNote() {
 
 export function useDeleteChainNote() {
   return useCallback((id: number) => {
-    setTracked("Delete note", (c) => {
+    setTracked("Delete note", c => {
       delete c.notes[id];
-      c.notesList = c.notesList.filter((nId) => nId !== id);
+      c.notesList = c.notesList.filter(nId => nId !== id);
     });
   }, []);
 }
 
 export function useReorderChainNotes() {
   return useCallback((newOrder: number[]) => {
-    setTracked("Reorder notes", (c) => {
+    setTracked("Reorder notes", c => {
       c.notesList = newOrder;
     });
   }, []);
@@ -2259,11 +2250,11 @@ export function useReorderChainNotes() {
 /** Chain settings (chainSettings) plus a modify action. */
 export function useChainSettingsConfig() {
   const settings = useChainStore(
-    useShallow((s) => s.chain?.chainSettings ?? null),
+    useShallow(s => s.chain?.chainSettings ?? null),
   );
   const modify = useCallback(
     (name: string, updater: (cs: Chain["chainSettings"]) => void) => {
-      setTracked(name, (c) => updater(c.chainSettings));
+      setTracked(name, c => updater(c.chainSettings));
     },
     [],
   );
@@ -2280,7 +2271,7 @@ export function useDisablePurchaseGroups() {
         : ("allowItemGroups" as const);
     setTracked(
       `Disable ${type === PurchaseType.Perk ? "perk" : "item"} fusions`,
-      (c) => {
+      c => {
         c.chainSettings[flag] = false;
         for (const charId of c.characterList) {
           const reg = c.purchaseGroups[charId];
@@ -2302,22 +2293,22 @@ export function useDisablePurchaseGroups() {
 
 /** Bank settings (bankSettings) plus a modify action. */
 export function useBankSettingsConfig() {
-  const bank = useChainStore(useShallow((s) => s.chain?.bankSettings ?? null));
+  const bank = useChainStore(useShallow(s => s.chain?.bankSettings ?? null));
   const modify = useCallback(
     (name: string, updater: (b: BankSettings) => void) => {
-      setTracked(name, (c) => updater(c.bankSettings));
+      setTracked(name, c => updater(c.bankSettings));
       const { chain, calculatedData: cd } = useChainStore.getState();
       if (!chain || !cd.jumpChunks || !cd.jumpNumber) return;
 
       // Accumulate new values in-order so previous-chunk balances are available per character.
       const newBankBalance = {} as CalculatedData["bankBalance"];
       const newTotalBankDeposit = {} as CalculatedData["totalBankDeposit"];
-      chain.characterList.forEach((charId) => {
+      chain.characterList.forEach(charId => {
         newBankBalance[charId] =
           {} as CalculatedData["bankBalance"][typeof charId];
         newTotalBankDeposit[charId] =
           {} as CalculatedData["totalBankDeposit"][typeof charId];
-        chain.jumpList.forEach((jumpId) => {
+        chain.jumpList.forEach(jumpId => {
           const { balance, totalDeposit } = adjustBank(
             chain,
             charId,
@@ -2333,8 +2324,8 @@ export function useBankSettingsConfig() {
         });
       });
 
-      useChainStore.setState((s) =>
-        produce(s, (st) => {
+      useChainStore.setState(s =>
+        produce(s, st => {
           st.calculatedData.bankBalance = newBankBalance;
           st.calculatedData.totalBankDeposit = newTotalBankDeposit;
         }),
@@ -2350,25 +2341,23 @@ export function useBankDeposit(
   charId: Id<GID.Character>,
   jumpId: Id<GID.Jump>,
 ) {
-  const enabled = useChainStore((s) => s.chain?.bankSettings.enabled ?? false);
-  const maxDeposit = useChainStore(
-    (s) => s.chain?.bankSettings.maxDeposit ?? 0,
-  );
+  const enabled = useChainStore(s => s.chain?.bankSettings.enabled ?? false);
+  const maxDeposit = useChainStore(s => s.chain?.bankSettings.maxDeposit ?? 0);
   const bankBalance = useChainStore(
-    (s) => s.calculatedData.bankBalance?.[charId]?.[jumpId] ?? 0,
+    s => s.calculatedData.bankBalance?.[charId]?.[jumpId] ?? 0,
   );
   const totalBankDeposit = useChainStore(
-    (s) => s.calculatedData.totalBankDeposit?.[charId]?.[jumpId] ?? 0,
+    s => s.calculatedData.totalBankDeposit?.[charId]?.[jumpId] ?? 0,
   );
   const depositAmount = useChainStore(
-    (s) => s.chain?.jumps.O[jumpId]?.bankDeposits[charId] ?? 0,
+    s => s.chain?.jumps.O[jumpId]?.bankDeposits[charId] ?? 0,
   );
   const currency = useChainStore(
-    (s) =>
+    s =>
       s.chain?.jumps.O[jumpId]?.currencies.O[DEFAULT_CURRENCY_ID]?.abbrev ??
       "CP",
   );
-  const adjustedDeposit = useChainStore((s) =>
+  const adjustedDeposit = useChainStore(s =>
     depositAmount > 0
       ? Math.floor(
           depositAmount * ((s.chain?.bankSettings?.depositRatio ?? 0) / 100),
@@ -2378,7 +2367,7 @@ export function useBankDeposit(
 
   const setDeposit = useCallback(
     (amount: number) => {
-      setTracked("Set bank deposit", (chain) => {
+      setTracked("Set bank deposit", chain => {
         const jump = chain.jumps.O[jumpId];
         if (!jump) return;
         jump.bankDeposits[charId] = amount;
@@ -2404,10 +2393,10 @@ export function useBankDeposit(
 export function useChainPurchaseCategoryConfig(
   type: PurchaseType.Perk | PurchaseType.Item,
 ) {
-  const categories = useChainStore((s) => s.chain?.purchaseCategories[type]);
+  const categories = useChainStore(s => s.chain?.purchaseCategories[type]);
 
   const addCategory = useCallback(() => {
-    setTracked("Add category", (c) => {
+    setTracked("Add category", c => {
       const cat = c.purchaseCategories[type];
       cat.O[cat.fId] = "";
       cat.fId = createId<GID.PurchaseCategory>((cat.fId as number) + 1);
@@ -2416,7 +2405,7 @@ export function useChainPurchaseCategoryConfig(
 
   const renameCategory = useCallback(
     (id: Id<GID.PurchaseCategory>, name: string) => {
-      setTracked("Rename category", (c) => {
+      setTracked("Rename category", c => {
         c.purchaseCategories[type].O[id] = name;
       });
     },
@@ -2425,7 +2414,7 @@ export function useChainPurchaseCategoryConfig(
 
   const removeCategory = useCallback(
     (id: Id<GID.PurchaseCategory>) => {
-      setTracked("Remove category", (c) => {
+      setTracked("Remove category", c => {
         delete c.purchaseCategories[type].O[id];
       });
     },
@@ -2447,7 +2436,7 @@ const EMPTY_CHAIN_DRAWBACK_IDS: Id<GID.Purchase>[] = [];
 /** Returns the chain-level drawback IDs in order. */
 export function useChainDrawbackList(): Id<GID.Purchase>[] {
   return useChainStore(
-    (s) => s.chain?.chainDrawbackList ?? EMPTY_CHAIN_DRAWBACK_IDS,
+    s => s.chain?.chainDrawbackList ?? EMPTY_CHAIN_DRAWBACK_IDS,
   );
 }
 
@@ -2455,7 +2444,7 @@ export function useChainDrawbackList(): Id<GID.Purchase>[] {
 export function useAddChainDrawback() {
   return useCallback((): Id<GID.Purchase> => {
     const newId = useChainStore.getState().chain!.purchases.fId;
-    setTracked("Add chain drawback", (c) => {
+    setTracked("Add chain drawback", c => {
       const drawback: Drawback = {
         id: newId,
         name: "",
@@ -2477,7 +2466,7 @@ export function useAddChainDrawback() {
 /** Returns a callback that removes a ChainDrawback from the store and list. */
 export function useRemoveChainDrawback() {
   return useCallback((id: Id<GID.Purchase>) => {
-    setTracked("Remove chain drawback", (c) => {
+    setTracked("Remove chain drawback", c => {
       delete c.purchases.O[id];
       const idx = c.chainDrawbackList.indexOf(id);
       if (idx !== -1) c.chainDrawbackList.splice(idx, 1);
@@ -2489,16 +2478,16 @@ export function useRemoveChainDrawback() {
 /** Returns a callback that replaces chainDrawbackList (used for drag-and-drop reordering). */
 export function useReorderChainDrawbacks() {
   return useCallback((newIds: Id<GID.Purchase>[]) => {
-    setTracked("Reorder chain drawbacks", (c) => {
+    setTracked("Reorder chain drawbacks", c => {
       c.chainDrawbackList = newIds;
     });
   }, []);
 }
 
 export function useChainName() {
-  const name = useChainStore((s) => s.chain?.name ?? "");
+  const name = useChainStore(s => s.chain?.name ?? "");
   const rename = useCallback((newName: string) => {
-    setTracked("Rename chain", (c) => {
+    setTracked("Rename chain", c => {
       c.name = newName;
     });
   }, []);
@@ -2513,14 +2502,14 @@ export function useChainName() {
 export const useChainSupplement = (
   suppId: Id<GID.Supplement>,
 ): ChainSupplement | undefined =>
-  useChainStore((s) => s.chain?.supplements.O[suppId]);
+  useChainStore(s => s.chain?.supplements.O[suppId]);
 
 /** Returns the ordered list of supplement IDs for the chain config page. */
 export function useChainSupplementIds(): Id<GID.Supplement>[] {
   return useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.chain) return [] as Id<GID.Supplement>[];
-      return Object.keys(s.chain.supplements.O).map((k) =>
+      return Object.keys(s.chain.supplements.O).map(k =>
         createId<GID.Supplement>(+k),
       );
     }),
@@ -2658,7 +2647,7 @@ export function useAnySupplementHasData(): boolean {
         const bySup = (jump.supplementPurchases as any)[charIdStr];
         if (
           bySup &&
-          Object.keys(bySup).some((k) => (bySup[k] as unknown[])?.length > 0)
+          Object.keys(bySup).some(k => (bySup[k] as unknown[])?.length > 0)
         )
           return true;
       }
@@ -2666,9 +2655,7 @@ export function useAnySupplementHasData(): boolean {
         const bySup = (jump.supplementInvestments as any)[charIdStr];
         if (
           bySup &&
-          Object.keys(bySup).some(
-            (k) => (bySup[k] as number | undefined) != null,
-          )
+          Object.keys(bySup).some(k => (bySup[k] as number | undefined) != null)
         )
           return true;
       }
@@ -2730,7 +2717,7 @@ export function useJumpZeroChangeWouldShiftData(): {
 export function useChainSupplementsConfig() {
   const addSupplement = useCallback((): Id<GID.Supplement> => {
     const newId = useChainStore.getState().chain!.supplements.fId;
-    setTracked("Add supplement", (c) => {
+    setTracked("Add supplement", c => {
       const supp: ChainSupplement = {
         id: newId,
         name: "",
@@ -2757,7 +2744,7 @@ export function useChainSupplementsConfig() {
   }, []);
 
   const removeSupplement = useCallback((id: Id<GID.Supplement>) => {
-    setTracked("Remove supplement", (c) => {
+    setTracked("Remove supplement", c => {
       delete c.supplements.O[id];
       // Cascade: delete all purchases and investments for this supplement across all jumps.
       for (const jumpIdStr in c.jumps.O) {
@@ -2785,7 +2772,7 @@ export function useChainSupplementsConfig() {
       label: string,
       updater: (s: ChainSupplement) => void,
     ) => {
-      setTracked(label, (c) => {
+      setTracked(label, c => {
         const supp = c.supplements.O[id];
         if (supp) updater(supp);
       });
@@ -2794,7 +2781,7 @@ export function useChainSupplementsConfig() {
   );
 
   const addCategory = useCallback((suppId: Id<GID.Supplement>) => {
-    setTracked("Add supplement category", (c) => {
+    setTracked("Add supplement category", c => {
       const supp = c.supplements.O[suppId];
       if (!supp) return;
       const newCatId = supp.purchaseCategories.fId;
@@ -2807,7 +2794,7 @@ export function useChainSupplementsConfig() {
 
   const removeCategory = useCallback(
     (suppId: Id<GID.Supplement>, catId: Id<GID.PurchaseCategory>) => {
-      setTracked("Remove supplement category", (c) => {
+      setTracked("Remove supplement category", c => {
         const supp = c.supplements.O[suppId];
         if (!supp) return;
         delete supp.purchaseCategories.O[catId];
@@ -2822,7 +2809,7 @@ export function useChainSupplementsConfig() {
       catId: Id<GID.PurchaseCategory>,
       name: string,
     ) => {
-      setTracked("Rename supplement category", (c) => {
+      setTracked("Rename supplement category", c => {
         const supp = c.supplements.O[suppId];
         if (!supp) return;
         supp.purchaseCategories.O[catId] = name;
@@ -2846,7 +2833,7 @@ export function useChainSupplementsConfig() {
       const newChunk = jumpChunks?.[newDisplayNumber - offset] as
         | Id<GID.Jump>[]
         | undefined;
-      setTracked("Set initial jump", (c) => {
+      setTracked("Set initial jump", c => {
         const s2 = c.supplements.O[suppId];
         if (!s2) return;
         s2.initialJump = newDisplayNumber;
@@ -2875,7 +2862,7 @@ export function useChainSupplementsConfig() {
       const offset = state.chain!.chainSettings.startWithJumpZero ? 0 : 1;
       const newStartIdx = newDisplayNumber - offset;
       const oldInitialJump = supp.initialJump;
-      setTracked("Move supplement start", (c) => {
+      setTracked("Move supplement start", c => {
         const s2 = c.supplements.O[suppId];
         if (!s2) return;
         s2.initialJump = newDisplayNumber;
@@ -2918,7 +2905,7 @@ export function useChainSupplementsConfig() {
     const jumpChunks = state.calculatedData.jumpChunks;
     if (!jumpChunks) return;
     const delta = on ? 1 : -1;
-    setTracked("Toggle jump-zero start", (c) => {
+    setTracked("Toggle jump-zero start", c => {
       c.chainSettings.startWithJumpZero = on;
       for (const suppIdStr in c.supplements.O) {
         const sId = createId<GID.Supplement>(+suppIdStr);
@@ -2948,13 +2935,13 @@ export function useChainSupplementsConfig() {
         | Id<GID.Jump>[]
         | undefined;
 
-      setTracked("Convert to single jump", (c) => {
+      setTracked("Convert to single jump", c => {
         const s2 = c.supplements.O[suppId];
         if (!s2) return;
         s2.singleJump = true;
         if (!jumpChunks || !keepChunk) return;
 
-        const keepSet = new Set(keepChunk.map((id) => id as number));
+        const keepSet = new Set(keepChunk.map(id => id as number));
 
         if (strategy === "delete") {
           for (const jumpIdStr in c.jumps.O) {
@@ -2978,7 +2965,7 @@ export function useChainSupplementsConfig() {
         } else {
           // Shunt: move all purchases outside the keep chunk into it.
           for (const chunk of jumpChunks) {
-            if (chunk.some((jId) => keepSet.has(jId as number))) continue;
+            if (chunk.some(jId => keepSet.has(jId as number))) continue;
             migrateSuppChunk(c, suppId, chunk, keepChunk[0]);
           }
         }
@@ -2990,7 +2977,7 @@ export function useChainSupplementsConfig() {
 
   const setCompanionAccess = useCallback(
     (suppId: Id<GID.Supplement>, access: CompanionAccess) => {
-      setTracked("Set companion access", (c) => {
+      setTracked("Set companion access", c => {
         const supp = c.supplements.O[suppId];
         if (!supp) return;
         const wasImports = supp.companionAccess === CompanionAccess.Imports;
@@ -3006,12 +2993,12 @@ export function useChainSupplementsConfig() {
               if (!bySup) continue;
               const allIds: Id<GID.Purchase>[] = bySup[suppId as number] ?? [];
               const toDelete = allIds.filter(
-                (pid) =>
+                pid =>
                   c.purchases.O[pid]?.type === PurchaseType.SupplementImport,
               );
               for (const pid of toDelete) delete c.purchases.O[pid];
               bySup[suppId as number] = allIds.filter(
-                (pid) => !toDelete.includes(pid),
+                pid => !toDelete.includes(pid),
               );
             }
           }
@@ -3059,7 +3046,7 @@ export function useSupplementBudget(
   suppId: Id<GID.Supplement>,
 ): number | undefined {
   return useChainStore(
-    (s) => s.calculatedData.supplementBudgets?.[charId]?.[jumpId]?.[suppId],
+    s => s.calculatedData.supplementBudgets?.[charId]?.[jumpId]?.[suppId],
   );
 }
 
@@ -3069,17 +3056,17 @@ export function useSupplementInvestment(
   suppId: Id<GID.Supplement>,
 ) {
   const value = useChainStore(
-    (s) =>
+    s =>
       s.chain?.jumps.O[jumpId]?.supplementInvestments?.[charId]?.[suppId] ?? 0,
   );
   const chunkTotal = useChainStore(
-    (s) =>
+    s =>
       s.calculatedData.supplementInvestments?.[charId]?.[jumpId]?.[suppId] ?? 0,
   );
 
   const setValue = useCallback(
     (amount: number) => {
-      setTracked("Set supplement investment", (chain) => {
+      setTracked("Set supplement investment", chain => {
         const jump = chain.jumps.O[jumpId];
         if (!jump) return;
         if (!jump.supplementInvestments[charId])
@@ -3103,11 +3090,11 @@ export function useJumpSupplementPurchases(
   type: PurchaseType.SupplementPerk | PurchaseType.SupplementItem,
 ) {
   const purchaseIds = useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       const all =
         s.chain?.jumps.O[jumpId]?.supplementPurchases[charId]?.[suppId] ?? [];
       return (all as Id<GID.Purchase>[]).filter(
-        (id) => s.chain?.purchases.O[id]?.type === type,
+        id => s.chain?.purchases.O[id]?.type === type,
       );
     }),
   );
@@ -3118,7 +3105,7 @@ export function useJumpSupplementPurchases(
       type === PurchaseType.SupplementPerk
         ? "Add supplement perk"
         : "Add supplement item",
-      (c) => {
+      c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         const purchase: SupplementPurchase = {
@@ -3149,7 +3136,7 @@ export function useJumpSupplementPurchases(
 
   const removePurchase = useCallback(
     (id: Id<GID.Purchase>) => {
-      setTracked("Remove purchase", (c) => {
+      setTracked("Remove purchase", c => {
         delete c.purchases.O[id];
         const list = c.jumps.O[jumpId]?.supplementPurchases[charId]?.[suppId];
         if (list) {
@@ -3164,7 +3151,7 @@ export function useJumpSupplementPurchases(
 
   const reorderPurchases = useCallback(
     (newIds: Id<GID.Purchase>[]) => {
-      setTracked("Reorder purchases", (c) => {
+      setTracked("Reorder purchases", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         const all = [
@@ -3173,7 +3160,7 @@ export function useJumpSupplementPurchases(
         ];
         // Replace type-matching entries with the reordered list, preserve others in place.
         let ni = 0;
-        const result = all.map((id) =>
+        const result = all.map(id =>
           c.purchases.O[id]?.type === type ? newIds[ni++]! : id,
         );
         (jump.supplementPurchases as any)[charId as number] ??= {};
@@ -3196,11 +3183,11 @@ export function useJumpSupplementScenarios(
   suppId: Id<GID.Supplement>,
 ) {
   const scenarioIds = useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       const all =
         s.chain?.jumps.O[jumpId]?.supplementPurchases[charId]?.[suppId] ?? [];
       return (all as Id<GID.Purchase>[]).filter(
-        (id) =>
+        id =>
           s.chain?.purchases.O[id]?.type === PurchaseType.SupplementScenario,
       );
     }),
@@ -3208,7 +3195,7 @@ export function useJumpSupplementScenarios(
 
   const addScenario = useCallback((): Id<GID.Purchase> => {
     const newId = useChainStore.getState().chain!.purchases.fId;
-    setTracked("Add milestone", (c) => {
+    setTracked("Add milestone", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
       const scenario: SupplementScenario = {
@@ -3239,7 +3226,7 @@ export function useJumpSupplementScenarios(
 
   const removeScenario = useCallback(
     (id: Id<GID.Purchase>) => {
-      setTracked("Remove milestone", (c) => {
+      setTracked("Remove milestone", c => {
         delete c.purchases.O[id];
         const list = c.jumps.O[jumpId]?.supplementPurchases[charId]?.[suppId];
         if (list) {
@@ -3254,7 +3241,7 @@ export function useJumpSupplementScenarios(
 
   const reorderScenarios = useCallback(
     (newIds: Id<GID.Purchase>[]) => {
-      setTracked("Reorder milestones", (c) => {
+      setTracked("Reorder milestones", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         const all = [
@@ -3262,7 +3249,7 @@ export function useJumpSupplementScenarios(
             []) as Id<GID.Purchase>[]),
         ];
         let ni = 0;
-        const result = all.map((id) =>
+        const result = all.map(id =>
           c.purchases.O[id]?.type === PurchaseType.SupplementScenario
             ? newIds[ni++]!
             : id,
@@ -3291,7 +3278,7 @@ function applyCSPDelta(
 ) {
   if (delta === 0 || companions.length === 0) return;
   useChainStore.setState(
-    produce((s) => {
+    produce(s => {
       const cd = s.calculatedData;
       if (!cd.companionSupplementPercentage)
         cd.companionSupplementPercentage = {} as never;
@@ -3315,19 +3302,18 @@ export function useJumpSupplementImports(
   suppId: Id<GID.Supplement>,
 ) {
   const importIds = useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       const all =
         s.chain?.jumps.O[jumpId]?.supplementPurchases[charId]?.[suppId] ?? [];
       return (all as Id<GID.Purchase>[]).filter(
-        (id) =>
-          s.chain?.purchases.O[id]?.type === PurchaseType.SupplementImport,
+        id => s.chain?.purchases.O[id]?.type === PurchaseType.SupplementImport,
       );
     }),
   );
 
   const addImport = useCallback((): Id<GID.Purchase> => {
     const newId = useChainStore.getState().chain!.purchases.fId;
-    setTracked("Add supplement import", (c) => {
+    setTracked("Add supplement import", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
       const purchase: SupplementImport = {
@@ -3361,7 +3347,7 @@ export function useJumpSupplementImports(
         | undefined;
       const oldChars = si?.importData.characters ?? [];
       const oldPct = si?.importData.percentage ?? 0;
-      setTracked("Remove supplement import", (c) => {
+      setTracked("Remove supplement import", c => {
         delete c.purchases.O[id];
         const list = c.jumps.O[jumpId]?.supplementPurchases[charId]?.[suppId];
         if (list) {
@@ -3377,7 +3363,7 @@ export function useJumpSupplementImports(
 
   const reorderImports = useCallback(
     (newIds: Id<GID.Purchase>[]) => {
-      setTracked("Reorder supplement imports", (c) => {
+      setTracked("Reorder supplement imports", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         const all = [
@@ -3385,7 +3371,7 @@ export function useJumpSupplementImports(
             []) as Id<GID.Purchase>[]),
         ];
         let ni = 0;
-        const result = all.map((id) =>
+        const result = all.map(id =>
           c.purchases.O[id]?.type === PurchaseType.SupplementImport
             ? newIds[ni++]!
             : id,
@@ -3403,7 +3389,7 @@ export function useJumpSupplementImports(
 
 export function useSupplementImport(id: Id<GID.Purchase>) {
   const supplementImport = useChainStore(
-    (s) => s.chain?.purchases.O[id] as SupplementImport | undefined,
+    s => s.chain?.purchases.O[id] as SupplementImport | undefined,
   );
 
   const modify = useCallback(
@@ -3416,7 +3402,7 @@ export function useSupplementImport(id: Id<GID.Purchase>) {
       const primaryId = before?.charId;
       const jId = before?.jumpId;
       const sId = before?.supplement;
-      setTracked(name, (c) => {
+      setTracked(name, c => {
         const target = c.purchases.O[id] as SupplementImport | undefined;
         if (target) updater(target);
         c.budgetFlag += 1;
@@ -3429,9 +3415,9 @@ export function useSupplementImport(id: Id<GID.Purchase>) {
       const newPct = after?.importData.percentage ?? 0;
       const oldSet = new Set(oldChars.map(Number));
       const newSet = new Set(newChars.map(Number));
-      const removed = oldChars.filter((c) => !newSet.has(Number(c)));
-      const added = newChars.filter((c) => !oldSet.has(Number(c)));
-      const kept = newChars.filter((c) => oldSet.has(Number(c)));
+      const removed = oldChars.filter(c => !newSet.has(Number(c)));
+      const added = newChars.filter(c => !oldSet.has(Number(c)));
+      const kept = newChars.filter(c => oldSet.has(Number(c)));
       applyCSPDelta(primaryId, jId, sId, removed, -oldPct);
       applyCSPDelta(primaryId, jId, sId, added, newPct);
       if (oldPct !== newPct)
@@ -3461,7 +3447,7 @@ export function usePreviousSupplementPurchases(
   return useMemo(() => {
     if (!chain) return [];
     const currentIdx = chain.jumpList.findIndex(
-      (id) => (id as number) === (jumpId as number),
+      id => (id as number) === (jumpId as number),
     );
     if (currentIdx === -1) return [];
     const result: { id: Id<GID.Purchase>; isObsolete: boolean }[] = [];
@@ -3482,7 +3468,7 @@ export function usePreviousSupplementPurchases(
           continue;
         if (p.obsolete !== undefined) {
           const obsoleteIdx = chain.jumpList.findIndex(
-            (jid) => (jid as number) === (p.obsolete as number),
+            jid => (jid as number) === (p.obsolete as number),
           );
           // Hidden if made obsolete in an earlier jump
           if (obsoleteIdx !== -1 && obsoleteIdx < currentIdx) continue;
@@ -3511,13 +3497,13 @@ export function useDeduplicateJumpPurchases() {
 
     // Helper: detect duplicates in a flat ID array.
     function hasDupes(ids: Id<GID.Purchase>[]): boolean {
-      return ids.length !== new Set(ids.map((id) => id as number)).size;
+      return ids.length !== new Set(ids.map(id => id as number)).size;
     }
 
     // Helper: deduplicate while preserving first-occurrence order.
     function dedupe(ids: Id<GID.Purchase>[]): Id<GID.Purchase>[] {
       const seen = new Set<number>();
-      return ids.filter((id) => {
+      return ids.filter(id => {
         const n = id as number;
         if (seen.has(n)) return false;
         seen.add(n);
@@ -3559,7 +3545,7 @@ export function useDeduplicateJumpPurchases() {
 
     if (!needsFix) return;
 
-    setTracked("Remove duplicate purchases", (c) => {
+    setTracked("Remove duplicate purchases", c => {
       const j = c.jumps.O[jumpId];
       if (!j) return;
       for (const charKey in j.purchases) {
@@ -3599,7 +3585,7 @@ export function useSetObsolete() {
     ) => {
       setTracked(
         makeObsolete ? "Mark purchase obsolete" : "Un-mark purchase obsolete",
-        (c) => {
+        c => {
           const purchase = c.purchases.O[purchaseId] as
             | SupplementPurchase
             | undefined;
@@ -3611,7 +3597,7 @@ export function useSetObsolete() {
               if (oldJump) {
                 (oldJump.obsoletions as Id<GID.Purchase>[]) = (
                   oldJump.obsoletions as Id<GID.Purchase>[]
-                ).filter((id) => id !== purchaseId);
+                ).filter(id => id !== purchaseId);
               }
             }
             purchase.obsolete = currentJumpId;
@@ -3619,7 +3605,7 @@ export function useSetObsolete() {
             if (
               currentJump &&
               !(currentJump.obsoletions as Id<GID.Purchase>[]).some(
-                (id) => id === purchaseId,
+                id => id === purchaseId,
               )
             ) {
               (currentJump.obsoletions as Id<GID.Purchase>[]).push(purchaseId);
@@ -3630,7 +3616,7 @@ export function useSetObsolete() {
               if (oldJump) {
                 (oldJump.obsoletions as Id<GID.Purchase>[]) = (
                   oldJump.obsoletions as Id<GID.Purchase>[]
-                ).filter((id) => id !== purchaseId);
+                ).filter(id => id !== purchaseId);
               }
             }
             delete purchase.obsolete;
@@ -3654,7 +3640,7 @@ export function useAddCharacter() {
     const state = useChainStore.getState().chain!;
     const newCharId = state.characters.fId;
     const newAltFormId = state.altforms.fId;
-    setTracked(primary ? "Add primary jumper" : "Add companion", (c) => {
+    setTracked(primary ? "Add primary jumper" : "Add companion", c => {
       const altForm: AltForm = {
         id: newAltFormId,
         height: { value: 0, unit: LengthUnit.Centimeters },
@@ -3711,7 +3697,7 @@ export function useCreateCompanion() {
     const newAltFormId = state.altforms.fId;
     const heightCm = Math.floor(Math.random() * 36 + 155);
     const weightKg = Math.floor(Math.random() * 41 + 50);
-    setTracked("Add companion", (c) => {
+    setTracked("Add companion", c => {
       const altForm: AltForm = {
         id: newAltFormId,
         name: draft.name || "New Companion",
@@ -3756,14 +3742,14 @@ export function useCreateCompanion() {
  *  Will not remove the last primary jumper. */
 export function useRemoveCharacter() {
   return useCallback((charId: Id<GID.Character>) => {
-    setTracked("Remove character", (c) => {
+    setTracked("Remove character", c => {
       const char = c.characters.O[charId];
       if (!char) return;
 
       // Guard: never delete the last primary jumper
       if (char.primary) {
         const primaryCount = Object.values(c.characters.O).filter(
-          (ch) => ch?.primary,
+          ch => ch?.primary,
         ).length;
         if (primaryCount <= 1) return;
       }
@@ -3805,7 +3791,7 @@ export function useRemoveCharacter() {
             const p = c.purchases.O[pId] as CompanionImport | undefined;
             if (p?.type === PurchaseType.Companion) {
               p.importData.characters = p.importData.characters.filter(
-                (id) => (id as number) !== (charId as number),
+                id => (id as number) !== (charId as number),
               );
             }
           }
@@ -3813,7 +3799,7 @@ export function useRemoveCharacter() {
 
         // Remove all per-character keys from this jump
         jump.characters = jump.characters.filter(
-          (id) => (id as number) !== (charId as number),
+          id => (id as number) !== (charId as number),
         );
         delete (jump.purchases as any)[charId];
         delete (jump.drawbacks as any)[charId];
@@ -3834,7 +3820,7 @@ export function useRemoveCharacter() {
 
       delete c.characters.O[charId];
       c.characterList = c.characterList.filter(
-        (id) => (id as number) !== (charId as number),
+        id => (id as number) !== (charId as number),
       );
     });
   }, []);
@@ -3845,13 +3831,13 @@ export function useRemoveCharacter() {
 export function useAllCharacters(): { id: Id<GID.Character>; name: string }[] {
   // useShallow on a number array is stable (Object.is works for primitives).
   const characterList = useChainStore(
-    useShallow((s) => s.chain?.characterList ?? []),
+    useShallow(s => s.chain?.characterList ?? []),
   );
   // characters.O is an Immer-stable object reference; only changes on actual mutations.
-  const characterObj = useChainStore((s) => s.chain?.characters.O);
+  const characterObj = useChainStore(s => s.chain?.characters.O);
   return useMemo(
     () =>
-      characterList.map((id) => ({ id, name: characterObj?.[id]?.name ?? "" })),
+      characterList.map(id => ({ id, name: characterObj?.[id]?.name ?? "" })),
     [characterList, characterObj],
   );
 }
@@ -3863,17 +3849,17 @@ export function useCompanionImports(
   charId: Id<GID.Character>,
 ) {
   const importIds = useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       const list = s.chain?.jumps.O[jumpId]?.purchases[charId] ?? [];
       return (list as Id<GID.Purchase>[]).filter(
-        (id) => s.chain?.purchases.O[id]?.type === PurchaseType.Companion,
+        id => s.chain?.purchases.O[id]?.type === PurchaseType.Companion,
       );
     }),
   );
 
   const addImport = useCallback((): Id<GID.Purchase> => {
     const newId = useChainStore.getState().chain!.purchases.fId;
-    setTracked("Add companion import", (c) => {
+    setTracked("Add companion import", c => {
       const jump = c.jumps.O[jumpId];
       if (!jump) return;
       const purchase: CompanionImport = {
@@ -3902,7 +3888,7 @@ export function useCompanionImports(
 
   const removeImport = useCallback(
     (id: Id<GID.Purchase>) => {
-      setTracked("Remove companion import", (c) => {
+      setTracked("Remove companion import", c => {
         delete c.purchases.O[id];
         const list = c.jumps.O[jumpId]?.purchases[charId];
         if (list) {
@@ -3917,12 +3903,12 @@ export function useCompanionImports(
 
   const reorderImports = useCallback(
     (newIds: Id<GID.Purchase>[]) => {
-      setTracked("Reorder companion imports", (c) => {
+      setTracked("Reorder companion imports", c => {
         const jump = c.jumps.O[jumpId];
         if (!jump) return;
         const all = [...((jump.purchases[charId] ?? []) as Id<GID.Purchase>[])];
         let ni = 0;
-        const result = all.map((id) =>
+        const result = all.map(id =>
           c.purchases.O[id]?.type === PurchaseType.Companion
             ? newIds[ni++]!
             : id,
@@ -3939,12 +3925,12 @@ export function useCompanionImports(
 /** Returns a single companion import by purchase ID, plus a modify action. */
 export function useCompanionImport(id: Id<GID.Purchase>) {
   const companionImport = useChainStore(
-    (s) => s.chain?.purchases.O[id] as CompanionImport | undefined,
+    s => s.chain?.purchases.O[id] as CompanionImport | undefined,
   );
 
   const modify = useCallback(
     (name: string, updater: (p: CompanionImport) => void) => {
-      setTracked(name, (c) => {
+      setTracked(name, c => {
         const target = c.purchases.O[id] as CompanionImport | undefined;
         if (target) updater(target);
         c.budgetFlag += 1;
@@ -3968,18 +3954,18 @@ export function useExportChainSummary(): {
 } {
   const chain = useChain();
   // Select jumpNumber separately so useMemo can depend on a stable reference.
-  const jumpNumbers = useChainStore((s) => s.calculatedData.jumpNumber);
+  const jumpNumbers = useChainStore(s => s.calculatedData.jumpNumber);
 
   return useMemo(() => {
     if (!chain) return { chainName: "", characters: [], jumps: [] };
 
-    const characters = chain.characterList.map((id) => {
+    const characters = chain.characterList.map(id => {
       const c = chain.characters.O[id];
       return { id, name: c?.name ?? "", primary: c?.primary ?? false };
     });
 
     const offset = chain.chainSettings.startWithJumpZero ? 0 : 1;
-    const jumps = chain.jumpList.map((id) => {
+    const jumps = chain.jumpList.map(id => {
       const j = chain.jumps.O[id];
       const number =
         ((jumpNumbers as any)?.[id as unknown as number] ?? 0) + offset;
@@ -3993,8 +3979,8 @@ export function useExportChainSummary(): {
 /** Returns a snapshot of chain + calculatedData for IR building.
  *  Call this inside a Generate button handler — not for reactive rendering. */
 export function useExportSnapshot() {
-  const chain = useChainStore((s) => s.chain);
-  const calculatedData = useChainStore((s) => s.calculatedData);
+  const chain = useChainStore(s => s.chain);
+  const calculatedData = useChainStore(s => s.calculatedData);
   return useMemo(() => ({ chain, calculatedData }), [chain, calculatedData]);
 }
 
@@ -4102,7 +4088,7 @@ function deepCopyPurchase(
         }
         copy.subpurchases = {
           stipend: sameJump
-            ? (bp.subpurchases.stipend ?? []).map((sv) => ({ ...sv }))
+            ? (bp.subpurchases.stipend ?? []).map(sv => ({ ...sv }))
             : [],
           list: newSubIds,
         };
@@ -4164,7 +4150,7 @@ function pushPastedPurchase(
 export function usePurchaseGroupsEnabled(
   type: PurchaseType.Perk | PurchaseType.Item,
 ): boolean {
-  return useChainStore((s) =>
+  return useChainStore(s =>
     type === PurchaseType.Perk
       ? (s.chain?.chainSettings.allowPerkGroups ?? false)
       : (s.chain?.chainSettings.allowItemGroups ?? false),
@@ -4178,7 +4164,7 @@ export function useJumpPurchaseGroups(
   type: PurchaseType.Perk | PurchaseType.Item,
 ) {
   const groupIds = useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.chain) return [] as Id<GID.PurchaseGroup>[];
       const registry = s.chain.purchaseGroups[charId];
       if (!registry) return [] as Id<GID.PurchaseGroup>[];
@@ -4187,7 +4173,7 @@ export function useJumpPurchaseGroups(
       )
         .filter(([, group]) => {
           if (!group || group.type !== type) return false;
-          return group.components.some((purchId) => {
+          return group.components.some(purchId => {
             const p = s.chain!.purchases.O[purchId] as
               | BasicPurchase
               | undefined;
@@ -4203,7 +4189,7 @@ export function useJumpPurchaseGroups(
       const fId =
         useChainStore.getState().chain?.purchaseGroups[charId]?.fId ??
         createId<GID.PurchaseGroup>(0);
-      setTracked("Create purchase group", (c) => {
+      setTracked("Create purchase group", c => {
         if (!c.purchaseGroups[charId]) {
           c.purchaseGroups[charId] = {
             fId: createId<GID.PurchaseGroup>(1),
@@ -4221,7 +4207,7 @@ export function useJumpPurchaseGroups(
 
   const deleteGroup = useCallback(
     (groupId: Id<GID.PurchaseGroup>) => {
-      setTracked("Delete purchase group", (c) => {
+      setTracked("Delete purchase group", c => {
         const reg = c.purchaseGroups[charId];
         if (!reg) return;
         const group = reg.O[groupId];
@@ -4246,16 +4232,16 @@ export function usePurchaseGroup(
   jumpId?: Id<GID.Jump>,
 ) {
   const group = useChainStore(
-    useShallow((s) => s.chain?.purchaseGroups[charId]?.O[groupId] ?? null),
+    useShallow(s => s.chain?.purchaseGroups[charId]?.O[groupId] ?? null),
   );
 
   const componentIds = useChainStore(
-    useShallow((s) => {
+    useShallow(s => {
       if (!s.chain) return [] as Id<GID.Purchase>[];
       const g = s.chain.purchaseGroups[charId]?.O[groupId];
       if (!g) return [] as Id<GID.Purchase>[];
       if (jumpId == null) return g.components.filter(() => true);
-      return g.components.filter((purchId) => {
+      return g.components.filter(purchId => {
         const p = s.chain!.purchases.O[purchId] as BasicPurchase | undefined;
         return p?.jumpId === jumpId;
       });
@@ -4264,7 +4250,7 @@ export function usePurchaseGroup(
 
   const modify = useCallback(
     (name: string, updater: (g: PurchaseGroup) => void) => {
-      setTracked(name, (c) => {
+      setTracked(name, c => {
         const g = c.purchaseGroups[charId]?.O[groupId];
         if (g) updater(g);
       });
@@ -4274,7 +4260,7 @@ export function usePurchaseGroup(
 
   const addComponent = useCallback(
     (purchaseId: Id<GID.Purchase>) => {
-      setTracked("Add to purchase group", (c) => {
+      setTracked("Add to purchase group", c => {
         const g = c.purchaseGroups[charId]?.O[groupId];
         if (!g || g.components.includes(purchaseId)) return;
         g.components.push(purchaseId);
@@ -4288,7 +4274,7 @@ export function usePurchaseGroup(
 
   const removeComponent = useCallback(
     (purchaseId: Id<GID.Purchase>) => {
-      setTracked("Remove from purchase group", (c) => {
+      setTracked("Remove from purchase group", c => {
         const g = c.purchaseGroups[charId]?.O[groupId];
         if (!g) return;
         const idx = g.components.indexOf(purchaseId);
@@ -4303,7 +4289,7 @@ export function usePurchaseGroup(
 
   const reorderComponents = useCallback(
     (newIds: Id<GID.Purchase>[]) => {
-      setTracked("Reorder group components", (c) => {
+      setTracked("Reorder group components", c => {
         const g = c.purchaseGroups[charId]?.O[groupId];
         if (!g) return;
         if (jumpId == null) {
@@ -4338,7 +4324,7 @@ export function useAllPurchaseGroups(
 ): Array<{ id: Id<GID.PurchaseGroup>; name: string; description: string }> {
   // Serialize to a stable string so Zustand's useSyncExternalStore doesn't loop.
   // useShallow + object literals fails because Object.is(newObj, prevObj) is always false.
-  const json = useChainStore((s) => {
+  const json = useChainStore(s => {
     if (!s.chain) return "[]";
     const registry = s.chain.purchaseGroups[charId];
     if (!registry) return "[]";
@@ -4372,7 +4358,7 @@ export function usePurchaseGroupName(
   charId: Id<GID.Character> | undefined,
   groupId: Id<GID.PurchaseGroup> | undefined,
 ): string | null {
-  return useChainStore((s) => {
+  return useChainStore(s => {
     if (charId == null || groupId == null) return null;
     return s.chain?.purchaseGroups[charId]?.O[groupId]?.name ?? null;
   });
@@ -4382,7 +4368,7 @@ export function usePurchaseGroupName(
 export function usePurchaseGroupActions(charId: Id<GID.Character>) {
   const addToGroup = useCallback(
     (purchaseId: Id<GID.Purchase>, groupId: Id<GID.PurchaseGroup>) => {
-      setTracked("Add to purchase group", (c) => {
+      setTracked("Add to purchase group", c => {
         const g = c.purchaseGroups[charId]?.O[groupId];
         if (!g || g.components.includes(purchaseId)) return;
         g.components.push(purchaseId);
@@ -4396,7 +4382,7 @@ export function usePurchaseGroupActions(charId: Id<GID.Character>) {
 
   const removeFromGroup = useCallback(
     (purchaseId: Id<GID.Purchase>, groupId: Id<GID.PurchaseGroup>) => {
-      setTracked("Remove from purchase group", (c) => {
+      setTracked("Remove from purchase group", c => {
         const g = c.purchaseGroups[charId]?.O[groupId];
         if (!g) return;
         const idx = g.components.indexOf(purchaseId);
@@ -4418,7 +4404,7 @@ export function usePurchaseGroupActions(charId: Id<GID.Character>) {
       const fId =
         useChainStore.getState().chain?.purchaseGroups[charId]?.fId ??
         createId<GID.PurchaseGroup>(0);
-      setTracked("Create purchase group", (c) => {
+      setTracked("Create purchase group", c => {
         if (!c.purchaseGroups[charId]) {
           c.purchaseGroups[charId] = {
             fId: createId<GID.PurchaseGroup>(1),
@@ -4436,7 +4422,7 @@ export function usePurchaseGroupActions(charId: Id<GID.Character>) {
 
   const updateGroup = useCallback(
     (groupId: Id<GID.PurchaseGroup>, name: string, description: string) => {
-      setTracked("Edit group", (c) => {
+      setTracked("Edit group", c => {
         const g = c.purchaseGroups[charId]?.O[groupId];
         if (!g) return;
         g.name = name;
@@ -4459,9 +4445,9 @@ export function usePastePurchases(
     (key: string, suppId?: Id<GID.Supplement>) => {
       const entries = useClipboard
         .getState()
-        .entries.filter((e) => e.key === key);
+        .entries.filter(e => e.key === key);
       if (entries.length === 0) return;
-      setTracked("Paste purchases", (c) => {
+      setTracked("Paste purchases", c => {
         for (const { id: srcId, snapshot } of entries) {
           if (!c.purchases.O[srcId] && !snapshot?.[srcId as number]) continue;
           const newId = deepCopyPurchase(
