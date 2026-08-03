@@ -68,7 +68,7 @@ const parseText: (
   const abbrevGroup = escaped.length ? `(${escaped.join("|")})` : null;
   const pattern = abbrevGroup
     ? new RegExp(`(\\d+)(?:\\s*${abbrevGroup})?|\\[free\\]|\\(free\\)`, "i")
-    : new RegExp(`(\\d+)|\\[free\\]|\\(free\\)`);
+    : new RegExp(`(\\d+)|\\[free\\]|\\(free\\)`, "i");
 
   let match = pattern.exec(text);
 
@@ -113,6 +113,7 @@ const parseText: (
     let matches = [...s.matchAll(/[-–—]\s/g)];
     return matches.length > 0 ? matches[matches.length - 1].index : -1;
   };
+  let trimTitle = (s: string) => s.replace(/[:\-\s]+$/, "").trim();
 
   if (!match || match.index > 90 || match.index <= 2) {
     let colonSplit = text.indexOf(":"),
@@ -131,7 +132,7 @@ const parseText: (
         amount: 0,
       };
 
-    let title = text.slice(0, split).trim();
+    let title = trimTitle(text.slice(0, split));
     let desc = hyphensToDashes(text.slice(split + 1)).trim();
     let currency = createId<TID.Currency>(0);
 
@@ -177,11 +178,11 @@ const parseText: (
   let title = text.slice(0, matchStart);
   let desc = text.slice(matchEnd);
 
-  // c) strip trailing [, (, +, -, whitespace from title
+  // c) strip trailing [, (, :, +, -, whitespace from title
   title = title
     .split("\n")
     .pop()!
-    .replace(/[\[\(\+\-\s]+$/g, "")
+    .replace(/[\[:\(\+\-\s]+$/g, "")
     .trim();
 
   // d) strip leading non-alphanumeric from desc
@@ -192,7 +193,7 @@ const parseText: (
   // e) find abbrev index if present
   let currency = createId<TID.Currency>(0);
   if (match![2]) {
-    const found = abbrevs.find(([, v]) => v === match![2]);
+    const found = abbrevs.find(([, v]) => v.toLowerCase() === match![2].toLowerCase());
     if (found) {
       currency = found[0];
     }
