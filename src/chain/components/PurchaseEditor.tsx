@@ -32,9 +32,12 @@ import {
 } from "@/chain/data/Purchase";
 import { createId, type GID, type Id, type LID } from "@/chain/data/types";
 import {
+  useActiveOriginTags,
   useCurrencies,
+  useOriginTagFreeThreshold,
   usePurchase,
   usePurchaseCategories,
+  useSupplementOriginTags,
   useSupplementPurchaseCategories,
   usePurchaseGroupActions,
   usePurchaseGroupName,
@@ -2230,10 +2233,17 @@ export function SupplementPurchaseEditor({
   const { purchase } = usePurchase<SupplementPurchase>(id);
   const suppId = purchase?.supplement;
   const categories = useSupplementPurchaseCategories(suppId);
+  const originTags = useSupplementOriginTags(suppId);
+  const activeOriginTags = useActiveOriginTags(
+    suppId,
+    purchase?.charId ?? createId<GID.Character>(-1),
+  );
+  const originTagFreeThreshold = useOriginTagFreeThreshold(suppId);
   const durationDraft = useDraft<{ duration: number | undefined }>({
     duration: undefined,
   });
   const categoriesDraft = useDraft<Id<GID.PurchaseCategory>[]>([]);
+  const originTagsDraft = useDraft<Id<GID.OriginTag>[]>([]);
   const tagsDraft = useDraft<string[]>([]);
   const [nJumps, setNJumps] = useState<number>(2);
 
@@ -2241,23 +2251,27 @@ export function SupplementPurchaseEditor({
     const dur = purchase?.duration;
     durationDraft.restart({ duration: dur });
     categoriesDraft.restart([...(purchase?.categories ?? [])]);
+    originTagsDraft.restart([...(purchase?.originTags ?? [])]);
     tagsDraft.restart([...(purchase?.tags ?? [])]);
     if (dur != null && dur > 1) setNJumps(dur);
   };
   const handleCancel = () => {
     durationDraft.cancel();
     categoriesDraft.cancel();
+    originTagsDraft.cancel();
     tagsDraft.cancel();
   };
   const handleSubmit = () => {
     durationDraft.close();
     categoriesDraft.close();
+    originTagsDraft.close();
     tagsDraft.close();
     onSubmit?.();
   };
   const buildExtraPatch = (): object => ({
     duration: durationDraft.state.duration,
     categories: categoriesDraft.state,
+    originTags: originTagsDraft.state,
     tags: tagsDraft.state,
   });
 
@@ -2375,6 +2389,81 @@ export function SupplementPurchaseEditor({
       </div>
     ) : null;
 
+  // ── Origin tags widget (e.g. EBM essences that discount this purchase) ────
+  const originTagEntries = originTags
+    ? (Object.entries(originTags.O) as [string, string][])
+    : [];
+  const toggleOriginTag = (tagId: Id<GID.OriginTag>) =>
+    originTagsDraft.set("Toggle origin tag", d => {
+      const idx = d.indexOf(tagId);
+      if (idx === -1) d.push(tagId);
+      else d.splice(idx, 1);
+    });
+  const originTagsWidgetEdit =
+    originTagEntries.length > 0 ? (
+      <div className="px-3 py-2 flex items-start gap-2">
+        <span className="text-xs text-muted shrink-0 pt-0.5">Origins:</span>
+        <div className="flex flex-wrap gap-1.5">
+          {originTagEntries.map(([tid, name]) => {
+            const tagId = createId<GID.OriginTag>(+tid);
+            const active = originTagsDraft.state.includes(tagId);
+            return (
+              <button
+                key={tid}
+                onClick={() => toggleOriginTag(tagId)}
+                className={`text-xs px-2.5 py-0.5 rounded-full border transition-colors ${
+                  active
+                    ? "bg-accent text-surface border-accent"
+                    : "border-edge text-muted hover:border-trim"
+                }`}
+              >
+                {name || "Unnamed"}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    ) : null;
+  const committedOriginTags = purchase?.originTags ?? [];
+  const originTagDiscountApplies =
+    purchase != null &&
+    purchase.cost.modifier === CostModifier.Full &&
+    typeof purchase.value === "number" &&
+    purchase.value > 0 &&
+    committedOriginTags.some(t => activeOriginTags?.includes(t));
+  const discountedValue =
+    purchase != null && typeof purchase.value === "number"
+      ? purchase.value <= originTagFreeThreshold
+        ? 0
+        : Math.floor(purchase.value / 2)
+      : 0;
+  const originTagsWidgetView =
+    committedOriginTags.length > 0 ? (
+      <div className="pl-3 py-2 flex flex-wrap items-center gap-1.5">
+        {committedOriginTags.map(tagId => {
+          const name = originTags?.O[tagId];
+          const isOn = activeOriginTags?.includes(tagId) ?? false;
+          return name ? (
+            <span
+              key={tagId}
+              className={`text-xs px-2 py-0.5 rounded-full border ${
+                isOn
+                  ? "bg-accent-tint text-accent border-accent-ring"
+                  : "bg-tint text-muted border-edge"
+              }`}
+            >
+              {name}
+            </span>
+          ) : null;
+        })}
+        {originTagDiscountApplies && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-surface">
+            {discountedValue === 0 ? "Free" : `50% off — costs ${discountedValue}`}
+          </span>
+        )}
+      </div>
+    ) : null;
+
   // ── Tags widget ───────────────────────────────────────────────────────────
   const tagsWidgetEdit = (
     <div className="px-3 py-2">
@@ -2400,6 +2489,11 @@ export function SupplementPurchaseEditor({
     {
       view: categoriesWidgetView,
       edit: categoriesWidgetEdit,
+      position: "body",
+    },
+    {
+      view: originTagsWidgetView,
+      edit: originTagsWidgetEdit,
       position: "body",
     },
     { view: tagsWidgetView, edit: tagsWidgetEdit, position: "body" },

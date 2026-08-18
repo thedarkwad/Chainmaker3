@@ -6,6 +6,7 @@ export const enum GID {
   Supplement,
   PurchaseGroup,
   PurchaseCategory,
+  OriginTag,
 }
 
 export const enum LID {

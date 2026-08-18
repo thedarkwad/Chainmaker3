@@ -171,6 +171,9 @@ export type SupplementPurchase = AbstractPurchase & {
   type: PurchaseType.SupplementPerk | PurchaseType.SupplementItem;
   categories: Id<GID.PurchaseCategory>[];
   tags: string[];
+  /** Origin tags (from the supplement's originTags registry) that discount this
+   *  purchase when active — e.g. the EBM essences that discount this perk. */
+  originTags?: Id<GID.OriginTag>[];
 
   jumpId: Id<GID.Jump>;
   value: number;

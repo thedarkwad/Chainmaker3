@@ -1,5 +1,5 @@
 import { JumpSource } from "./Jump";
-import { GID, Id, Registry } from "./types";
+import { GID, Id, PartialLookup, Registry } from "./types";
 
 export const enum CompanionAccess {
     Unavailable,
@@ -35,4 +35,13 @@ export type ChainSupplement = {
     purchaseCategories: Registry<GID.PurchaseCategory, string>;
     type: SupplementType;
     enableScenarios: boolean;
+
+    /** Origin tags (e.g. EBM essences). Purchases carrying an ACTIVE tag are
+     *  automatically discounted 50% (free when their full price is at or under
+     *  originTagFreeThreshold). */
+    originTags?: Registry<GID.OriginTag, string>;
+    /** Per-character set of origin tags the character currently has. */
+    activeOriginTags?: PartialLookup<GID.Character, Id<GID.OriginTag>[]>;
+    /** Full price at or below which a tag-discounted purchase becomes free. Default 50. */
+    originTagFreeThreshold?: number;
 }
