@@ -544,6 +544,117 @@ export const useSupplementPurchaseCategories = (
       : undefined,
   );
 
+/** Origin-tag registry of a supplement (undefined when none defined). */
+export const useSupplementOriginTags = (
+  suppId: Id<GID.Supplement> | undefined,
+): Registry<GID.OriginTag, string> | undefined =>
+  useChainStore(s =>
+    suppId != null ? s.chain?.supplements.O[suppId]?.originTags : undefined,
+  );
+
+/** A character's active origin tags for a supplement (undefined when none). */
+export const useActiveOriginTags = (
+  suppId: Id<GID.Supplement> | undefined,
+  charId: Id<GID.Character>,
+): Id<GID.OriginTag>[] | undefined =>
+  useChainStore(s =>
+    suppId != null
+      ? s.chain?.supplements.O[suppId]?.activeOriginTags?.[charId]
+      : undefined,
+  );
+
+/** Full price at or below which a tag-discounted purchase is free (default 50). */
+export const useOriginTagFreeThreshold = (
+  suppId: Id<GID.Supplement> | undefined,
+): number =>
+  useChainStore(
+    s =>
+      (suppId != null
+        ? s.chain?.supplements.O[suppId]?.originTagFreeThreshold
+        : undefined) ?? 50,
+  );
+
+/** Tracked actions for a supplement's origin tags (tag list, per-character
+ *  active set, free threshold). Pricing-affecting actions bump the budget. */
+export function useSupplementOriginTagActions(suppId: Id<GID.Supplement>) {
+  const addTag = useCallback(() => {
+    setTracked("Add origin tag", c => {
+      const supp = c.supplements.O[suppId];
+      if (!supp) return;
+      if (!supp.originTags)
+        supp.originTags = { O: {}, fId: createId<GID.OriginTag>(0) };
+      const newId = supp.originTags.fId;
+      supp.originTags.O[newId] = "";
+      supp.originTags.fId = createId<GID.OriginTag>((newId as number) + 1);
+    });
+  }, [suppId]);
+
+  const renameTag = useCallback(
+    (tagId: Id<GID.OriginTag>, name: string) => {
+      setTracked("Rename origin tag", c => {
+        const supp = c.supplements.O[suppId];
+        if (supp?.originTags) supp.originTags.O[tagId] = name;
+      });
+    },
+    [suppId],
+  );
+
+  const removeTag = useCallback(
+    (tagId: Id<GID.OriginTag>) => {
+      setTracked("Remove origin tag", c => {
+        const supp = c.supplements.O[suppId];
+        if (!supp?.originTags) return;
+        delete supp.originTags.O[tagId];
+        // Prune from active sets and from all of this supplement's purchases.
+        for (const cIdStr in supp.activeOriginTags) {
+          const cId = createId<GID.Character>(+cIdStr);
+          supp.activeOriginTags[cId] = supp.activeOriginTags[cId]?.filter(
+            t => t !== tagId,
+          );
+        }
+        for (const pIdStr in c.purchases.O) {
+          const p = c.purchases.O[createId<GID.Purchase>(+pIdStr)];
+          if (!p || !("supplement" in p) || p.supplement !== suppId) continue;
+          if ("originTags" in p && p.originTags)
+            p.originTags = p.originTags.filter(t => t !== tagId);
+        }
+        c.budgetFlag += 1;
+      });
+    },
+    [suppId],
+  );
+
+  const toggleActive = useCallback(
+    (charId: Id<GID.Character>, tagId: Id<GID.OriginTag>) => {
+      setTracked("Toggle origin tag", c => {
+        const supp = c.supplements.O[suppId];
+        if (!supp) return;
+        if (!supp.activeOriginTags) supp.activeOriginTags = {};
+        const current = supp.activeOriginTags[charId] ?? [];
+        supp.activeOriginTags[charId] = current.includes(tagId)
+          ? current.filter(t => t !== tagId)
+          : [...current, tagId];
+        c.budgetFlag += 1;
+      });
+    },
+    [suppId],
+  );
+
+  const setFreeThreshold = useCallback(
+    (value: number) => {
+      setTracked("Set origin tag free threshold", c => {
+        const supp = c.supplements.O[suppId];
+        if (!supp) return;
+        supp.originTagFreeThreshold = Math.max(0, value);
+        c.budgetFlag += 1;
+      });
+    },
+    [suppId],
+  );
+
+  return { addTag, renameTag, removeTag, toggleActive, setFreeThreshold };
+}
+
 /** Returns just the name of a purchase by id, or undefined if not found. */
 export function usePurchaseName(id: Id<GID.Purchase>): string | undefined {
   return useChainStore(s => s.chain?.purchases.O[id]?.name);

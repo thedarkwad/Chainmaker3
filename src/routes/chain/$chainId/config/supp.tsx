@@ -14,6 +14,7 @@ import {
   useChainSupplement,
   useChainSupplementIds,
   useChainSupplementsConfig,
+  useSupplementOriginTagActions,
 } from "@/chain/state/hooks";
 import { BoolSegment, SegmentedControl } from "@/ui/SegmentedControl";
 import { Checkbox } from "@/ui/Checkbox";
@@ -624,6 +625,113 @@ function CategoriesCard({
   );
 }
 
+function OriginTagsCard({
+  suppId,
+  supplement,
+}: {
+  suppId: Id<GID.Supplement>;
+  supplement: ChainSupplement;
+}) {
+  const [activeTagId, setActiveTagId] = useState<Id<GID.OriginTag> | null>(null);
+  const actions = useSupplementOriginTagActions(suppId);
+  const hasPurchases =
+    supplement.type === SupplementType.Perk ||
+    supplement.type === SupplementType.Item ||
+    supplement.type === SupplementType.Dual;
+
+  if (!hasPurchases) return null;
+
+  const tagEntries = Object.entries(supplement.originTags?.O ?? {}) as [string, string][];
+
+  return (
+    <Card>
+      {/* div, not p — Tip renders a div and divs cannot nest inside p. */}
+      <div className="text-[10px] font-semibold uppercase tracking-widest text-ghost mb-1">
+        Origin Tags{" "}
+        <Tip>
+          Origins your character can gain from this supplement — for example the Essential Body
+          Mod&apos;s essences. Tag purchases with the origins that discount them; while a tag is
+          active (toggled on the supplement tab), tagged purchases cost half, and cheap ones become
+          free. Activating a tag reprices already-bought purchases retroactively.
+        </Tip>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {tagEntries.map(([idStr, name]) => {
+          const tagId = createId<GID.OriginTag>(+idStr);
+          const isActive = (activeTagId as number | null) === +idStr;
+          return (
+            <button
+              key={idStr}
+              type="button"
+              onClick={() => setActiveTagId(isActive ? null : tagId)}
+              className={`px-2.5 py-0.5 rounded-full text-sm border transition-colors ${
+                isActive
+                  ? "bg-accent2-tint text-accent2 border-accent2"
+                  : "bg-tint text-ink border-edge hover:border-accent2 hover:text-accent2"
+              }`}
+            >
+              {name || <em className="opacity-60">Unnamed</em>}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => {
+            const newTagId =
+              supplement.originTags?.fId ?? createId<GID.OriginTag>(0);
+            actions.addTag();
+            setActiveTagId(newTagId);
+          }}
+          className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border border-dashed border-edge text-muted hover:border-accent2 hover:text-accent2 transition-colors"
+        >
+          <Plus size={11} />
+          Add
+        </button>
+      </div>
+      {activeTagId !== null &&
+        (() => {
+          const name = supplement.originTags?.O[activeTagId];
+          if (name === undefined) return null;
+          return (
+            <div className="flex items-center gap-2 pt-1.5 border-t border-line">
+              <BlurInput
+                value={name}
+                onCommit={(v) => actions.renameTag(activeTagId, v)}
+                placeholder="Tag name…"
+                className="flex-1 min-w-0"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  actions.removeTag(activeTagId);
+                  setActiveTagId(null);
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs text-danger border border-danger/40 hover:bg-danger/10 transition-colors shrink-0"
+              >
+                <Trash2 size={11} />
+                Delete
+              </button>
+            </div>
+          );
+        })()}
+      {tagEntries.length > 0 && (
+        <div className="flex items-center gap-2 pt-1.5 border-t border-line text-xs text-muted">
+          <span>Discounted purchases are free at or under</span>
+          <BlurNumberInput
+            value={supplement.originTagFreeThreshold ?? 50}
+            onCommit={(v) => actions.setFreeThreshold(v)}
+            step={50}
+            min={0}
+            className="w-16"
+          />
+          <span>{supplement.currency} (full price)</span>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ── SupplementDetail ──────────────────────────────────────────────────────────
 
 export function SupplementDetail({ suppId, isNew }: { suppId: Id<GID.Supplement>; isNew: boolean }) {
@@ -650,6 +758,7 @@ export function SupplementDetail({ suppId, isNew }: { suppId: Id<GID.Supplement>
       <div className="flex flex-col gap-2">
         <AvailabilityCard suppId={suppId} supplement={supplement} mod={mod} actions={actions} />
         <CategoriesCard suppId={suppId} supplement={supplement} actions={actions} />
+        <OriginTagsCard suppId={suppId} supplement={supplement} />
       </div>
     </div>
   );

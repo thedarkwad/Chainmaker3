@@ -2,6 +2,7 @@ import { CompanionAccess } from "@/chain/data/ChainSupplement";
 import { Chain } from "@/chain/data/Chain";
 import { DEFAULT_CURRENCY_ID } from "@/chain/data/Jump";
 import {
+  AbstractPurchase,
   BasicPurchase,
   CostModifier,
   CompanionImport,
@@ -881,6 +882,29 @@ export function adjustBudget(
   // ── Supplement budgets — accumulated per supplement across chunks ──
   // Computed by traversing all previous chunks from scratch so the result is
   // never dependent on potentially-stale stored supplementBudgets values.
+  // Effective cost of a supplement purchase: the supplement's origin-tag
+  // discount (50%, free at/under originTagFreeThreshold) applies when the
+  // purchase carries an active tag and has no manual cost modifier.
+  const suppPurchaseCost = (
+    p: {
+      value: number;
+      cost: AbstractPurchase["cost"];
+      originTags?: Id<GID.OriginTag>[];
+    },
+    sid: Id<GID.Supplement>,
+  ): number => {
+    const raw = purchaseValue(p.value, p.cost);
+    const effective = typeof raw === "number" ? raw : 0;
+    if (p.cost.modifier !== CostModifier.Full || effective <= 0)
+      return effective;
+    const supp = chain.supplements.O[sid];
+    const active = supp?.activeOriginTags?.[charId];
+    if (!supp || !active?.length || !p.originTags?.length) return effective;
+    if (!p.originTags.some(t => active.includes(t))) return effective;
+    return p.value <= (supp.originTagFreeThreshold ?? 50)
+      ? 0
+      : Math.floor(p.value / 2);
+  };
   const suppBudgets: Lookup<GID.Supplement, number> = {};
   if (jumpChunks) {
     const currentChunkIdx = jumpChunks.findIndex(chunk =>
@@ -908,8 +932,10 @@ export function adjustBudget(
             for (const pId of j.supplementPurchases?.[charId]?.[sid] ?? []) {
               const p = chain.purchases.O[pId];
               if (!p || typeof p.value !== "number" || p.value <= 0) continue;
-              const effective = purchaseValue(p.value, p.cost);
-              if (typeof effective === "number") sb -= effective;
+              sb -= suppPurchaseCost(
+              { value: p.value, cost: p.cost, originTags: "originTags" in p ? p.originTags : undefined },
+              sid,
+            );
             }
           }
         }
@@ -922,8 +948,10 @@ export function adjustBudget(
           for (const pId of j.supplementPurchases?.[charId]?.[sid] ?? []) {
             const p = chain.purchases.O[pId];
             if (!p || typeof p.value !== "number" || p.value <= 0) continue;
-            const effective = purchaseValue(p.value, p.cost);
-            if (typeof effective === "number") sb -= effective;
+            sb -= suppPurchaseCost(
+              { value: p.value, cost: p.cost, originTags: "originTags" in p ? p.originTags : undefined },
+              sid,
+            );
           }
         }
 

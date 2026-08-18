@@ -8,9 +8,12 @@ import { JumpSourceType, type JumpSource } from "@/chain/data/Jump";
 import { PurchaseType } from "@/chain/data/Purchase";
 import { createId, type GID, type Id } from "@/chain/data/types";
 import {
+  useActiveOriginTags,
   useAllCharacters,
   useCharacter,
   useChainSupplement,
+  useSupplementOriginTagActions,
+  useSupplementOriginTags,
   useJumpSupplementImports,
   useJumpSupplementPurchases,
   useJumpSupplementScenarios,
@@ -525,6 +528,53 @@ function SupplementImportsSection({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// OriginTagBar — toggleable chips for the origin tags the character has
+// (e.g. unlocked EBM essences). Toggling reprices tagged purchases chain-wide.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function OriginTagBar({
+  suppId,
+  charId,
+}: {
+  suppId: Id<GID.Supplement>;
+  charId: Id<GID.Character>;
+}) {
+  const tags = useSupplementOriginTags(suppId);
+  const active = useActiveOriginTags(suppId, charId);
+  const { toggleActive } = useSupplementOriginTagActions(suppId);
+
+  const entries = Object.entries(tags?.O ?? {}) as [string, string][];
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 px-4 py-2 border border-edge bg-surface">
+      <span className="text-xs text-muted shrink-0">Origins:</span>
+      {entries.map(([idStr, name]) => {
+        const tagId = createId<GID.OriginTag>(+idStr);
+        const isOn = active?.includes(tagId) ?? false;
+        return (
+          <button
+            key={idStr}
+            type="button"
+            onClick={() => toggleActive(charId, tagId)}
+            title={
+              isOn
+                ? "Active — tagged purchases are discounted. Click to deactivate."
+                : "Inactive. Click to activate and discount tagged purchases."
+            }
+            className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${
+              isOn
+                ? "bg-accent text-surface border-accent"
+                : "bg-tint text-muted border-edge hover:border-accent hover:text-accent"
+            }`}
+          >
+            {name || <em className="opacity-60">Unnamed</em>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function SupplementTab() {
   const { chainId, charId, jumpId, supplementId } = Route.useParams();
@@ -582,6 +632,7 @@ function SupplementTab() {
         showInvestment={showInvestment}
         maxInvestment={supplement.maxInvestment ?? 0}
       />
+      <OriginTagBar suppId={suppGid} charId={charGid} />
       <PreviousSupplementPurchasesSection
         jumpId={jumpGid}
         charId={charGid}
